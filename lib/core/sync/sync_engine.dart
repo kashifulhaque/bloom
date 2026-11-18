@@ -18,7 +18,9 @@
 /// - **Push** upserts dirty records. The server skips stale versions, so a
 ///   row missing from the reply is fetched and merged instead.
 /// - A device that hasn't finished its first download adopts the server's
-///   copy of every record, then uploads only what the server lacks.
+///   copy of every record, then uploads only what the server lacks. That
+///   first download is staged: every page is fetched before any record is
+///   applied, so a failure part way through leaves the device unchanged.
 library;
 
 import 'dart:async';
@@ -151,8 +153,8 @@ class SyncEngine implements SyncHooks {
   Future<SyncReport> _sync() async {
     final report = SyncReport();
     if (!state.joined) {
-      // First run on this device: take the server's records first.
-      await _pull(report);
+      // First run on this device: take the server's records first, all at once.
+      await _pull(report, staged: true);
       state.joined = true;
       _scanAll = true;
     }
@@ -170,19 +172,37 @@ class SyncEngine implements SyncHooks {
     return report;
   }
 
-  Future<void> _pull(SyncReport report) async {
+  /// Downloads rows changed since the cursor and merges them. When [staged],
+  /// it holds every page until the last one arrives and only then merges, so
+  /// an error leaves the store and the cursor untouched.
+  Future<void> _pull(SyncReport report, {bool staged = false}) async {
     final saved = state.cursor;
     var after = saved == null ? null : PullCursor(_minus(saved.updatedAt, overlap), '');
+    final held = <RemoteRow>[];
+    PullCursor? newest;
     while (true) {
       final rows = await service.pull(after: after, limit: pageSize);
       if (rows.isEmpty) break;
       report.pulled += rows.length;
-      await _merge(rows, report);
       final last = rows.last;
       after = PullCursor(last.updatedAt!, last.recordId);
-      if (state.cursor == null || _later(last.updatedAt!, state.cursor!.updatedAt)) state.cursor = after;
+      if (staged) {
+        held.addAll(rows);
+        newest = after;
+      } else {
+        await _merge(rows, report);
+        _advance(after);
+      }
       if (rows.length < pageSize) break;
     }
+    if (staged) {
+      await _merge(held, report);
+      if (newest != null) _advance(newest);
+    }
+  }
+
+  void _advance(PullCursor to) {
+    if (state.cursor == null || _later(to.updatedAt, state.cursor!.updatedAt)) state.cursor = to;
   }
 
   Future<void> _merge(List<RemoteRow> rows, SyncReport report) async {

@@ -215,30 +215,83 @@ class SyncController extends ChangeNotifier {
 
   /// Unlocks sync on a new device with the account's recovery phrase.
   Future<void> unlock(String phraseText) => _action(() async {
-        final phrase = RecoveryPhrase.parse(phraseText);
-        final service = _service!;
-        final wrapped = await service.fetchKey();
-        if (wrapped == null) {
-          _set(SyncPhase.needsSetup);
-          throw const SyncServiceException('This account has no synced data yet. Set up sync instead.');
-        }
-        if (!wrapped.params.supported) {
-          throw const SyncServiceException('This account\'s key needs a newer version of Bloom.');
-        }
-        final kek = await SyncCrypto.deriveKek(phrase.entropy, wrapped.salt, wrapped.params);
-        final dataKey = await SyncCrypto.unwrapDataKey(wrapped.wrappedKey, kek);
-        final key = StoredKey(service.userId!, dataKey);
+        final key = await _unwrapKey(phraseText);
         await keyStore.write(key);
         await _activate(key);
       }).then((_) => phase == SyncPhase.active ? syncNow() : null);
 
+  /// Restores an account onto a device that hasn't finished onboarding.
+  ///
+  /// Unlike [unlock], it waits for the first download and reports a failure
+  /// in [actionError]. Until every record has arrived, nothing is applied or
+  /// saved, so a failure leaves the device as it was and the user can try
+  /// again. Any sync state saved on the device is ignored: the account's copy
+  /// wins. When it succeeds, sync is on exactly as after [unlock], and a
+  /// device with an app-lock PIN is locked.
+  Future<void> restore(String phraseText) => _action(() async {
+        final key = await _unwrapKey(phraseText);
+        await keyStore.write(key);
+        await _attach(key, SyncState(userId: key.userId));
+        try {
+          lastReport = await _engine!.sync();
+          syncError = _unreadable(lastReport!);
+        } catch (e) {
+          if (!_state!.joined) {
+            // Nothing was applied yet: undo, so the device is unchanged.
+            await _stop();
+            rethrow;
+          }
+          // The data arrived; only the upload after it failed. Retry later.
+          syncError = _describe(e);
+        }
+        await _saveState();
+        store.lock();
+        _set(SyncPhase.active);
+      });
+
+  /// Leaves sign-in before sync is on, from any step: signs out when signed
+  /// in and forgets the address. Does nothing while sync is on.
+  Future<void> cancelSignIn() async {
+    if (phase == SyncPhase.active || !configured) return;
+    email = null;
+    newPhrase = null;
+    if (_service?.userId != null) {
+      await _action(() => _service!.signOut());
+    }
+    actionError = null;
+    _set(SyncPhase.signedOut);
+  }
+
+  /// Fetches the account's wrapped key and opens it with the phrase.
+  Future<StoredKey> _unwrapKey(String phraseText) async {
+    final phrase = RecoveryPhrase.parse(phraseText);
+    final service = _service!;
+    final wrapped = await service.fetchKey();
+    if (wrapped == null) {
+      _set(SyncPhase.needsSetup);
+      throw const SyncServiceException('This account has no synced data yet. Set up sync instead.');
+    }
+    if (!wrapped.params.supported) {
+      throw const SyncServiceException('This account\'s key needs a newer version of Bloom.');
+    }
+    final kek = await SyncCrypto.deriveKek(phrase.entropy, wrapped.salt, wrapped.params);
+    final dataKey = await SyncCrypto.unwrapDataKey(wrapped.wrappedKey, kek);
+    return StoredKey(service.userId!, dataKey);
+  }
+
   Future<void> _activate(StoredKey key) async {
-    final crypto = await SyncCrypto.fromDataKey(key.dataKey);
     var state = await _loadState();
     if (state == null || state.userId != key.userId) {
       // A different account than last time: start over.
       state = SyncState(userId: key.userId);
     }
+    await _attach(key, state);
+    _set(SyncPhase.active);
+  }
+
+  /// Builds the engine for [key] and hooks it into the store.
+  Future<void> _attach(StoredKey key, SyncState state) async {
+    final crypto = await SyncCrypto.fromDataKey(key.dataKey);
     _state = state;
     _engine?.detach();
     _engine = SyncEngine(
@@ -249,7 +302,6 @@ class SyncController extends ChangeNotifier {
       onLocalChange: _scheduleSync,
       onLocalReset: _onLocalReset,
     )..attach();
-    _set(SyncPhase.active);
   }
 
   Future<SyncState?> _loadState() async {
@@ -287,9 +339,7 @@ class SyncController extends ChangeNotifier {
     notifyListeners();
     try {
       lastReport = await engine.sync();
-      syncError = lastReport!.unreadable > 0
-          ? '${lastReport!.unreadable} synced ${lastReport!.unreadable == 1 ? 'record' : 'records'} couldn\'t be read.'
-          : null;
+      syncError = _unreadable(lastReport!);
     } catch (e) {
       syncError = _describe(e);
       debugPrint('Sync failed: $e');
@@ -371,6 +421,10 @@ class SyncController extends ChangeNotifier {
     phase = p;
     notifyListeners();
   }
+
+  static String? _unreadable(SyncReport r) => r.unreadable == 0
+      ? null
+      : '${r.unreadable} synced ${r.unreadable == 1 ? 'record' : 'records'} couldn\'t be read.';
 
   static String _describe(Object e) => switch (e) {
         SyncServiceException() || InvalidPhraseException() || WrongPhraseException() => e.toString(),

@@ -181,6 +181,19 @@ This section lists the decisions that differ from, or extend, the plan.
   download, downloaded records replace local ones. Then local records that the account
   doesn't have are uploaded. Without this rule, the profile from a new device's
   onboarding would overwrite the account's profile.
+- **The first download is staged.** A joining device fetches every page before it applies
+  any record, then applies them all at once. A dropped connection part way through leaves
+  the device's data and the pull cursor unchanged.
+- **Restoring from onboarding.** **Already have an account?** on the welcome page signs
+  in and unlocks with the same `SyncController` steps as **You > Sync**, but calls
+  `restore()` instead of `unlock()`. `restore()` waits for the first download and reports
+  a failure to the user. Until the download finishes, it saves nothing: on failure it
+  removes the key, so the device is still on the welcome page, unchanged. It always starts
+  from a new sync state, so a state left over from an earlier sign-out can't mark the
+  account's records as deleted. The restored profile sets `onboarded`, which moves the app
+  to **Today**, or to the lock screen when the device has an app-lock PIN. An account
+  without a `sync_keys` row isn't given a key: the user chooses between setting up Bloom
+  as new, which opens sync setup with a new phrase after the questions, and going back.
 - **Change tracking.** `AppStore` reports exactly which records each method changes. A
   plain `commit()` (used by code that edits the store directly) triggers a full rescan.
   Profile and feature records are rescanned before every sync, and every record is

@@ -4,7 +4,6 @@ library;
 
 import 'dart:math';
 
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../core/sync/sync_controller.dart';
 import '../../widgets/widgets.dart';
 import '../settings/settings_widgets.dart';
+import 'sync_steps.dart';
 
 /// The app's [SyncController], or null when none is provided (for example,
 /// in widget tests of other screens).
@@ -86,36 +86,7 @@ class _SyncScreenState extends State<SyncScreen> {
 
 // ---------------------------------------------------------------- shared
 
-TextStyle _muted(BuildContext context) =>
-    Theme.of(context).textTheme.bodyMedium!.copyWith(color: BloomColors.of(context).ink2);
-
-/// The last action's error, in the error tone, or nothing.
-class _ActionError extends StatelessWidget {
-  const _ActionError();
-
-  @override
-  Widget build(BuildContext context) {
-    final error = context.select<SyncController, String?>((s) => s.actionError);
-    return AnimatedSize(
-      duration: Motion.medium,
-      curve: Motion.curve,
-      child: error == null
-          ? const SizedBox(width: double.infinity)
-          : Padding(
-              padding: const EdgeInsets.only(top: Space.md),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  error,
-                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                        color: readableTint(BloomColors.error, Theme.of(context).brightness),
-                      ),
-                ),
-              ),
-            ),
-    );
-  }
-}
+TextStyle _muted(BuildContext context) => syncMuted(context);
 
 /// A column of Almanac sections with the standard spacing.
 class _Sections extends StatelessWidget {
@@ -188,30 +159,11 @@ class _Starting extends StatelessWidget {
 
 // ---------------------------------------------------------------- intro and email
 
-class _Intro extends StatefulWidget {
+class _Intro extends StatelessWidget {
   const _Intro();
 
   @override
-  State<_Intro> createState() => _IntroState();
-}
-
-class _IntroState extends State<_Intro> {
-  final _email = TextEditingController();
-  bool _understood = false;
-
-  @override
-  void dispose() {
-    _email.dispose();
-    super.dispose();
-  }
-
-  bool get _valid => RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.text.trim());
-
-  @override
   Widget build(BuildContext context) {
-    final sync = context.watch<SyncController>();
-    final theme = Theme.of(context);
-    final p = BloomColors.of(context);
     return _Sections(children: [
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -258,126 +210,18 @@ class _IntroState extends State<_Intro> {
           Gap.v8,
           Text('Sign in with a 6-digit code sent to your email. There\'s no password.', style: _muted(context)),
           Gap.v12,
-          TextField(
-            key: const ValueKey('sync-email'),
-            controller: _email,
-            keyboardType: TextInputType.emailAddress,
-            autocorrect: false,
-            autofillHints: const [AutofillHints.email],
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(labelText: 'Email address'),
-            onChanged: (_) => setState(() {}),
-          ),
-          Gap.v16,
-          Pressable(
-            onTap: () => setState(() => _understood = !_understood),
-            semanticLabel: 'I understand that only my recovery phrase can unlock synced data',
-            selected: _understood,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ExcludeSemantics(
-                  child: Checkbox(
-                    key: const ValueKey('sync-understood'),
-                    value: _understood,
-                    onChanged: (v) => setState(() => _understood = v ?? false),
-                  ),
-                ),
-                Gap.h8,
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: Space.md),
-                    child: Text(
-                      'I understand that only my recovery phrase can unlock synced data.',
-                      style: theme.textTheme.bodyMedium!.copyWith(color: p.ink),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Gap.v16,
-          Align(
-            alignment: Alignment.centerLeft,
-            child: InkButton(
-              label: 'Email me a code',
-              loading: sync.busy,
-              onPressed: _valid && _understood ? () => sync.sendCode(_email.text) : null,
-            ),
-          ),
-          const _ActionError(),
+          const SyncEmailForm(acknowledge: true),
         ],
       ),
     ]);
   }
 }
 
-class _CodeStep extends StatefulWidget {
+class _CodeStep extends StatelessWidget {
   const _CodeStep();
 
   @override
-  State<_CodeStep> createState() => _CodeStepState();
-}
-
-class _CodeStepState extends State<_CodeStep> {
-  final _code = TextEditingController();
-
-  @override
-  void dispose() {
-    _code.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sync = context.watch<SyncController>();
-    final p = BloomColors.of(context);
-    final ready = _code.text.trim().length == 6;
-    return _Sections(children: [
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text.rich(TextSpan(children: [
-            TextSpan(text: 'We sent a code to ', style: _muted(context)),
-            TextSpan(text: sync.email ?? 'your email', style: Almanac.mono(size: 14, color: p.ink)),
-            TextSpan(text: '. It expires in 10 minutes.', style: _muted(context)),
-          ])),
-          Gap.v16,
-          TextField(
-            key: const ValueKey('sync-code'),
-            controller: _code,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            autofillHints: const [AutofillHints.oneTimeCode],
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-            style: Almanac.mono(size: 24, color: p.ink, letterSpacing: 6),
-            decoration: const InputDecoration(labelText: '6-digit code'),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => ready ? sync.verifyCode(_code.text) : null,
-          ),
-          Gap.v20,
-          Align(
-            alignment: Alignment.centerLeft,
-            child: InkButton(
-              label: 'Sign in',
-              loading: sync.busy,
-              onPressed: ready ? () => sync.verifyCode(_code.text) : null,
-            ),
-          ),
-          const _ActionError(),
-          Gap.v20,
-          Wrap(
-            spacing: Space.xxl,
-            runSpacing: Space.sm,
-            children: [
-              InkLink('Send a new code', onTap: sync.busy ? null : () => sync.sendCode(sync.email!)),
-              InkLink('Use a different email', onTap: sync.busy ? null : sync.changeEmail),
-            ],
-          ),
-        ],
-      ),
-    ]);
-  }
+  Widget build(BuildContext context) => const _Sections(children: [SyncCodeForm()]);
 }
 
 // ---------------------------------------------------------------- first device
@@ -480,7 +324,7 @@ class _SetupStepState extends State<_SetupStep> {
                   InkLink('Show the words again', onTap: sync.busy ? null : () => setState(() => _confirming = false)),
                 ],
               ),
-              const _ActionError(),
+              const SyncActionError(),
             ],
           ),
         ],
@@ -527,26 +371,12 @@ class _PhraseList extends StatelessWidget {
 
 // ---------------------------------------------------------------- new device
 
-class _UnlockStep extends StatefulWidget {
+class _UnlockStep extends StatelessWidget {
   const _UnlockStep();
-
-  @override
-  State<_UnlockStep> createState() => _UnlockStepState();
-}
-
-class _UnlockStepState extends State<_UnlockStep> {
-  final _phrase = TextEditingController();
-
-  @override
-  void dispose() {
-    _phrase.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final sync = context.watch<SyncController>();
-    final count = RecoveryPhrase.normalize(_phrase.text).length;
     return _Sections(children: [
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -558,28 +388,7 @@ class _UnlockStepState extends State<_UnlockStep> {
             style: _muted(context),
           ),
           Gap.v16,
-          TextField(
-            key: const ValueKey('sync-phrase'),
-            controller: _phrase,
-            minLines: 3,
-            maxLines: 4,
-            autocorrect: false,
-            enableSuggestions: false,
-            enableIMEPersonalizedLearning: false,
-            keyboardType: TextInputType.visiblePassword,
-            decoration: InputDecoration(labelText: 'Recovery phrase', helperText: '$count of 12 words'),
-            onChanged: (_) => setState(() {}),
-          ),
-          Gap.v20,
-          Align(
-            alignment: Alignment.centerLeft,
-            child: InkButton(
-              label: sync.busy ? 'Unlocking…' : 'Unlock',
-              loading: sync.busy,
-              onPressed: count == RecoveryPhrase.wordCount ? () => sync.unlock(_phrase.text) : null,
-            ),
-          ),
-          const _ActionError(),
+          SyncPhraseForm(label: 'Unlock', busyLabel: 'Unlocking…', onSubmit: (sync, phrase) => sync.unlock(phrase)),
         ],
       ),
       _AccountActions(lostPhrase: true),

@@ -1,4 +1,6 @@
-/// First-run questionnaire: goal, profile basics, and cycle defaults.
+/// First-run questionnaire: goal, profile basics, and cycle defaults. The
+/// welcome page also offers **Already have an account?**, which restores
+/// synced data instead (see [RestoreFlow]).
 library;
 
 import 'package:material_ui/material_ui.dart';
@@ -7,10 +9,13 @@ import 'package:provider/provider.dart';
 import '../../core/dates.dart';
 import '../../core/models.dart';
 import '../../core/store.dart';
+import '../../core/sync/sync_controller.dart';
 import '../../widgets/widgets.dart';
 import '../downloads/get_app_screen.dart';
 import '../log/almanac_rows.dart';
+import '../sync/sync_screen.dart';
 import 'demo_data.dart';
+import 'restore_flow.dart';
 
 enum _Step {
   welcome,
@@ -54,6 +59,13 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
+
+  /// Showing the restore flow instead of the questions.
+  bool _restoring = false;
+
+  /// The user signed in to an account with no synced data and chose to set
+  /// up a new one: open sync setup when onboarding finishes.
+  bool _setUpSyncAfter = false;
 
   /// Direction of the last step change: 1 forward, -1 back.
   int _dir = 1;
@@ -121,11 +133,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _back() {
     if (_index > 0) {
       FocusScope.of(context).unfocus();
+      if (_index == 1 && _setUpSyncAfter) {
+        // Back to the welcome page undoes the sign-in, as cancelling does.
+        _setUpSyncAfter = false;
+        context.read<SyncController>().cancelSignIn();
+      }
       setState(() {
         _dir = -1;
         _index--;
       });
     }
+  }
+
+  void _continueFromRestore({required bool setUpSync}) {
+    setState(() {
+      _restoring = false;
+      _setUpSyncAfter = setUpSync;
+      _dir = 1;
+      _index = 1;
+    });
   }
 
   void _finish() {
@@ -152,6 +178,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ..conditions = _conds.toList()
         ..onboarded = true;
     });
+    if (_setUpSyncAfter) {
+      // Home replaces onboarding underneath; sync setup opens over it and
+      // shows the new recovery phrase.
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SyncScreen()));
+    }
   }
 
   String? get _eyebrow => switch (_step) {
@@ -166,9 +197,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: Motion.medium,
+      switchInCurve: Motion.curve,
+      child: _restoring
+          ? RestoreFlow(
+              key: const ValueKey('restore'),
+              onCancel: () => setState(() => _restoring = false),
+              onContinueOnboarding: _continueFromRestore,
+            )
+          : KeyedSubtree(key: const ValueKey('questions'), child: _questions(context)),
+    );
+  }
+
+  Widget _questions(BuildContext context) {
     final p = BloomColors.of(context);
     final isLast = _index == _steps.length - 1;
     final welcome = _step == _Step.welcome;
+    // Only builds with a sync server can restore an account.
+    final canRestore = welcome && (watchSync(context)?.configured ?? false);
     final total = _steps.length - 1;
     return Scaffold(
       body: SafeArea(
@@ -240,15 +287,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hairline))),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.lg),
-                    child: InkButton(
-                      expanded: true,
-                      icon: isLast ? Icons.check : null,
-                      onPressed: _canContinue ? _next : null,
-                      label: switch (_step) {
-                        _Step.welcome => 'Get started',
-                        _ when isLast => 'Finish',
-                        _ => 'Continue',
-                      },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkButton(
+                          expanded: true,
+                          icon: isLast ? Icons.check : null,
+                          onPressed: _canContinue ? _next : null,
+                          label: switch (_step) {
+                            _Step.welcome => 'Get started',
+                            _ when isLast => 'Finish',
+                            _ => 'Continue',
+                          },
+                        ),
+                        if (canRestore) ...[
+                          Gap.v12,
+                          InkLink(
+                            'Already have an account?',
+                            key: const ValueKey('onboarding-restore'),
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              setState(() => _restoring = true);
+                            },
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),

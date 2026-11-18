@@ -3,11 +3,11 @@
 ///
 /// The PDF embeds the app's bundled Hanken Grotesk and IBM Plex Mono from
 /// `assets/fonts`, so body text and marginalia match the app and work
-/// offline. The serif lines (title, numerals, italic units) use the PDF
-/// built-in Times: the `pdf` package can't set variable-font axes, and the
-/// bundled Fraunces file defaults to its heaviest, smallest-optical-size
-/// instance (wght 600, opsz 9), which reads as a heavy display face rather
-/// than the light Fraunces the app draws.
+/// offline. The serif lines (title, numerals, italic units) use static
+/// Fraunces cuts from `assets/pdf` (roman at weight 350 and italic at
+/// weight 320, both at optical size 72). The `pdf` package can't set
+/// variable-font axes, so these are instanced from the app's variable
+/// Fraunces files; see `bloom_docs/DESIGN.md` for how to rebuild them.
 ///
 /// If the bundled fonts can't be loaded (for example in a plain unit test
 /// without a Flutter binding), the PDF falls back to built-in Helvetica and
@@ -45,6 +45,7 @@ class _Fonts {
     required this.mono,
     required this.monoMedium,
     required this.supports,
+    required this.serifSupports,
     required this.embedded,
   });
 
@@ -60,14 +61,16 @@ class _Fonts {
   final bool embedded;
   final bool Function(int rune) supports;
 
+  /// The characters the serif can draw.
+  final bool Function(int rune) serifSupports;
+
   /// [v] with every character the fonts can't draw replaced by `?`.
   /// Typographic punctuation the fonts lack falls back to its plain ASCII
   /// form first, so a note with curly quotes stays readable.
   String clean(String v) => _replace(v, supports);
 
-  /// Like [clean], for text set in the serif, which is built-in Times
-  /// (Latin-1 only).
-  String cleanSerif(String v) => _replace(v, _latin1);
+  /// Like [clean], for text set in the serif.
+  String cleanSerif(String v) => _replace(v, serifSupports);
 
   static String _replace(String v, bool Function(int) ok) {
     final out = StringBuffer();
@@ -104,23 +107,34 @@ class _Fonts {
       final d = await rootBundle.load('assets/fonts/$name');
       return ByteData.sublistView(Uint8List.fromList(d.buffer.asUint8List(d.offsetInBytes, d.lengthInBytes)));
     }
+
+    Future<ByteData> fp(String name) async {
+      final d = await rootBundle.load('assets/pdf/$name');
+      return ByteData.sublistView(Uint8List.fromList(d.buffer.asUint8List(d.offsetInBytes, d.lengthInBytes)));
+    }
     final data = await Future.wait([
       f('HankenGrotesk-400.ttf'),
       f('HankenGrotesk-600.ttf'),
       f('IBMPlexMono-Regular.ttf'),
       f('IBMPlexMono-Medium.ttf'),
     ]);
+    final serifData = await Future.wait([
+      fp('Fraunces-Light.ttf'),
+      fp('Fraunces-LightItalic.ttf'),
+    ]);
     // Only characters both families can draw, so no style shows a blank box.
     Set<int> map(ByteData d) => TtfParser(d).charToGlyphIndexMap.keys.toSet();
     final common = map(data[0]).intersection(map(data[2]));
+    final serifCommon = map(serifData[0]).intersection(map(serifData[1]));
     return _Fonts(
-      serif: pw.Font.times(),
-      serifItalic: pw.Font.timesItalic(),
+      serif: pw.Font.ttf(serifData[0]),
+      serifItalic: pw.Font.ttf(serifData[1]),
       sans: pw.Font.ttf(data[0]),
       sansBold: pw.Font.ttf(data[1]),
       mono: pw.Font.ttf(data[2]),
       monoMedium: pw.Font.ttf(data[3]),
       supports: (r) => r < 0x20 ? r == 0x0A : common.contains(r),
+      serifSupports: (r) => r < 0x20 ? r == 0x0A : serifCommon.contains(r),
       embedded: true,
     );
   }
@@ -134,6 +148,7 @@ class _Fonts {
     monoMedium: pw.Font.courierBold(),
     // The built-in fonts cover Latin-1 only.
     supports: _latin1,
+    serifSupports: _latin1,
     embedded: false,
   );
 }

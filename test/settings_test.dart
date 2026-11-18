@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:bloom/core/dates.dart';
 import 'package:bloom/core/models.dart';
 import 'package:bloom/core/store.dart';
@@ -230,6 +231,10 @@ void main() {
     final bytes = (await tester.runAsync(() => buildReportPdf(buildReportData(store))))!;
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
     expect(lastReportUsedBundledFonts, isTrue);
+    // The serif is the static Fraunces cut, not built-in Times.
+    final pdf = latin1.decode(bytes, allowInvalid: true);
+    expect(pdf, contains('Fraunces'));
+    expect(pdf, isNot(contains('/Times-Roman')));
   });
 
   group('Widgets', () {

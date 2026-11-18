@@ -10,6 +10,8 @@ import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../widgets/widgets.dart';
 import '../analysis/analysis_screen.dart';
+import '../assistant/ai/ai_settings_screen.dart';
+import '../downloads/get_app_screen.dart';
 import '../modes/goal_screen.dart';
 import '../partner/partner_screen.dart';
 import '../reminders/contraception_model.dart';
@@ -179,7 +181,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           ),
           MenuSection(
             title: 'Data & privacy',
-            footer: 'Bloom keeps everything on this device. No account, no server, no analytics.',
+            footer: 'Bloom keeps everything on this device. No account, no server, no analytics. '
+                'Only optional AI answers go online, and only when you turn them on.',
             children: [
               IndexEntry(
                 number: no(),
@@ -189,10 +192,24 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               ),
               IndexEntry(
                 number: no(),
+                title: 'AI answers in Ask',
+                subtitle: 'Optional · sends typed questions online',
+                value: aiStatusLabel(store),
+                onTap: () => _push(const AiSettingsScreen()),
+              ),
+              IndexEntry(
+                number: no(),
                 title: 'About & privacy',
                 subtitle: 'Colophon · open source · offline',
                 onTap: () => _push(const AboutPrivacyScreen()),
               ),
+              if (showGetTheApp)
+                IndexEntry(
+                  number: no(),
+                  title: 'Get the app',
+                  subtitle: 'Android APK · iPhone',
+                  onTap: () => _push(const GetAppScreen()),
+                ),
             ],
           ),
         ],

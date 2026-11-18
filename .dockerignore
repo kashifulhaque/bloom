@@ -1,0 +1,9 @@
+# The image only packages build/web and downloads/. Exclude everything else.
+*
+!build/web/
+!downloads/
+!deploy/nginx/
+build/web/.last_build_id
+# Debug symbols for CanvasKit; not needed at runtime.
+build/web/**/*.symbols
+**/.DS_Store

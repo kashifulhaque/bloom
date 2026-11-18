@@ -901,12 +901,22 @@ const _topicWords = <String, List<String>>{
   'checker': ['pcos', 'endometriosis', 'endo', 'fibroid', 'checker', 'quiz me'],
 };
 
-/// Responds to free text: safety words first, then topic keywords, then
-/// matching articles, then a fallback.
-BotStep respondToText(String text, AppStore s) {
+/// Returns the local safety response when [text] mentions a crisis or an
+/// emergency, or null otherwise. These messages always get the scripted
+/// answer and are never sent to an AI model.
+BotStep? safetyStep(String text, AppStore s) {
   final q = text.toLowerCase();
   if (_crisisWords.any(q.contains)) return buildStep('crisis', s);
   if (_urgentWords.any(q.contains)) return buildStep('urgent', s);
+  return null;
+}
+
+/// Responds to free text: safety words first, then topic keywords, then
+/// matching articles, then a fallback.
+BotStep respondToText(String text, AppStore s) {
+  final safety = safetyStep(text, s);
+  if (safety != null) return safety;
+  final q = text.toLowerCase();
 
   String? best;
   var bestScore = 0;

@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloom design samples</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:ital,wght@1,500&family=DM+Sans:wght@400;500;700&family=Figtree:wght@400;500;600&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..600,50;1,9..144,300,50&family=Gabarito:wght@700;800;900&family=Geist+Mono:wght@500&family=Geist:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono&family=Instrument+Serif:ital@1&family=Inter:wght@300;400;500&family=Manrope:wght@400;500;600&family=Sora:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  :root { --page:#ECE9E4; --pageInk:#222; }
+  body { margin:0; background:var(--page); color:var(--pageInk); font-family:Inter, system-ui, sans-serif; }
+  body.dark { --page:#101012; --pageInk:#eee; }
+  header.top { max-width:1240px; margin:0 auto; padding:32px 24px 8px; display:flex; flex-wrap:wrap; gap:16px; align-items:end; justify-content:space-between; }
+  header.top h1 { margin:0; font-weight:500; font-size:28px; letter-spacing:-.02em; }
+  header.top p { margin:6px 0 0; opacity:.65; font-size:14px; max-width:620px; line-height:1.5; }
+  .toggle { border:1px solid currentColor; background:transparent; color:inherit; border-radius:999px; padding:8px 16px; font:500 14px Inter; cursor:pointer; }
+  .grid { max-width:1240px; margin:0 auto; padding:16px 24px 48px; display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:32px 24px; }
+  .sample h2 { font-size:18px; font-weight:500; margin:0 0 2px; }
+  .sample .tag { font-size:13px; opacity:.6; margin:0 0 12px; }
+  .phone { width:340px; height:720px; border-radius:44px; overflow:hidden; position:relative; box-shadow:0 30px 60px -20px rgba(0,0,0,.35), 0 0 0 8px #1b1b1d; margin:0 auto; isolation:isolate; }
+  .phone * { box-sizing:border-box; }
+  .status { height:34px; display:flex; justify-content:space-between; align-items:center; padding:0 26px; font:600 12px Inter; color:var(--ink); opacity:.85; position:relative; z-index:3; }
+  svg text { user-select:none; }
+
+  /* ---------- 1 Almanac ---------- */
+  .almanac { --bg:#F6F1E7; --raise:#FBF8F2; --line:#E2D9C8; --ink:#2A2420; --ink2:#6E645A; --period:#A23B2A; --fertile:#4F6B5A; --foll:#C7A15A; --lut:#7A5C7E; background:var(--bg); color:var(--ink); font-family:'Hanken Grotesk'; }
+  .dark .almanac { --bg:#1A1714; --raise:#23201C; --line:#3A342D; --ink:#EFE7DA; --ink2:#A79C8D; --period:#E07A63; --fertile:#8DB09A; --foll:#E0BE7A; --lut:#B79BBB; }
+  .almanac .grain { position:absolute; inset:0; pointer-events:none; opacity:.05; z-index:2; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .dark .almanac .grain { opacity:.03; }
+  .almanac .wrap { padding:6px 26px 0 26px; }
+  .almanac .mono { font-family:'IBM Plex Mono'; font-size:10.5px; letter-spacing:.08em; color:var(--ink2); text-transform:uppercase; }
+  .almanac h3 { font-family:Fraunces; font-weight:350; font-size:34px; line-height:1.05; margin:6px 0 0; letter-spacing:-.01em; font-variation-settings:'opsz' 144, 'SOFT' 50; }
+  .almanac h3 em { font-weight:300; }
+  .almanac .dial { display:flex; justify-content:center; margin:14px 0 6px; }
+  .almanac .rule { height:1px; background:var(--line); margin:14px 0; }
+  .almanac .ledger { display:flex; justify-content:space-between; }
+  .almanac .ledger div { text-align:center; width:34px; }
+  .almanac .ledger b { display:block; font-family:Fraunces; font-weight:400; font-size:19px; margin-top:4px; }
+  .almanac .ledger .p b { color:var(--period); }
+  .almanac .ledger .f b { color:var(--fertile); }
+  .almanac .ledger .t b { border-bottom:1.5px solid var(--ink); }
+  .almanac .note { display:grid; grid-template-columns:62px 1fr; gap:8px; }
+  .almanac .note p { margin:0; font-size:14px; line-height:1.55; color:var(--ink); }
+  .almanac .note p em { font-family:Fraunces; font-style:italic; font-weight:300; font-size:17px; }
+  .almanac nav { position:absolute; bottom:0; left:0; right:0; padding:14px 26px 26px; display:flex; justify-content:space-between; font-weight:500; font-size:13px; color:var(--ink2); border-top:1px solid var(--line); background:var(--bg); z-index:1; }
+  .almanac nav .on { color:var(--ink); text-decoration:underline; text-underline-offset:6px; text-decoration-thickness:1.5px; }
+  .almanac .log { display:inline-flex; gap:8px; align-items:center; border:1px solid var(--ink); border-radius:7px; padding:9px 14px; font-weight:600; font-size:13px; margin-top:12px; }
+
+  /* ---------- 2 Bloom Field ---------- */
+  .field { --bg:#FBF4EE; --ink:#2B1E24; --ink2:#7B6670; --glass:rgba(255,255,255,.7); --m1:#E2574C; --m2:#F29C8B; --o1:#6FB8A6; --o2:#BFE3D6; --l1:#9D7BC7; --l2:#D9C6EE; --f1:#F4C77B; background:var(--bg); color:var(--ink); font-family:Figtree; }
+  .dark .field { --bg:#16110F; --ink:#F5ECE6; --ink2:#B5A39C; --glass:rgba(40,30,28,.6); --o1:#4FA591; --o2:#1F4A44; --m1:#D9473F; --l1:#8A66BC; }
+  .field .grain { position:absolute; inset:0; pointer-events:none; opacity:.09; mix-blend-mode:multiply; z-index:2; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .dark .field .grain { mix-blend-mode:screen; opacity:.05; }
+  .field .glow { position:absolute; width:420px; height:420px; left:-40px; top:90px; border-radius:50%; background:radial-gradient(circle, var(--o2) 0%, transparent 65%); opacity:.9; z-index:0; }
+  .field .wrap { position:relative; z-index:1; padding:4px 24px; }
+  .field .hello { font-size:14px; color:var(--ink2); }
+  .field h3 { font-family:'Bricolage Grotesque'; font-weight:700; font-size:30px; margin:2px 0 0; letter-spacing:-.02em; font-variation-settings:'opsz' 96; }
+  .field .hero { position:relative; height:300px; display:flex; align-items:center; justify-content:center; }
+  .field .hero .big { position:absolute; text-align:center; color:#fff; }
+  .dark .field .hero .big { color:#F5ECE6; }
+  .field .hero .big b { font-family:'Bricolage Grotesque'; font-weight:800; font-size:92px; line-height:.9; display:block; letter-spacing:-.04em; }
+  .field .hero .big span { font-weight:600; font-size:14px; }
+  .field .pills { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:-4px; }
+  .field .pill { background:var(--glass); backdrop-filter:blur(14px); border-radius:999px; padding:9px 14px; font-weight:600; font-size:13px; }
+  .field .card { margin-top:14px; background:var(--glass); backdrop-filter:blur(16px); border-radius:30px; padding:16px 18px; display:flex; gap:14px; align-items:center; }
+  .field .pebble { width:46px; height:42px; border-radius:48% 52% 45% 55% / 55% 45% 55% 45%; background:linear-gradient(140deg, var(--l1), var(--l2)); flex:none; }
+  .field .card p { margin:0; font-size:13.5px; line-height:1.45; color:var(--ink2); }
+  .field .card b { color:var(--ink); font-size:15px; display:block; margin-bottom:2px; }
+  .field nav { position:absolute; left:50%; transform:translateX(-50%); bottom:22px; background:var(--glass); backdrop-filter:blur(20px); border-radius:999px; padding:8px; display:flex; gap:6px; z-index:3; box-shadow:0 10px 30px -12px rgba(80,40,40,.35); }
+  .field nav i { width:48px; height:48px; border-radius:50%; display:grid; place-items:center; font-style:normal; color:var(--ink2); }
+  .field nav i.on { background:linear-gradient(140deg, var(--m1), var(--m2)); color:#fff; border-radius:46% 54% 50% 50% / 52% 46% 54% 48%; }
+
+  /* ---------- 3 Bento ---------- */
+  .bento { --bg:#EFEDE8; --tile:#FFFFFF; --tile2:#E4E1DA; --ink:#111; --ink2:#5F5B55; --period:#FF4D3D; --fertile:#2F6BFF; --foll:#FFC53D; --lut:#8E6BFF; background:var(--bg); color:var(--ink); font-family:Geist; }
+  .dark .bento { --bg:#0B0B0C; --tile:#18181A; --tile2:#222226; --ink:#F4F4F2; --ink2:#9A9A9F; --period:#FF5A4A; --fertile:#5B8CFF; --foll:#FFD25C; --lut:#A68BFF; }
+  .bento .wrap { padding:2px 12px; }
+  .bento .lab { font-family:'Geist Mono'; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink2); }
+  .bento .head { display:flex; justify-content:space-between; align-items:center; padding:4px 6px 10px; }
+  .bento .seg { display:flex; background:var(--tile2); border-radius:999px; padding:3px; font-size:12px; font-weight:600; }
+  .bento .seg span { padding:6px 11px; border-radius:999px; color:var(--ink2); }
+  .bento .seg .on { background:var(--tile); color:var(--ink); }
+  .bento .g { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .bento .t { background:var(--tile); border-radius:22px; padding:14px; position:relative; overflow:hidden; }
+  .bento .t.w { grid-column:span 2; }
+  .bento .num { font-family:Archivo; font-weight:900; font-variation-settings:'wdth' 125; letter-spacing:-.03em; line-height:.85; }
+  .bento .hero { height:236px; display:flex; align-items:center; gap:4px; }
+  .bento .hero .num { font-size:128px; position:absolute; left:14px; bottom:-14px; }
+  .bento .hero svg { position:absolute; right:-6px; top:10px; }
+  .bento .flood { background:var(--period); color:#fff; }
+  .bento .flood .lab { color:rgba(255,255,255,.8); }
+  .bento .px { display:grid; grid-template-columns:repeat(29, 1fr); gap:2px; margin-top:10px; }
+  .bento .px i { aspect-ratio:1; border-radius:2px; background:var(--tile2); }
+  .bento .px i.p { background:var(--period); } .bento .px i.f { background:var(--fertile); } .bento .px i.l { background:var(--lut); opacity:.35; }
+  .bento nav { position:absolute; bottom:20px; left:12px; right:12px; background:var(--ink); color:var(--bg); border-radius:999px; display:flex; justify-content:space-around; align-items:center; padding:13px 8px; font-weight:600; font-size:13px; }
+  .bento nav span { opacity:.55 } .bento nav span.on { opacity:1 }
+  .bento nav b { background:var(--period); color:#fff; border-radius:999px; padding:7px 14px; }
+
+  /* ---------- 4 Quiet Mono ---------- */
+  .qm { --bg:#FAFAF9; --surf:#F2F2F0; --line:#E4E4E1; --ink:#18181B; --ink2:#71717A; --ink3:#A1A1AA; --acc:#C8102E; --fert:#3F3F46; background:var(--bg); color:var(--ink); font-family:Inter; }
+  .dark .qm { --bg:#09090B; --surf:#141416; --line:#26262A; --ink:#FAFAFA; --ink2:#A1A1AA; --ink3:#52525B; --acc:#FF4655; --fert:#D4D4D8; }
+  .qm .wrap { padding:10px 28px; }
+  .qm .date { font-size:13px; color:var(--ink2); font-weight:500; display:flex; justify-content:space-between; }
+  .qm .ring { display:flex; justify-content:center; margin:34px 0 26px; }
+  .qm .row { display:flex; justify-content:space-between; padding:15px 0; border-top:1px solid var(--line); font-size:14px; }
+  .qm .row span:last-child { color:var(--ink2); font-variant-numeric:tabular-nums; }
+  .qm .serif { font-family:'Instrument Serif'; font-style:italic; font-size:22px; }
+  .qm .dots { position:absolute; bottom:40px; left:28px; display:flex; gap:6px; }
+  .qm .dots i { width:6px; height:6px; border-radius:50%; background:var(--ink3); } .qm .dots i.on { background:var(--ink); width:18px; border-radius:3px; }
+  .qm .plus { position:absolute; right:24px; bottom:24px; width:56px; height:56px; border-radius:50%; background:var(--ink); color:var(--bg); display:grid; place-items:center; font-size:28px; font-weight:300; }
+
+  /* ---------- 5 Nocturne ---------- */
+  .noct { --bg1:#0B0D1F; --bg2:#1C1433; --glow:rgba(58,42,92,.7); --glass:rgba(255,255,255,.07); --gb:rgba(255,255,255,.12); --ink:#F2EEFA; --ink2:#A9A2C2; --period:#FF7A8A; --fertile:#7FD8E8; --foll:#F6D58E; --lut:#B69CFF; color:var(--ink); font-family:Manrope; background:linear-gradient(180deg, var(--bg1), var(--bg2)); }
+  body:not(.dark) .noct { --bg1:#F4EFFA; --bg2:#FBEDEB; --glow:rgba(182,156,255,.35); --glass:rgba(255,255,255,.6); --gb:rgba(255,255,255,.85); --ink:#1E1A2E; --ink2:#6A6380; --period:#D9455C; --fertile:#2A93A8; --foll:#C79A2E; --lut:#7C5CD6; }
+  .noct .glowbg { position:absolute; width:380px; height:380px; left:-20px; top:80px; background:radial-gradient(circle, var(--glow), transparent 65%); }
+  .noct .stars { position:absolute; inset:0; background-image:radial-gradient(1px 1px at 40px 60px, #fff8 50%, transparent), radial-gradient(1px 1px at 220px 120px, #fff6 50%, transparent), radial-gradient(1.5px 1.5px at 300px 40px, #fff9 50%, transparent), radial-gradient(1px 1px at 120px 500px, #fff5 50%, transparent), radial-gradient(1px 1px at 280px 420px, #fff7 50%, transparent), radial-gradient(1px 1px at 60px 330px, #fff6 50%, transparent); }
+  body:not(.dark) .noct .stars { opacity:.0; }
+  .noct .wrap { position:relative; padding:8px 22px; }
+  .noct .eyebrow { font-size:13px; color:var(--ink2); }
+  .noct h3 { font-family:Sora; font-weight:600; font-size:24px; margin:2px 0 0; }
+  .noct .orbit { position:relative; display:flex; justify-content:center; margin:10px 0 4px; }
+  .noct .center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .noct .center b { font-family:Sora; font-weight:300; font-size:70px; line-height:1; }
+  .noct .center em { font-family:'Cormorant Garamond'; font-style:italic; font-weight:500; font-size:24px; color:var(--fertile); }
+  .noct .glass { background:var(--glass); backdrop-filter:blur(24px); border:1px solid var(--gb); border-radius:26px; padding:15px 18px; margin-top:10px; }
+  .noct .glass p { margin:4px 0 0; font-size:13.5px; line-height:1.5; color:var(--ink2); }
+  .noct .duo { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .noct .duo .glass b { font-family:Sora; font-weight:300; font-size:28px; display:block; }
+  .noct nav { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); background:var(--glass); backdrop-filter:blur(24px); border:1px solid var(--gb); border-radius:999px; display:flex; gap:26px; padding:15px 28px; color:var(--ink2); }
+  .noct nav i { font-style:normal; position:relative; } .noct nav i.on { color:var(--ink); }
+  .noct nav i.on::after { content:''; position:absolute; left:50%; bottom:-8px; width:4px; height:4px; margin-left:-2px; border-radius:50%; background:var(--period); box-shadow:0 0 8px var(--period); }
+
+  /* ---------- 6 Toybox ---------- */
+  .toy { --bg:#FFF6EC; --surf:#FFFFFF; --edge:#E8D9C6; --ink:#2D1B14; --ink2:#7A6458; --period:#FF5C5C; --fertile:#2EC4A6; --foll:#FFB830; --lut:#8C6CF0; --gum:#FF8FB1; background:var(--bg); color:var(--ink); font-family:'DM Sans'; }
+  .dark .toy { --bg:#1E1612; --surf:#2A201B; --edge:#120D0A; --ink:#FFF1E6; --ink2:#C2AA9C; --period:#FF6B6B; --fertile:#3DD6B6; --foll:#FFC24D; --lut:#A08BFF; }
+  .toy .wrap { padding:6px 22px; }
+  .toy h3 { font-family:Gabarito; font-weight:900; font-size:30px; margin:0; letter-spacing:-.01em; }
+  .toy .sub { color:var(--ink2); font-size:14px; font-weight:500; }
+  .toy .flower { display:flex; justify-content:center; margin:6px 0 2px; }
+  .toy .chunk { background:var(--surf); border:2px solid var(--ink); border-radius:24px; box-shadow:0 5px 0 var(--ink); padding:14px 16px; }
+  .toy .btn { display:block; text-align:center; background:var(--fertile); color:#10302A; font-family:Gabarito; font-weight:800; font-size:17px; border:2px solid var(--ink); border-radius:20px; box-shadow:0 5px 0 var(--ink); padding:13px; margin:12px 0; }
+  .toy .stickers { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .toy .st { font-family:Gabarito; font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase; border:2px solid var(--ink); border-radius:999px; padding:5px 10px; transform:rotate(-2deg); }
+  .toy .st:nth-child(2) { transform:rotate(2deg); background:var(--foll); color:#2D1B14; }
+  .toy .st:nth-child(1) { background:var(--gum); color:#2D1B14; }
+  .toy .st:nth-child(3) { background:var(--lut); color:#fff; transform:rotate(-1deg); }
+  .toy nav { position:absolute; bottom:18px; left:18px; right:18px; background:var(--surf); border:2px solid var(--ink); border-radius:26px; box-shadow:0 5px 0 var(--ink); display:flex; justify-content:space-around; align-items:center; padding:8px; font-size:22px; }
+  .toy nav b { width:58px; height:58px; margin-top:-30px; border-radius:20px; background:var(--period); border:2px solid var(--ink); box-shadow:0 5px 0 var(--ink); display:grid; place-items:center; color:#fff; font-size:30px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Bloom: six design directions</h1>
+    <p>The same Today screen (cycle day 14 of 29, fertile window, ovulation likely) drawn in each direction. Pick one, or name a mix, such as "Almanac type with the Bloom Field hero".</p>
+  </div>
+  <button class="toggle" onclick="document.body.classList.toggle('dark')">Switch light / dark</button>
+</header>
+
+<main class="grid">
+
+<!-- 1 Almanac -->
+<section class="sample">
+  <h2>1. Almanac</h2><p class="tag">Editorial serif on paper. Literary, calm, private.</p>
+  <div class="phone almanac"><div class="grain"></div>
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <div class="mono">Cycle 07 · Wednesday, 18 Nov</div>
+      <h3>Day fourteen,<br><em>ovulation likely.</em></h3>
+      <div class="dial" id="almanacDial"></div>
+      <div class="ledger">
+        <div class="f"><span class="mono">M</span><b>12</b></div><div class="f"><span class="mono">T</span><b>13</b></div><div class="f t"><span class="mono">W</span><b>14</b></div><div class="f"><span class="mono">T</span><b>15</b></div><div><span class="mono">F</span><b>16</b></div><div><span class="mono">S</span><b>17</b></div><div><span class="mono">S</span><b>18</b></div>
+      </div>
+      <div class="rule"></div>
+      <div class="note"><span class="mono">Note</span><p><em>Ovulatory.</em> Energy and confidence often peak now. Your next period is expected around 3 December.</p></div>
+      <span class="log">＋ Log today</span>
+    </div>
+    <nav><span class="on">Today</span><span>Calendar</span><span>Journal</span><span>Settings</span></nav>
+  </div>
+</section>
+
+<!-- 2 Bloom Field -->
+<section class="sample">
+  <h2>2. Bloom Field</h2><p class="tag">Organic shapes and grain gradients. Warm, embodied.</p>
+  <div class="phone field"><div class="glow"></div><div class="grain"></div>
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <div class="hello">Good morning, Alex</div>
+      <h3>You're in your fertile window</h3>
+      <div class="hero">
+        <svg width="300" height="300" viewBox="0 0 300 300" id="fieldOrbit"></svg>
+        <div class="big"><b>14</b><span>day of 29</span></div>
+      </div>
+      <div class="pills"><span class="pill">High chance today</span><span class="pill">Period in 15 days</span></div>
+      <div class="card"><div class="pebble"></div><p><b>Feeling energetic?</b>Rising estrogen often lifts mood and energy around ovulation.</p></div>
+    </div>
+    <nav><i class="on">◐</i><i>▦</i><i>✎</i><i>☰</i></nav>
+  </div>
+</section>
+
+<!-- 3 Bento -->
+<section class="sample">
+  <h2>3. Bento Bold</h2><p class="tag">Tile grid, oversized numerals. Confident, data-first.</p>
+  <div class="phone bento">
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <div class="head"><span class="lab">Cycle 07 · Wed 18 Nov</span><div class="seg"><span class="on">Today</span><span>Trends</span></div></div>
+      <div class="g">
+        <div class="t w hero"><span class="lab">Day</span><svg width="170" height="170" viewBox="0 0 170 170" id="bentoRing"></svg><div class="num">14</div></div>
+        <div class="t flood"><span class="lab">Period in</span><div class="num" style="font-size:58px;margin-top:10px">15<span style="font-size:20px"> d</span></div></div>
+        <div class="t"><span class="lab">Pregnancy chance</span><div class="num" style="font-size:34px;margin-top:22px;color:var(--fertile)">HIGH</div></div>
+        <div class="t"><span class="lab">Avg cycle</span><div class="num" style="font-size:44px;margin-top:12px">29</div><svg width="120" height="26" style="margin-top:6px"><polyline points="0,18 20,12 40,16 60,8 80,14 100,10 120,12" style="fill:none;stroke:var(--ink2);stroke-width:2"/></svg></div>
+        <div class="t"><span class="lab">BBT</span><div class="num" style="font-size:34px;margin-top:20px">36.4<span style="font-size:16px">°</span></div></div>
+        <div class="t w"><span class="lab">Last 6 cycles</span><div class="px" id="bentoPx"></div></div>
+      </div>
+    </div>
+    <nav><span class="on">Today</span><span>Calendar</span><b>＋ Log</b><span>Library</span><span>Me</span></nav>
+  </div>
+</section>
+
+<!-- 4 Quiet Mono -->
+<section class="sample">
+  <h2>4. Quiet Mono</h2><p class="tag">Grayscale and one red accent. Minimal, discreet.</p>
+  <div class="phone qm">
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <div class="date"><span>Wednesday 18</span><span>Cycle 7</span></div>
+      <div class="ring" id="monoRing"></div>
+      <div class="row"><span class="serif">Ovulatory phase</span><span></span></div>
+      <div class="row"><span>Next period</span><span>3 Dec · in 15 days</span></div>
+      <div class="row"><span>Chance of pregnancy</span><span>High</span></div>
+      <div class="row"><span>Logged today</span><span>Calm · Egg white</span></div>
+    </div>
+    <div class="dots"><i class="on"></i><i></i><i></i></div>
+    <div class="plus">+</div>
+  </div>
+</section>
+
+<!-- 5 Nocturne -->
+<section class="sample">
+  <h2>5. Nocturne</h2><p class="tag">Lunar glass on deep indigo. Dreamy, nighttime.</p>
+  <div class="phone noct"><div class="stars"></div><div class="glowbg"></div>
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <div class="eyebrow">Tonight · Wednesday 18</div>
+      <h3>Hello, Alex</h3>
+      <div class="orbit"><svg width="296" height="296" viewBox="0 0 296 296" id="noctOrbit"></svg>
+        <div class="center"><b>14</b><em>Ovulation</em></div></div>
+      <div class="duo"><div class="glass"><span style="color:var(--ink2);font-size:12px">Period in</span><b>15 days</b></div><div class="glass"><span style="color:var(--ink2);font-size:12px">Chance</span><b style="color:var(--fertile)">High</b></div></div>
+      <div class="glass"><b style="font-family:Sora;font-weight:600;font-size:15px">Your glow phase</b><p>Many people feel most social and energetic around ovulation.</p></div>
+    </div>
+    <nav><i class="on">◐</i><i>▦</i><i>✦</i><i>☰</i></nav>
+  </div>
+</section>
+
+<!-- 6 Toybox -->
+<section class="sample">
+  <h2>6. Toybox</h2><p class="tag">Chunky, tactile, playful. Joyful and rewarding.</p>
+  <div class="phone toy">
+    <div class="status"><span>9:41</span><span>●●●</span></div>
+    <div class="wrap">
+      <h3>Day 14 🌷</h3>
+      <div class="sub">Fertile window · high chance today</div>
+      <div class="flower" id="toyFlower"></div>
+      <span class="btn">Log how you feel</span>
+      <div class="chunk"><b style="font-family:Gabarito;font-size:17px">Today you logged</b>
+        <div class="stickers"><span class="st">Calm</span><span class="st">Egg white</span><span class="st">Yoga</span></div></div>
+    </div>
+    <nav><span>🏠</span><span>📅</span><b>＋</b><span>📚</span><span>🙂</span></nav>
+  </div>
+</section>
+
+</main>
+
+<script>
+const N = 29, TODAY = 14, PERIOD = [1,5], FERT = [10,15], OV = 15;
+const ns = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+const ang = d => (d - 1) / N * Math.PI * 2 - Math.PI / 2;
+const pt = (cx, cy, r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+function arc(cx, cy, r, d1, d2) { const a1 = ang(d1), a2 = ang(d2 + 1) - 0.0001; const [x1,y1] = pt(cx,cy,r,a1), [x2,y2] = pt(cx,cy,r,a2); const large = a2 - a1 > Math.PI ? 1 : 0; return `M${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2}`; }
+
+// 1 Almanac dial
+(() => { const s = el('svg', {width:250, height:250, viewBox:'0 0 250 250'}, document.getElementById('almanacDial')); const c = 125, r = 98;
+  el('circle', {cx:c, cy:c, r, style:'fill:none;stroke:var(--line);stroke-width:1'}, s);
+  for (let d = 1; d <= N; d++) { const a = ang(d) + Math.PI / N; const long = d % 7 === 1; const [x1,y1] = pt(c,c,r - (long ? 9 : 5),a), [x2,y2] = pt(c,c,r + (long ? 9 : 5),a);
+    el('line', {x1,y1,x2,y2, style:`stroke:var(--ink2);stroke-width:${long?1:.6}`}, s);
+    if (long) { const [tx,ty] = pt(c,c,r + 20,a); const t = el('text', {x:tx, y:ty + 3, 'text-anchor':'middle', style:'font:9px IBM Plex Mono;fill:var(--ink2)'}, s); t.textContent = d; } }
+  el('path', {d:arc(c,c,r,PERIOD[0],PERIOD[1]), style:'fill:none;stroke:var(--period);stroke-width:4;stroke-linecap:round'}, s);
+  el('path', {d:arc(c,c,r - 12,FERT[0],FERT[1]), style:'fill:none;stroke:var(--fertile);stroke-width:2.5;stroke-linecap:round'}, s);
+  el('path', {d:arc(c,c,r - 12,21,28), style:'fill:none;stroke:var(--lut);stroke-width:1.2;stroke-dasharray:2 4'}, s);
+  const [dx,dy] = pt(c,c,r,ang(TODAY) + Math.PI / N); el('circle', {cx:dx, cy:dy, r:5.5, style:'fill:var(--ink)'}, s);
+  let t = el('text', {x:c, y:c + 4, 'text-anchor':'middle', style:"font:300 64px Fraunces;fill:var(--ink);font-variation-settings:'opsz' 144"}, s); t.textContent = '14';
+  t = el('text', {x:c, y:c + 30, 'text-anchor':'middle', style:'font:italic 300 15px Fraunces;fill:var(--ink2)'}, s); t.textContent = 'of twenty-nine';
+})();
+
+// 2 Bloom Field blob + orbit
+(() => { const s = document.getElementById('fieldOrbit'); const c = 150;
+  const defs = el('defs', {}, s); const g = el('linearGradient', {id:'fg', x1:0, y1:0, x2:1, y2:1}, defs);
+  el('stop', {offset:0, style:'stop-color:var(--o1)'}, g); el('stop', {offset:1, style:'stop-color:var(--o2)'}, g);
+  const bl = el('filter', {id:'soft'}, defs); el('feGaussianBlur', {stdDeviation:8}, bl);
+  el('path', {d:arc(c,c,132,FERT[0],FERT[1]), filter:'url(#soft)', style:'fill:none;stroke:var(--o1);stroke-width:16;opacity:.45'}, s);
+  el('path', {d:arc(c,c,132,PERIOD[0],PERIOD[1]), filter:'url(#soft)', style:'fill:none;stroke:var(--m1);stroke-width:16;opacity:.35'}, s);
+  el('circle', {cx:c, cy:c, r:132, style:'fill:none;stroke:var(--ink2);stroke-width:1;opacity:.25'}, s);
+  for (let d = 1; d <= N; d++) { const [x,y] = pt(c,c,132,ang(d)); el('circle', {cx:x, cy:y, r:d===TODAY?0:2, style:'fill:var(--ink2);opacity:.45'}, s); }
+  el('path', {d:'M150 42 C 205 40, 252 82, 246 140 C 241 196, 205 250, 148 252 C 92 254, 52 214, 50 156 C 47 98, 95 44, 150 42 Z', fill:'url(#fg)'}, s);
+  const [x,y] = pt(c,c,132,ang(TODAY)); el('circle', {cx:x, cy:y, r:9, style:'fill:var(--o1);stroke:var(--bg);stroke-width:3'}, s);
+})();
+
+// 3 Bento segmented ring + pixels
+(() => { const s = document.getElementById('bentoRing'); const c = 85;
+  for (let d = 1; d <= N; d++) { const col = d <= PERIOD[1] ? 'var(--period)' : d >= FERT[0] && d <= FERT[1] ? 'var(--fertile)' : d > OV ? 'var(--lut)' : 'var(--foll)';
+    const a1 = ang(d) + .03, a2 = ang(d + 1) - .03; const r = d === TODAY ? 78 : 70, w = d === TODAY ? 18 : 12; const op = d > TODAY ? .3 : 1;
+    const [x1,y1] = pt(c,c,r - w/2,a1), [x2,y2] = pt(c,c,r - w/2,a2);
+    el('path', {d:`M${x1} ${y1} A${r-w/2} ${r-w/2} 0 0 1 ${x2} ${y2}`, style:`fill:none;stroke:${col};stroke-width:${w};opacity:${op}`}, s); }
+  const px = document.getElementById('bentoPx'); for (let row = 0; row < 6; row++) for (let d = 1; d <= N; d++) { const i = document.createElement('i'); i.className = d <= 5 - (row % 2) ? 'p' : (d >= 10 + (row % 3) && d <= 15) ? 'f' : d > 16 ? 'l' : ''; px.appendChild(i); }
+})();
+
+// 4 Quiet Mono ring
+(() => { const s = el('svg', {width:240, height:240, viewBox:'0 0 240 240'}, document.getElementById('monoRing')); const c = 120, r = 108;
+  el('circle', {cx:c, cy:c, r, style:'fill:none;stroke:var(--line);stroke-width:2'}, s);
+  el('path', {d:arc(c,c,r,FERT[0],FERT[1]), style:'fill:none;stroke:var(--fert);stroke-width:4'}, s);
+  el('path', {d:arc(c,c,r,PERIOD[0],PERIOD[1]), style:'fill:none;stroke:var(--acc);stroke-width:4'}, s);
+  el('path', {d:arc(c,c,r,30 - 0,N), style:'fill:none'}, s);
+  const [x,y] = pt(c,c,r,ang(TODAY) + Math.PI / N); el('circle', {cx:x, cy:y, r:5, style:'fill:var(--ink)'}, s);
+  let t = el('text', {x:c, y:c + 22, 'text-anchor':'middle', style:'font:200 84px Inter;fill:var(--ink);letter-spacing:-4px'}, s); t.textContent = '14';
+  t = el('text', {x:c, y:c + 48, 'text-anchor':'middle', style:'font:400 12px Inter;fill:var(--ink2)'}, s); t.textContent = 'DAY OF 29';
+})();
+
+// 5 Nocturne moon orbit
+(() => { const s = document.getElementById('noctOrbit'); const c = 148, r = 124; const defs = el('defs', {}, s);
+  const glow = el('filter', {id:'g', x:'-50%', y:'-50%', width:'200%', height:'200%'}, defs); el('feGaussianBlur', {stdDeviation:3.5}, glow);
+  el('path', {d:arc(c,c,r,PERIOD[0],PERIOD[1]), filter:'url(#g)', style:'fill:none;stroke:var(--period);stroke-width:10;opacity:.6'}, s);
+  el('path', {d:arc(c,c,r,FERT[0],FERT[1]), filter:'url(#g)', style:'fill:none;stroke:var(--fertile);stroke-width:10;opacity:.6'}, s);
+  for (let d = 1; d <= N; d++) { const [x,y] = pt(c,c,r,ang(d)); const phase = d / N; const size = d === TODAY ? 9 : 5.5;
+    el('circle', {cx:x, cy:y, r:size, style:'fill:var(--ink2);opacity:.25'}, s);
+    const lit = Math.sin(phase * Math.PI); const cp = el('clipPath', {id:'m'+d}, defs); el('circle', {cx:x, cy:y, r:size}, cp);
+    el('circle', {cx:x + (1 - lit) * size * 1.6 * (phase < .5 ? -1 : 1), cy:y, r:size, 'clip-path':`url(#m${d})`, style:'fill:var(--ink)'}, s);
+    if (d === TODAY) el('circle', {cx:x, cy:y, r:size + 5, style:'fill:none;stroke:var(--fertile);stroke-width:1.5'}, s); }
+})();
+
+// 6 Toybox flower clock
+(() => { const s = el('svg', {width:250, height:250, viewBox:'0 0 250 250'}, document.getElementById('toyFlower')); const c = 125;
+  for (let d = 1; d <= N; d++) { const a = ang(d) * 180 / Math.PI + 90; const col = d <= PERIOD[1] ? 'var(--period)' : d >= FERT[0] && d <= FERT[1] ? 'var(--fertile)' : d > OV ? 'var(--lut)' : 'var(--foll)';
+    const logged = d <= TODAY; const lift = d === TODAY ? -10 : 0;
+    const g = el('g', {transform:`rotate(${a} ${c} ${c}) translate(0 ${lift})`}, s);
+    el('ellipse', {cx:c, cy:c - 82, rx:11, ry:30, style:`fill:${logged ? col : 'var(--surf)'};stroke:var(--ink);stroke-width:2`}, g); }
+  el('circle', {cx:c, cy:c + 4, r:46, style:'fill:var(--ink)'}, s);
+  el('circle', {cx:c, cy:c, r:46, style:'fill:var(--foll);stroke:var(--ink);stroke-width:2.5'}, s);
+  let t = el('text', {x:c, y:c + 14, 'text-anchor':'middle', style:'font:900 40px Gabarito;fill:#2D1B14'}, s); t.textContent = '14';
+})();
+</script>
+</body>
+</html>

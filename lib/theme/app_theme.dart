@@ -1,7 +1,7 @@
 /// Bloom's design system, "Almanac": ink on warm paper, an editorial serif,
 /// hairlines instead of cards, and color only where it carries meaning.
 ///
-/// Read `bloom_docs/DESIGN.md` for how to use these tokens. In short:
+/// Read `docs/DESIGN.md` for how to use these tokens. In short:
 ///
 /// * Semantic colors live in [BloomColors]. The static constants are the
 ///   light ("paper") values. For colors that follow the theme brightness, use

@@ -7,7 +7,7 @@
 /// Fraunces cuts from `assets/pdf` (roman at weight 350 and italic at
 /// weight 320, both at optical size 72). The `pdf` package can't set
 /// variable-font axes, so these are instanced from the app's variable
-/// Fraunces files; see `bloom_docs/DESIGN.md` for how to rebuild them.
+/// Fraunces files; see `docs/DESIGN.md` for how to rebuild them.
 ///
 /// If the bundled fonts can't be loaded (for example in a plain unit test
 /// without a Flutter binding), the PDF falls back to built-in Helvetica and

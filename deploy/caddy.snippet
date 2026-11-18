@@ -1,0 +1,6 @@
+# Bloom: add to the Caddyfile of the Caddy container on the `edge` network.
+bloom.ifkash.dev {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy bloom-web:8080
+}

@@ -49,6 +49,8 @@ dependencies:
   file_picker: ^13.4.0
   share_plus: ^13.3.1
   qr_flutter: ^4.1.0
+  http: ^1.6.0
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -76,7 +78,7 @@ flutter:
   # (licenses in assets/fonts/OFL-*.txt), subset to Latin + Latin Extended-A.
   # Fraunces is variable (wght 300-600, opsz 9-144, SOFT fixed at 50, WONK off);
   # Hanken Grotesk and IBM Plex Mono are static. BloomEmoji is a ~430 KB subset
-  # of Noto Color Emoji (COLRv1). See bloom_docs/DESIGN.md.
+  # of Noto Color Emoji (COLRv1). See docs/DESIGN.md.
   fonts:
     - family: Fraunces
       fonts:

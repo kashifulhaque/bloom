@@ -1,0 +1,191 @@
+# Bloom web server and AI proxy.
+#
+# The image's entrypoint renders this file with envsubst at startup. Only
+# ${OPENROUTER_API_KEY} and ${NGINX_LOCAL_RESOLVERS} are substituted (see
+# NGINX_ENVSUBST_FILTER in the Dockerfile); every other $name is an nginx
+# variable.
+
+# Caddy on the `edge` network terminates TLS and forwards the client address
+# in X-Forwarded-For. Trust it only from private (Docker) ranges.
+set_real_ip_from  10.0.0.0/8;
+set_real_ip_from  172.16.0.0/12;
+set_real_ip_from  192.168.0.0/16;
+set_real_ip_from  fc00::/7;
+real_ip_header    X-Forwarded-For;
+real_ip_recursive on;
+
+# AI proxy: 6 requests a minute per client address, with a burst of 4.
+limit_req_zone     $binary_remote_addr zone=bloom_ai:1m rate=6r/m;
+limit_req_status   429;
+limit_req_log_level warn;
+
+# 1 when the container has no OpenRouter key, so the proxy answers 503.
+map "${OPENROUTER_API_KEY}" $bloom_ai_off {
+    ""       1;
+    default  0;
+}
+
+# Content-Security-Policy for a Flutter CanvasKit build with every resource
+# self-hosted (flutter build web --no-web-resources-cdn --csp).
+#  - 'wasm-unsafe-eval' lets CanvasKit compile its WebAssembly.
+#  - The script hash allows the one-line print helper that the `printing`
+#    package injects for "Print or save PDF"; frame-src blob: lets it load the
+#    PDF into a hidden iframe.
+#  - style-src 'unsafe-inline' covers the splash <style> and the inline
+#    styles that the Flutter engine sets on its DOM elements.
+#  - connect-src https://openrouter.ai is for users who bring their own key.
+map $host $bloom_csp {
+    default "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+M0fGRkOqgYlCQCff9oNQn6k6a7Si4Et8iofLMceadE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://openrouter.ai; worker-src 'self' blob:; frame-src blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+}
+
+# Files that must be revalidated on every load so a deploy is picked up.
+# Content-hashed files never change, so they're cached for a year.
+map $uri $bloom_cache_control {
+    ~^/api/                                                         "no-store";
+    /healthz                                                        "no-store";
+    ~^/downloads/                                                   "no-cache";
+    /                                                               "no-cache";
+    /index.html                                                     "no-cache";
+    "~^/(flutter_bootstrap\.js|flutter_service_worker\.js|version\.json|manifest\.json|precache_manifest\.json|splash\.js)$" "no-cache";
+    "~\.[0-9a-f]{8,}\.[a-z0-9]+$"                                   "public, max-age=31536000, immutable";
+    ~^/canvaskit/                                                   "public, max-age=86400";
+    default                                                         "public, max-age=3600";
+}
+
+server {
+    listen       8080 default_server;
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    charset utf-8;
+    charset_types text/css text/plain text/javascript application/javascript application/json application/manifest+json;
+
+    include /etc/nginx/snippets/security-headers.conf;
+
+    # Liveness for Docker and the deploy job.
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Proxies the in-app AI assistant to OpenRouter with the server's key.
+    # Clients never see the key, and their cookies and auth headers are dropped.
+    location = /api/ai/chat {
+        client_max_body_size    32k;
+        client_body_buffer_size 32k;
+
+        error_page 405 @ai_405;
+        error_page 413 @ai_413;
+        error_page 429 @ai_429;
+        error_page 502 504 @ai_502;
+
+        if ($request_method != POST) {
+            return 405;
+        }
+        # Rate limiting runs after this phase, so send the no-key case to a
+        # location that also applies the limit instead of returning here.
+        if ($bloom_ai_off) {
+            rewrite ^ /_ai_unavailable last;
+        }
+
+        limit_req zone=bloom_ai burst=4 nodelay;
+
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=300s ipv6=off;
+        resolver_timeout 5s;
+        set $bloom_ai_host "openrouter.ai";
+        proxy_pass https://$bloom_ai_host/api/v1/chat/completions;
+
+        proxy_http_version            1.1;
+        proxy_ssl_server_name         on;
+        proxy_ssl_name                openrouter.ai;
+        proxy_ssl_protocols           TLSv1.2 TLSv1.3;
+        proxy_ssl_verify              on;
+        proxy_ssl_verify_depth        3;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+
+        proxy_set_header Host            "openrouter.ai";
+        proxy_set_header Connection      "";
+        proxy_set_header Authorization   "Bearer ${OPENROUTER_API_KEY}";
+        proxy_set_header Cookie          "";
+        proxy_set_header Origin          "";
+        proxy_set_header Referer         "";
+        proxy_set_header Forwarded       "";
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Real-IP       "";
+        proxy_set_header X-Title         "Bloom";
+        proxy_set_header HTTP-Referer    "https://$host";
+        proxy_hide_header  Set-Cookie;
+        proxy_ignore_headers Set-Cookie;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    30s;
+        proxy_read_timeout    90s;
+    }
+
+    location = /_ai_unavailable {
+        internal;
+        error_page 429 @ai_429;
+        error_page 503 @ai_503;
+        limit_req zone=bloom_ai burst=4 nodelay;
+        try_files /.bloom-ai-unavailable =503;
+    }
+
+    location @ai_405 {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Allow "POST" always;
+        default_type application/json;
+        return 405 '{"error":{"code":405,"message":"Use POST."}}\n';
+    }
+    location @ai_413 {
+        default_type application/json;
+        return 413 '{"error":{"code":413,"message":"The request is larger than 32 KB."}}\n';
+    }
+    location @ai_429 {
+        default_type application/json;
+        return 429 '{"error":{"code":429,"message":"Too many requests. Wait a minute, then try again."}}\n';
+    }
+    location @ai_502 {
+        default_type application/json;
+        return 502 '{"error":{"code":502,"message":"The AI service didn\'t respond."}}\n';
+    }
+    location @ai_503 {
+        default_type application/json;
+        return 503 '{"error":{"code":503,"message":"The AI assistant isn\'t configured on this server."}}\n';
+    }
+
+    # Android and iOS builds. Missing files are 404, not the app shell.
+    location ^~ /downloads/ {
+        try_files $uri =404;
+
+        location ~ ^/downloads/(?<bloom_dl>[A-Za-z0-9._-]+\.apk)$ {
+            types { }
+            default_type application/vnd.android.package-archive;
+            include /etc/nginx/snippets/security-headers.conf;
+            add_header Content-Disposition 'attachment; filename="$bloom_dl"' always;
+        }
+        location ~ ^/downloads/(?<bloom_dl>[A-Za-z0-9._-]+\.ipa)$ {
+            types { }
+            default_type application/octet-stream;
+            include /etc/nginx/snippets/security-headers.conf;
+            add_header Content-Disposition 'attachment; filename="$bloom_dl"' always;
+        }
+    }
+
+    # Never serve dotfiles.
+    location ~ /\. {
+        return 404;
+    }
+
+    # Paths with a file extension are real files: 404 when missing.
+    location ~ \.[A-Za-z0-9]+$ {
+        try_files $uri =404;
+    }
+
+    # Everything else is an app route: fall back to the Flutter app shell.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

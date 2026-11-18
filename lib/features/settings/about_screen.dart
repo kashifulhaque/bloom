@@ -57,7 +57,7 @@ class AboutPrivacyScreen extends StatelessWidget {
           children: [
             const SectionHeader('Privacy', label: 'I.', padding: EdgeInsets.zero),
             Gap.v16,
-            entry('Offline', 'Works without a connection', 'No account and no server. Your data stays on this device unless you export it.'),
+            entry('Offline', 'Works without a connection', 'No account and no server. Your data stays on this device unless you export it or turn on AI answers in Ask.'),
             const Hairline(spacing: Space.md),
             entry('Quiet', 'No analytics or ads', 'Bloom doesn\'t track how you use it and doesn\'t share data with anyone.'),
             const Hairline(spacing: Space.md),

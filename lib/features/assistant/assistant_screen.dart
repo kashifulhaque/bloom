@@ -1,12 +1,15 @@
 /// Offline, scripted health assistant, set as a quiet correspondence.
 ///
 /// Chat history is saved under the `assistant` feature key as
-/// `{messages: [{from: 'bot' | 'user', text, ts}], node: nodeId}`, capped at
-/// 200 messages.
+/// `{messages: [{from: 'bot' | 'user', text, ts, ai?, model?, error?}], node: nodeId}`,
+/// capped at 200 messages. `ai` marks typed questions sent to the AI model
+/// and its answers; `model` names the free model that answered; `error`
+/// marks a failed AI answer.
 library;
 
 import 'dart:async';
 
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import 'package:material_ui/material_ui.dart';
@@ -16,25 +19,53 @@ import '../../core/store.dart';
 import '../../widgets/widgets.dart';
 import '../insights/article_screen.dart';
 import '../insights/widgets.dart';
+import 'ai/ai_chat.dart';
+import 'ai/ai_settings_screen.dart';
+import 'ai/openrouter_client.dart' show AiException;
 import 'scripts.dart';
 import 'symptom_checker.dart';
 
 const _maxMessages = 200;
 
 class _Msg {
-  const _Msg(this.fromBot, this.text, this.ts);
+  const _Msg(this.fromBot, this.text, this.ts, {this.ai = false, this.model, this.error = false});
   final bool fromBot;
   final String text;
   final String ts;
 
-  Map<String, dynamic> toJson() => {'from': fromBot ? 'bot' : 'user', 'text': text, 'ts': ts};
+  /// A typed question sent to the AI model, or the model's answer.
+  final bool ai;
 
-  factory _Msg.fromJson(Map<String, dynamic> j) =>
-      _Msg(j['from'] != 'user', j['text'] as String? ?? '', j['ts'] as String? ?? '');
+  /// The free model that answered.
+  final String? model;
+
+  /// A failed AI answer; [text] is the error message.
+  final bool error;
+
+  Map<String, dynamic> toJson() => {
+        'from': fromBot ? 'bot' : 'user',
+        'text': text,
+        'ts': ts,
+        if (ai) 'ai': true,
+        if (model != null) 'model': model,
+        if (error) 'error': true,
+      };
+
+  factory _Msg.fromJson(Map<String, dynamic> j) => _Msg(
+        j['from'] != 'user',
+        j['text'] as String? ?? '',
+        j['ts'] as String? ?? '',
+        ai: j['ai'] == true,
+        model: j['model'] as String?,
+        error: j['error'] == true,
+      );
 }
 
 class AssistantScreen extends StatefulWidget {
-  const AssistantScreen({super.key});
+  const AssistantScreen({super.key, this.httpClient});
+
+  /// The HTTP client for AI answers. Tests pass a mock client.
+  final http.Client? httpClient;
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -84,7 +115,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
       _node = 'start';
     } else {
       _node = raw?['node'] as String? ?? 'menu';
-      _options = buildStep(_node, _store).options;
+      _options = _node == 'ai' ? const [] : buildStep(_node, _store).options;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _toBottom(jump: true));
   }
@@ -133,10 +164,63 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _afterFrame();
   }
 
-  void _userSays(String text) {
-    setState(() => _messages.add(_Msg(false, text, DateTime.now().toIso8601String())));
+  void _userSays(String text, {bool ai = false}) {
+    setState(() => _messages.add(_Msg(false, text, DateTime.now().toIso8601String(), ai: ai)));
     _save();
     _afterFrame();
+  }
+
+  /// Earlier AI turns, oldest first, ending with the latest question.
+  List<AiTurn> _aiHistory() => [
+        for (final m in _messages)
+          if (m.ai && !m.error) AiTurn(fromUser: !m.fromBot, text: m.text),
+      ];
+
+  /// Sends the AI history to the model and adds its answer, or an error
+  /// with a retry link.
+  Future<void> _askAi(AiRoute route) async {
+    final run = ++_run;
+    setState(() {
+      _options = [];
+      _typing = true;
+    });
+    _afterFrame();
+    _Msg msg;
+    try {
+      final reply = await askAi(route, _store, _aiHistory(), httpClient: widget.httpClient);
+      msg = _Msg(true, reply.text, DateTime.now().toIso8601String(), ai: true, model: reply.model);
+    } on AiException catch (e) {
+      msg = _Msg(true, e.message, DateTime.now().toIso8601String(), ai: true, error: true);
+    }
+    if (!mounted || run != _run) return;
+    setState(() {
+      _typing = false;
+      _messages.add(msg);
+      _node = 'ai';
+      _options = [];
+    });
+    _save();
+    _afterFrame();
+  }
+
+  /// Removes the failed answer and asks again.
+  void _retry() {
+    if (_typing || _messages.isEmpty || !_messages.last.error) return;
+    final route = routeFreeText(_lastAiQuestion() ?? '', _store);
+    setState(() => _messages.removeLast());
+    if (route is AiRoute) {
+      _askAi(route);
+    } else {
+      _save();
+      _reply(route is LocalRoute ? route.step : buildStep('menu', _store));
+    }
+  }
+
+  String? _lastAiQuestion() {
+    for (final m in _messages.reversed) {
+      if (m.ai && !m.fromBot) return m.text;
+    }
+    return null;
   }
 
   void _choose(BotOption o) {
@@ -157,8 +241,17 @@ class _AssistantScreenState extends State<AssistantScreen> {
     final text = _input.text.trim();
     if (text.isEmpty || _typing) return;
     _input.clear();
-    _userSays(text);
-    _reply(respondToText(text, _store));
+    // Crisis and emergency words get the offline safety answer first, and
+    // are never sent to the AI model.
+    final route = routeFreeText(text, _store);
+    switch (route) {
+      case LocalRoute(:final step):
+        _userSays(text);
+        _reply(step);
+      case AiRoute():
+        _userSays(text, ai: true);
+        _askAi(route);
+    }
   }
 
   Future<void> _clear() async {
@@ -192,6 +285,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
     ];
     final showTray = options.isNotEmpty && !_typing;
     final canPop = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
+    final aiOn = aiStatusLabel(context.watch<AppStore>()) == 'On';
 
     return Scaffold(
       body: SafeArea(
@@ -208,8 +302,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     AnimatedSwitcher(
                       duration: Motion.medium,
                       child: MonoLabel(
-                        _typing ? 'Writing…' : 'Offline · private',
-                        key: ValueKey(_typing),
+                        _typing ? 'Writing…' : (aiOn ? 'AI answers on' : 'Offline · private'),
+                        key: ValueKey((_typing, aiOn)),
                         maxLines: 1,
                       ),
                     ),
@@ -233,9 +327,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   onSelected: (v) {
                     if (v == 'clear') _clear();
                     if (v == 'urgent') _choose(const BotOption('Urgent warning signs', next: 'urgent'));
+                    if (v == 'ai') openAiSettings(context, httpClient: widget.httpClient);
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'urgent', child: Text('Urgent warning signs')),
+                    PopupMenuItem(value: 'ai', child: Text('AI answers')),
                     PopupMenuItem(value: 'clear', child: Text('Clear chat history')),
                   ],
                 ),
@@ -271,6 +367,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                     lastInGroup: lastInGroup,
                     firstInGroup: firstInGroup,
                     animate: i == _messages.length,
+                    onRetry: m.error && i == _messages.length && !_typing ? _retry : null,
                   ),
                 );
               },
@@ -421,10 +518,19 @@ class _Mark extends StatelessWidget {
 /// paragraphs beside a line-flower mark, the user's in right-aligned
 /// italics with a thin rule, and a mono timestamp after each group.
 class _Letter extends StatelessWidget {
-  const _Letter({required this.msg, this.lastInGroup = true, this.firstInGroup = true, this.animate = false});
+  const _Letter({
+    required this.msg,
+    this.lastInGroup = true,
+    this.firstInGroup = true,
+    this.animate = false,
+    this.onRetry,
+  });
   final _Msg msg;
   final bool lastInGroup;
   final bool firstInGroup;
+
+  /// Shown as "Try again" under a failed AI answer.
+  final VoidCallback? onRetry;
 
   /// Fades the newest message in.
   final bool animate;
@@ -443,7 +549,24 @@ class _Letter extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(right: Space.xl),
-            child: _LetterText(msg.text),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              msg.error
+                  ? Text(msg.text, style: Almanac.italic(context, size: 16.5, color: p.ink2).copyWith(height: 1.5))
+                  : _LetterText(msg.text),
+              if (msg.ai && !msg.error)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.xs),
+                  child: Text(
+                    'AI · ${modelDisplayName(msg.model ?? 'free model')} · may be wrong',
+                    style: Almanac.data(context, size: 10.5),
+                  ),
+                ),
+              if (onRetry != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.sm),
+                  child: InkLink('Try again', arrow: true, onTap: onRetry),
+                ),
+            ]),
           ),
         ),
       ]);
@@ -504,7 +627,13 @@ class _LetterText extends StatelessWidget {
     final base = Almanac.sans(size: 15.5, color: p.ink, height: 1.6);
     final children = <Widget>[];
     for (final raw in text.split('\n')) {
-      final line = raw.trimRight();
+      var line = raw.trimRight();
+      final trimmed = line.trimLeft();
+      // AI answers can use other markdown: "* " or "• " bullets and "#" headings.
+      if (trimmed.startsWith('* ') || trimmed.startsWith('• ')) line = '- ${trimmed.substring(2)}';
+      if (trimmed.startsWith('- ')) line = trimmed;
+      final heading = RegExp(r'^#{1,6}\s+').firstMatch(trimmed);
+      if (heading != null) line = '**${trimmed.substring(heading.end).replaceAll('**', '')}**';
       if (line.trim().isEmpty) {
         children.add(Gap.v8);
       } else if (line.startsWith('- ')) {

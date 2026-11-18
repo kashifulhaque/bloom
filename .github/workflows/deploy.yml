@@ -1,0 +1,312 @@
+# Builds Bloom for Android, iOS (unsigned), and the web, publishes the
+# container image and a rolling "latest" release, then deploys the image to
+# the VM.
+#
+# Secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#   ANDROID_KEY_PASSWORD, VM_SSH_KEY, VM_KNOWN_HOSTS, VM_HOST, VM_USER.
+# Variables (optional): ANDROID_CERT_SHA256 (expected signing certificate),
+#   IMAGE_PLATFORMS (default linux/amd64).
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.50.0
+  AI_PROXY_URL: https://bloom.ifkash.dev/api/ai/chat
+  IMAGE: ghcr.io/kashifulhaque/bloom
+  SITE_URL: https://bloom.ifkash.dev
+  # SHA-256 of the release signing certificate, used when the
+  # ANDROID_CERT_SHA256 variable isn't set.
+  DEFAULT_CERT_SHA256: 8F:F7:73:9D:2E:CD:01:4E:83:76:C3:7A:DC:C1:52:DC:5D:93:52:7D:CA:13:82:4C:3F:A1:49:9D:3D:C9:A0:74
+
+jobs:
+  test:
+    name: Analyze and test
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android:
+    name: Android APK
+    needs: test
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools build-tools;36.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Write the release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_PASSWORD" ]]; then
+            echo "::error::The ANDROID_KEYSTORE_* and ANDROID_KEY_PASSWORD secrets must be set."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/bloom-release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/bloom-release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=bloom"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > "$RUNNER_TEMP/key.properties"
+          echo "BLOOM_KEY_PROPERTIES=$RUNNER_TEMP/key.properties" >> "$GITHUB_ENV"
+
+      - name: Build the APK
+        run: >-
+          flutter build apk --release
+          --build-number=${{ github.run_number }}
+          --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+
+      - name: Verify the signature
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 || env.DEFAULT_CERT_SHA256 }}
+        run: |
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          out=$("$apksigner" verify --verbose --print-certs "$apk")
+          grep -E '^Verified using|^Number of signers|^Signer #1 certificate (DN|SHA-256)' <<<"$out"
+          grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true' <<<"$out"
+          grep -q '^Verified using v3 scheme (APK Signature Scheme v3): true' <<<"$out"
+          grep -q '^Number of signers: 1' <<<"$out"
+          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$out" | tr -d ':' | tr 'a-f' 'A-F')
+          expected=$(tr -d ': ' <<<"$EXPECTED_CERT_SHA256" | tr 'a-f' 'A-F')
+          if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+            echo "::error::The APK is signed with an unexpected certificate ($actual)."
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$apk" dist/bloom.apk
+          sed 's/../&:/g; s/:$//' <<<"$actual" > dist/signing-cert-sha256.txt
+          echo "Signed with the expected certificate."
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/bloom-release.jks" "$RUNNER_TEMP/key.properties"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS app (unsigned)
+    needs: test
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build the app
+        run: >-
+          flutter build ios --release --no-codesign
+          --build-number=${{ github.run_number }}
+          --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+      - name: Package the IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/ios/iphoneos/Runner.app dist/Payload/
+          (cd dist && zip -qry bloom-unsigned.ipa Payload && rm -rf Payload)
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: dist/bloom-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+  web:
+    name: Web image and release
+    needs: [android, ios]
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build the web app
+        # Self-hosts CanvasKit (no CDN) and avoids eval, to match the CSP.
+        # Content hashes let nginx cache everything but the entry files.
+        run: >-
+          flutter build web --release --no-web-resources-cdn --csp
+          --web-content-hash --no-wasm-dry-run
+          --dart-define=BLOOM_AI_PROXY=/api/ai/chat
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble downloads
+        id: meta
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p downloads
+          cp artifacts/android/bloom.apk downloads/bloom.apk
+          cp artifacts/ios/bloom-unsigned.ipa downloads/bloom-unsigned.ipa
+          name=$(sed -n 's/^version:[[:space:]]*\([^+[:space:]]*\).*/\1/p' pubspec.yaml)
+          version="$name+$RUN_NUMBER"
+          cert=$(cat artifacts/android/signing-cert-sha256.txt)
+          python3 - "$version" "$cert" <<'PY'
+          import datetime, hashlib, json, os, sys
+          def describe(name):
+              path = os.path.join("downloads", name)
+              data = open(path, "rb").read()
+              return {"file": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+          manifest = {
+              "version": sys.argv[1],
+              "builtAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "apk": describe("bloom.apk"),
+              "ipa": describe("bloom-unsigned.ipa"),
+              "signingCertSha256": sys.argv[2],
+          }
+          with open("downloads/manifest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          PY
+          cat downloads/manifest.json
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ vars.IMAGE_PLATFORMS || 'linux/amd64' }}
+          # Branches other than main build the image but don't publish it.
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:sha-${{ steps.meta.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.title=Bloom
+            org.opencontainers.image.licenses=MIT
+
+      - name: Publish the "latest" release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          git tag -f latest "$GITHUB_SHA"
+          git push -f origin refs/tags/latest
+          notes="Bloom $VERSION, built from $GITHUB_SHA.
+
+          - bloom.apk: Android, signed release build.
+          - bloom-unsigned.ipa: iOS, unsigned. Sign it yourself to install it.
+          - manifest.json: sizes, SHA-256 checksums, and the signing certificate."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Latest build" --notes "$notes" --prerelease=false --latest
+          else
+            gh release create latest --title "Latest build" --notes "$notes" --latest --verify-tag
+          fi
+          gh release upload latest downloads/bloom.apk downloads/bloom-unsigned.ipa downloads/manifest.json --clobber
+
+  deploy:
+    name: Deploy to the VM
+    needs: web
+    if: github.ref == 'refs/heads/main'
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Pull and restart on the VM
+        # The VM pins this key to deploy/deploy.sh with a forced command, so
+        # the only input is the registry token on stdin.
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          umask 077
+          key="$RUNNER_TEMP/deploy_key"
+          known_hosts="$RUNNER_TEMP/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"' EXIT
+          printf '%s\n' "$VM_SSH_KEY" > "$key"
+          printf '%s\n' "$VM_KNOWN_HOSTS" > "$known_hosts"
+          printf '%s\n' "$GITHUB_TOKEN" | ssh -T -i "$key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" \
+            -o ConnectTimeout=20 \
+            "$VM_USER@$VM_HOST"
+
+      - name: Check the live site
+        env:
+          VERSION: ${{ needs.web.outputs.version }}
+        run: |
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors --max-time 10 "$SITE_URL/healthz"
+          for attempt in $(seq 1 10); do
+            live=$(curl -fsS --max-time 10 "$SITE_URL/downloads/manifest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' || true)
+            if [[ "$live" == "$VERSION" ]]; then
+              echo "Live: Bloom $live"
+              exit 0
+            fi
+            echo "Attempt $attempt: live version is '${live:-unknown}', want $VERSION"
+            sleep 6
+          done
+          echo "::error::$SITE_URL isn't serving $VERSION."
+          exit 1

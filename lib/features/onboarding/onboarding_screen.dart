@@ -8,6 +8,7 @@ import '../../core/dates.dart';
 import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../widgets/widgets.dart';
+import '../downloads/get_app_screen.dart';
 import '../log/almanac_rows.dart';
 import 'demo_data.dart';
 
@@ -378,6 +379,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Fills the app with 8 months of sample data for trying it out.',
           style: theme.textTheme.bodySmall,
         ),
+        if (showGetTheApp) ...[
+          Gap.v16,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: InkLink('Get the app for Android or iPhone', arrow: true, size: 13.5, onTap: () => openGetTheApp(context)),
+          ),
+        ],
       ],
     );
   }

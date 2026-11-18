@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The optional AI assistant calls the Bloom proxy or OpenRouter over HTTPS.
+         Everything else works offline. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Reminders (flutter_local_notifications): show, schedule, and restore
          scheduled notifications after a reboot or app update. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

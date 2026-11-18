@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resources that code looks up by name, so resource shrinking must keep them.
+     lib/features/reminders/notification_service.dart uses @mipmap/ic_launcher
+     as the notification icon. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@mipmap/ic_launcher,@drawable/*" />

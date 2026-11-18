@@ -47,3 +47,20 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 test/shots/
+
+# Node tooling (Supabase CLI)
+node_modules/
+
+# Release signing and packaging. The keystore and its passwords live outside
+# the repo (see the Deploy section of README.md).
+key.properties
+*.jks
+*.keystore
+/downloads/
+*.apk
+*.ipa
+
+# Local secrets, such as OPENROUTER_API_KEY. Never commit.
+.env
+.env.*
+!.env.example

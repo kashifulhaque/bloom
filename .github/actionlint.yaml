@@ -1,0 +1,4 @@
+# Labels of the owner's hosted runners, so actionlint accepts them.
+self-hosted-runner:
+  labels:
+    - avrea-ubuntu-latest-2-vcpu

@@ -74,15 +74,8 @@
     <div class="rule"></div>
     <div class="note">Your data stays on this device</div>
   </div>
-  <script>
-    // Fade the splash out once Flutter has painted.
-    window.addEventListener('flutter-first-frame', function () {
-      var s = document.getElementById('splash');
-      if (!s) return;
-      s.classList.add('done');
-      setTimeout(function () { s.remove(); }, 400);
-    });
-  </script>
+  <!-- External, not inline, so the Content-Security-Policy needs no script hash. -->
+  <script src="splash.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

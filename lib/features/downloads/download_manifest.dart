@@ -9,12 +9,14 @@
 ///   "builtAt": "2026-11-18T10:00:00Z",
 ///   "apk": {"file": "bloom.apk", "bytes": 21456789, "sha256": "<64 hex>"},
 ///   "ipa": {"file": "bloom-unsigned.ipa", "bytes": 19876543, "sha256": "<64 hex>"},
-///   "signingCertSha256": "8F:F7:...:74"
+///   "signingCertSha256": "8F:F7:...:74",
+///   "notes": "Add an update nudge"
 /// }
 /// ```
 ///
 /// `version` and at least one of `apk` or `ipa` are required. A file entry
-/// with a bad name, size, or hash is dropped.
+/// with a bad name, size, or hash is dropped. `notes`, a short summary of
+/// the release, is optional.
 library;
 
 import 'dart:convert';
@@ -54,7 +56,14 @@ class DownloadFile {
 
 /// A parsed `/downloads/manifest.json`.
 class DownloadManifest {
-  const DownloadManifest({required this.version, this.builtAt, this.apk, this.ipa, this.signingCertSha256});
+  const DownloadManifest({
+    required this.version,
+    this.builtAt,
+    this.apk,
+    this.ipa,
+    this.signingCertSha256,
+    this.notes,
+  });
 
   /// The app version, such as `1.0.0+42`.
   final String version;
@@ -65,6 +74,13 @@ class DownloadManifest {
   /// The SHA-256 fingerprint of the APK signing certificate, as
   /// colon-separated uppercase hex.
   final String? signingCertSha256;
+
+  /// A one-line summary of the release, such as the latest commit's subject.
+  /// Null when the manifest has none.
+  final String? notes;
+
+  /// The longest [notes] kept, in characters.
+  static const maxNotesLength = 200;
 
   static final _fingerprint = RegExp(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){31}$');
 
@@ -79,12 +95,22 @@ class DownloadManifest {
     final built = json['builtAt'];
     final cert = json['signingCertSha256'];
     return DownloadManifest(
+      notes: _notes(json['notes']),
       version: version.trim(),
       builtAt: built is String ? DateTime.tryParse(built) : null,
       apk: apk,
       ipa: ipa,
       signingCertSha256: cert is String && _fingerprint.hasMatch(cert.trim()) ? cert.trim().toUpperCase() : null,
     );
+  }
+
+  /// Collapses [raw] to one trimmed line of at most [maxNotesLength]
+  /// characters, or returns null when it isn't a non-empty string.
+  static String? _notes(Object? raw) {
+    if (raw is! String) return null;
+    final line = raw.replaceAll(RegExp(r'[\x00-\x1F\x7F]+'), ' ').replaceAll(RegExp(r' {2,}'), ' ').trim();
+    if (line.isEmpty) return null;
+    return line.length <= maxNotesLength ? line : '${line.substring(0, maxNotesLength - 1).trimRight()}…';
   }
 
   /// Parses a response body, or returns null when it isn't valid JSON or
@@ -108,7 +134,12 @@ Future<DownloadManifest?> fetchDownloadManifest({http.Client? client, Uri? base}
   final c = client ?? http.Client();
   try {
     final res = await c
-        .get((base ?? Uri.base).resolve(kManifestPath), headers: {'Accept': 'application/json'})
+        // no-cache makes a browser revalidate its cached copy, so a check
+        // never reads a stale manifest. It sends nothing about the user.
+        .get(
+          (base ?? Uri.base).resolve(kManifestPath),
+          headers: {'Accept': 'application/json', 'Cache-Control': 'no-cache'},
+        )
         .timeout(const Duration(seconds: 15));
     if (res.statusCode != 200) return null;
     return DownloadManifest.tryParseBody(utf8.decode(res.bodyBytes, allowMalformed: true));

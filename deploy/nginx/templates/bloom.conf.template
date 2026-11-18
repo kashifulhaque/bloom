@@ -69,6 +69,8 @@ map $host $bloom_csp {
 
 # Files that must be revalidated on every load so a deploy is picked up.
 # Content-hashed files never change, so they're cached for a year.
+# The in-app update check reads /downloads/manifest.json, and Flutter's
+# /version.json names the deployed build, so both must stay no-cache.
 map $uri $bloom_cache_control {
     ~^/api/                                                         "no-store";
     /healthz                                                        "no-store";

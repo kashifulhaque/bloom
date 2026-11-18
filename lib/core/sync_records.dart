@@ -34,9 +34,10 @@ class SyncRef {
   static const localProfileFields = {'pin'};
 
   /// Feature keys that stay on this device: the AI settings (they can hold
-  /// the user's own OpenRouter key and a per-device consent) and the record
-  /// of notifications already shown here.
-  static const localFeatures = {'assistant_ai', 'notifications_log'};
+  /// the user's own OpenRouter key and a per-device consent), the record
+  /// of notifications already shown here, and update checks (each device
+  /// runs its own build).
+  static const localFeatures = {'assistant_ai', 'notifications_log', 'app_updates'};
 
   static bool syncsFeature(String key) => !localFeatures.contains(key);
 

@@ -191,9 +191,12 @@ jobs:
       - name: Build the web app
         # Self-hosts CanvasKit (no CDN) and avoids eval, to match the CSP.
         # Content hashes let nginx cache everything but the entry files.
+        # The build number must match the manifest's, or the web app's update
+        # check would always see a newer version and offer a reload.
         run: >-
           flutter build web --release --no-web-resources-cdn --csp
           --web-content-hash --no-wasm-dry-run
+          --build-number=${{ github.run_number }}
           --dart-define=BLOOM_AI_PROXY=/api/ai/chat
           --dart-define=BLOOM_SHARE_API=/api/share
           --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
@@ -214,7 +217,9 @@ jobs:
           name=$(sed -n 's/^version:[[:space:]]*\([^+[:space:]]*\).*/\1/p' pubspec.yaml)
           version="$name+$RUN_NUMBER"
           cert=$(cat artifacts/android/signing-cert-sha256.txt)
-          python3 - "$version" "$cert" <<'PY'
+          # Release notes for the in-app update note: the commit's subject.
+          notes=$(git log -1 --format=%s "$GITHUB_SHA" 2>/dev/null || true)
+          python3 - "$version" "$cert" "$notes" <<'PY'
           import datetime, hashlib, json, os, sys
           def describe(name):
               path = os.path.join("downloads", name)
@@ -227,6 +232,9 @@ jobs:
               "ipa": describe("bloom-unsigned.ipa"),
               "signingCertSha256": sys.argv[2],
           }
+          notes = " ".join(sys.argv[3].split())[:200]
+          if notes:
+              manifest["notes"] = notes
           with open("downloads/manifest.json", "w") as f:
               json.dump(manifest, f, indent=2)
               f.write("\n")

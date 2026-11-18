@@ -1,9 +1,12 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../widgets/widgets.dart';
+import '../updates/app_version.dart';
+import '../updates/update_widgets.dart';
 import 'settings_widgets.dart';
 
-const kAppVersion = '1.0.0';
+/// The running version for people, such as `1.0.0 (build 7)`.
+String get appVersionLabel => AppVersion.running?.label ?? '1.0.0';
 
 /// About Bloom as a colophon: what it is, how it's set, its privacy
 /// promises, and its licenses.
@@ -31,7 +34,7 @@ class AboutPrivacyScreen extends StatelessWidget {
     );
 
     return SettingsPage(
-      eyebrow: 'Colophon · Version $kAppVersion',
+      eyebrow: 'Colophon · Version $appVersionLabel',
       title: 'About Bloom',
       children: [
         Row(
@@ -65,13 +68,23 @@ class AboutPrivacyScreen extends StatelessWidget {
             const Hairline(spacing: Space.md),
             entry('Quiet', 'No analytics or ads', 'Bloom doesn\'t track how you use it and doesn\'t share data with anyone.'),
             const Hairline(spacing: Space.md),
+            entry('Updates', 'Update checks send nothing about you', 'To find new versions, Bloom now and then downloads one small file from its own website. The request carries no account, device ID, or notebook data. You can turn update checks off below.'),
+            const Hairline(spacing: Space.md),
             entry('Yours', 'You stay in control', 'Lock the app with a PIN, export your data any time, or erase it completely.'),
           ],
         ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader('Type', label: 'II.', padding: EdgeInsets.zero),
+            const SectionHeader('Updates', label: 'II.', padding: EdgeInsets.zero),
+            Gap.v16,
+            const UpdateSection(),
+          ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader('Type', label: 'III.', padding: EdgeInsets.zero),
             Gap.v16,
             Marginalia(
               label: 'Display',
@@ -103,7 +116,7 @@ class AboutPrivacyScreen extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader('License', label: 'III.', padding: EdgeInsets.zero),
+            const SectionHeader('License', label: 'IV.', padding: EdgeInsets.zero),
             Gap.v16,
             entry('Code', 'MIT License', 'You can read, change, and share the source code.'),
             Gap.v8,
@@ -117,7 +130,7 @@ class AboutPrivacyScreen extends StatelessWidget {
                   onTap: () => showLicensePage(
                     context: context,
                     applicationName: 'Bloom',
-                    applicationVersion: kAppVersion,
+                    applicationVersion: appVersionLabel,
                     applicationLegalese: 'Released under the MIT License.',
                   ),
                 ),

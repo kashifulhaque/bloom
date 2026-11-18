@@ -25,6 +25,10 @@ typedef FileSaver = void Function(Uri url, String fileName);
 class GetAppScreen extends StatefulWidget {
   const GetAppScreen({super.key, this.loadManifest, this.saveFile, this.base});
 
+  /// The web app opens this page at `/#/get-app`. The iPhone app's update
+  /// note links there.
+  static const routeName = '/get-app';
+
   /// Loads the manifest. Defaults to [fetchDownloadManifest]. Tests pass a
   /// fake.
   final ManifestLoader? loadManifest;

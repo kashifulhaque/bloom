@@ -346,6 +346,41 @@ To deploy sync to the hosted project, do the following:
    builds, and as `--dart-define` values in the workflow's web, Android, and iOS build
    steps.
 
+## Updates
+
+Bloom isn't in an app store, so it checks its own website for new versions. A check is
+one `GET` request for `https://bloom.ifkash.dev/downloads/manifest.json`, the release
+manifest that CI builds. The request carries no account, device ID, or notebook data.
+Checks run in the background after launch and when the app resumes, and a failed check
+stays silent.
+
+Bloom compares the manifest's build number with its own. The running build number comes
+from `--build-number`, which Flutter compiles into the app as `appBuildNumber`, so every
+CI build, including the web build, must pass `--build-number=${{ github.run_number }}`.
+
+When a newer build is available, **Today** shows a short note. What the note offers
+depends on the platform:
+
+- **Android:** at most one check a day. **Download update** opens the APK in the browser.
+  When you open the downloaded file, Android asks whether to install an update to the
+  existing app; if the browser doesn't have the **Install unknown apps** permission,
+  Android asks for it first. Every release is signed with the same key, so the APK
+  installs over the old one and keeps your data. **Not now** hides that version for 7
+  days.
+- **iPhone:** at most one check a week. The unsigned IPA can't update itself, so the note
+  links to the web app and its **Get the app** page (`/#/get-app`). **Not now** hides
+  that version for 30 days.
+- **Web:** at most one check every 6 hours while a tab is open. **Reload** loads the
+  newest deployment. nginx serves the entry files, `version.json`, and everything under
+  `/downloads/` with `Cache-Control: no-cache`, so a reload and a check never read a
+  stale copy.
+
+If the manifest has a `notes` field, the note shows it. CI sets `notes` to the subject
+line of the commit that it built.
+
+To see the version, check for updates, or turn automatic checks off, go to **You >
+Settings > Updates**. The same controls are on the **About & privacy** page.
+
 ## Test
 
 To run the static analysis and the test suite, run the following commands:

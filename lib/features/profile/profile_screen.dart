@@ -25,6 +25,8 @@ import '../settings/appearance_screen.dart';
 import '../settings/cycle_settings_screen.dart';
 import '../settings/my_data_screen.dart';
 import '../settings/notification_privacy_screen.dart';
+import '../updates/update_controller.dart';
+import '../updates/update_widgets.dart';
 import '../settings/settings_widgets.dart';
 import '../sync/sync_screen.dart';
 
@@ -78,6 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final bc = Contraception.of(store).method;
     final pregnant = p.goal == Goal.trackPregnancy;
     final sync = watchSync(context);
+    final updates = watchUpdates(context);
     var n = 0;
     String no() => (++n).toString().padLeft(2, '0');
 
@@ -179,12 +182,20 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                     }}',
                 onTap: () => _push(const AppearanceScreen()),
               ),
+              IndexEntry(
+                number: no(),
+                title: 'Updates',
+                subtitle: 'Check for new versions',
+                value: updates == null || !updates.supported ? null : (updates.enabled ? 'On' : 'Off'),
+                onTap: () => _push(const UpdatesScreen()),
+              ),
             ],
           ),
           MenuSection(
             title: 'Data & privacy',
             footer: 'Bloom keeps everything on this device, with no analytics and no account needed. '
-                'Only optional AI answers and optional encrypted sync go online, and only when you turn them on.',
+                'Only optional AI answers and optional encrypted sync send your data online, and only when you turn them on. '
+                'Update checks download one small file and send nothing about you.',
             children: [
               IndexEntry(
                 number: no(),

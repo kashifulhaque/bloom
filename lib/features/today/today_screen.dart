@@ -27,6 +27,8 @@ import '../modes/perimenopause_home.dart';
 import '../modes/postpartum_home.dart';
 import '../modes/pregnancy_home.dart';
 import '../reminders/due_reminders.dart';
+import '../updates/update_controller.dart';
+import '../updates/update_widgets.dart';
 
 class TodayScreen extends StatefulWidget {
   const TodayScreen({super.key});
@@ -71,6 +73,8 @@ class _TodayScreenState extends State<TodayScreen> {
     final cycleGoal = goal != Goal.trackPregnancy && goal != Goal.postpartum;
     final simplified = goal == Goal.perimenopause;
     final hasReminders = dueToday(store, DateTime.now()).isNotEmpty;
+    final updates = watchUpdates(context);
+    final update = updates?.pending;
     final story = _DayStory.of(store.engine, _selected, simplified: simplified);
     final date = DateFormat('EEEE, d MMM').format(_selected);
     final p = BloomColors.of(context);
@@ -122,6 +126,7 @@ class _TodayScreenState extends State<TodayScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           if (hasReminders) ...[Gap.v8, const DueRemindersBanner()],
+          if (update != null) UpdateNote(controller: updates!, version: update),
           const SectionHeader('Daily insights', label: 'Reading', subtitle: 'Short reads picked for this phase'),
           const DailyInsightsStrip(),
           _LogSummary(day: _selected),

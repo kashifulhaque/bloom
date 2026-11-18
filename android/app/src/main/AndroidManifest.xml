@@ -61,5 +61,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- "Download update" opens the APK's https URL in the browser
+             (url_launcher). The browser downloads it and Android's package
+             installer installs it over this app, so Bloom needs no
+             REQUEST_INSTALL_PACKAGES permission. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

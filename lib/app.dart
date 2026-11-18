@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'core/store.dart';
 import 'features/assistant/assistant_screen.dart';
+import 'features/downloads/get_app_screen.dart';
 import 'features/calendar/calendar_screen.dart';
 import 'features/insights/insights_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -45,6 +46,11 @@ class BloomApp extends StatelessWidget {
                 ? const LockScreen()
                 : const HomeShell(),
       ),
+      // On the web, /#/get-app opens "Get the app" over the home screen. It
+      // shows no personal data, so it doesn't wait for onboarding or the lock.
+      onGenerateRoute: (settings) => kIsWeb && settings.name == GetAppScreen.routeName
+          ? MaterialPageRoute<void>(settings: settings, builder: (_) => const GetAppScreen())
+          : null,
     );
   }
 }

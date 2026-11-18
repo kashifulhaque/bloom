@@ -276,6 +276,36 @@ class AppStore extends ChangeNotifier {
 
   String exportJson() => const JsonEncoder.withIndent('  ').convert(toJson());
 
+  /// Writes imported period days and day logs in one change.
+  ///
+  /// With [replace], every existing period day and day log is removed first;
+  /// the profile and features stay. Sync hears exactly which records
+  /// changed, so imported days upload like days logged by hand, and removed
+  /// days are deleted from the synced copy.
+  void applyImport({
+    required Map<String, DayLog> logs,
+    required Set<String> periodDays,
+    bool replace = false,
+  }) {
+    final touched = <SyncRef>{};
+    if (replace) {
+      touched
+        ..addAll(this.logs.keys.map(SyncRef.day))
+        ..addAll(this.periodDays.map((k) => SyncRef(SyncKind.periods, k.substring(0, 7))));
+      this.logs.clear();
+      this.periodDays.clear();
+    }
+    for (final log in logs.values) {
+      if (log.isEmpty) continue;
+      this.logs[log.key] = log.copy();
+      touched.add(SyncRef.day(log.key));
+    }
+    for (final k in periodDays) {
+      if (this.periodDays.add(k)) touched.add(SyncRef(SyncKind.periods, k.substring(0, 7)));
+    }
+    _commit(touched);
+  }
+
   /// Deletes every piece of data and returns to onboarding.
   ///
   /// This erases only this device. When sync is on, it also turns sync off

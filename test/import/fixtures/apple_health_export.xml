@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HealthData [
+<!-- Synthetic fixture written for Bloom's tests. Not real data. -->
+<!ELEMENT HealthData (ExportDate,Me,(Record|Correlation|Workout|ActivitySummary)*)>
+<!ATTLIST HealthData locale CDATA #REQUIRED>
+<!ELEMENT Record ((MetadataEntry|HeartRateVariabilityMetadataList)*)>
+<!ATTLIST Record type CDATA #REQUIRED unit CDATA #IMPLIED value CDATA #IMPLIED startDate CDATA #REQUIRED>
+]>
+<HealthData locale="en_US">
+ <ExportDate value="2024-06-01 09:00:00 +0200"/>
+ <Me HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSexFemale"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Phone" unit="count" creationDate="2024-03-01 10:00:00 +0200" startDate="2024-03-01 09:00:00 +0200" endDate="2024-03-01 09:30:00 +0200" value="1200"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Watch" unit="count/min" creationDate="2024-03-01 10:00:00 +0200" startDate="2024-03-01 09:00:00 +0200" endDate="2024-03-01 09:00:00 +0200" value="64">
+  <MetadataEntry key="HKMetadataKeyHeartRateMotionContext" value="0"/>
+ </Record>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" sourceVersion="17.6.1" creationDate="2024-03-02 18:25:04 +0200" startDate="2024-03-02 12:00:00 +0200" endDate="2024-03-02 12:00:00 +0200" value="HKCategoryValueMenstrualFlowMedium">
+  <MetadataEntry key="HKMenstrualCycleStart" value="1"/>
+  <MetadataEntry key="HKWasUserEntered" value="1"/>
+ </Record>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" creationDate="2024-03-03 08:00:00 +0200" startDate="2024-03-03 12:00:00 +0200" endDate="2024-03-03 12:00:00 +0200" value="HKCategoryValueMenstrualFlowHeavy">
+  <MetadataEntry key="HKMenstrualCycleStart" value="0"/>
+ </Record>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" creationDate="2024-03-04 08:00:00 +0200" startDate="2024-03-04 12:00:00 +0200" endDate="2024-03-04 12:00:00 +0200" value="HKCategoryValueVaginalBleedingLight"/>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" creationDate="2024-03-05 08:00:00 +0200" startDate="2024-03-05 12:00:00 +0200" endDate="2024-03-05 12:00:00 +0200" value="HKCategoryValueMenstrualFlowUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" creationDate="2024-03-06 08:00:00 +0200" startDate="2024-03-06 12:00:00 +0200" endDate="2024-03-06 12:00:00 +0200" value="HKCategoryValueMenstrualFlowNone"/>
+ <Record type="HKCategoryTypeIdentifierIntermenstrualBleeding" sourceName="Health" creationDate="2024-03-15 08:00:00 +0200" startDate="2024-03-15 12:00:00 +0200" endDate="2024-03-15 12:00:00 +0200" value="HKCategoryValueNotApplicable"/>
+ <Record type="HKCategoryTypeIdentifierOvulationTestResult" sourceName="Health" creationDate="2024-03-16 08:00:00 +0200" startDate="2024-03-16 07:00:00 +0200" endDate="2024-03-16 07:00:00 +0200" value="HKCategoryValueOvulationTestResultNegative"/>
+ <Record type="HKCategoryTypeIdentifierOvulationTestResult" sourceName="Health" creationDate="2024-03-17 08:00:00 +0200" startDate="2024-03-17 07:00:00 +0200" endDate="2024-03-17 07:00:00 +0200" value="HKCategoryValueOvulationTestResultLuteinizingHormoneSurge"/>
+ <Record type="HKCategoryTypeIdentifierOvulationTestResult" sourceName="Health" creationDate="2024-03-18 08:00:00 +0200" startDate="2024-03-18 07:00:00 +0200" endDate="2024-03-18 07:00:00 +0200" value="HKCategoryValueOvulationTestResultEstrogenSurge"/>
+ <Record type="HKCategoryTypeIdentifierPregnancyTestResult" sourceName="Health" creationDate="2024-03-30 08:00:00 +0200" startDate="2024-03-30 07:00:00 +0200" endDate="2024-03-30 07:00:00 +0200" value="HKCategoryValuePregnancyTestResultNegative"/>
+ <Record type="HKCategoryTypeIdentifierSexualActivity" sourceName="Health" creationDate="2024-03-17 23:00:00 +0200" startDate="2024-03-17 22:00:00 +0200" endDate="2024-03-17 22:00:00 +0200" value="HKCategoryValueNotApplicable">
+  <MetadataEntry key="HKSexualActivityProtectionUsed" value="1"/>
+ </Record>
+ <Record type="HKCategoryTypeIdentifierSexualActivity" sourceName="Health" creationDate="2024-03-20 23:00:00 +0200" startDate="2024-03-20 22:00:00 +0200" endDate="2024-03-20 22:00:00 +0200" value="HKCategoryValueNotApplicable"/>
+ <Record type="HKQuantityTypeIdentifierBasalBodyTemperature" sourceName="Thermometer" unit="degC" creationDate="2024-03-16 09:31:00 +0200" startDate="2024-03-16 09:30:00 +0200" endDate="2024-03-16 09:30:00 +0200" value="36.9"/>
+ <Record type="HKQuantityTypeIdentifierBasalBodyTemperature" sourceName="Thermometer" unit="degC" creationDate="2024-03-16 06:31:00 +0200" startDate="2024-03-16 06:30:00 +0200" endDate="2024-03-16 06:30:00 +0200" value="36.42"/>
+ <Record type="HKQuantityTypeIdentifierBasalBodyTemperature" sourceName="Thermometer" unit="degF" creationDate="2024-03-19 06:31:00 +0200" startDate="2024-03-19 06:30:00 +0200" endDate="2024-03-19 06:30:00 +0200" value="98.1"/>
+ <Record type="HKCategoryTypeIdentifierCervicalMucusQuality" sourceName="Health" creationDate="2024-03-16 08:00:00 +0200" startDate="2024-03-16 08:00:00 +0200" endDate="2024-03-16 08:00:00 +0200" value="HKCategoryValueCervicalMucusQualityEggWhite"/>
+ <Record type="HKCategoryTypeIdentifierAbdominalCramps" sourceName="Health" creationDate="2024-03-02 08:00:00 +0200" startDate="2024-03-02 08:00:00 +0200" endDate="2024-03-02 08:00:00 +0200" value="HKCategoryValueSeverityModerate"/>
+ <Record type="HKCategoryTypeIdentifierHeadache" sourceName="Health" creationDate="2024-03-02 08:00:00 +0200" startDate="2024-03-02 08:00:00 +0200" endDate="2024-03-02 08:00:00 +0200" value="HKCategoryValueSeverityUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierBloating" sourceName="Health" creationDate="2024-03-03 08:00:00 +0200" startDate="2024-03-03 08:00:00 +0200" endDate="2024-03-03 08:00:00 +0200" value="HKCategoryValueSeverityNotPresent"/>
+ <Record type="HKCategoryTypeIdentifierMoodChanges" sourceName="Health" creationDate="2024-03-03 08:00:00 +0200" startDate="2024-03-03 08:00:00 +0200" endDate="2024-03-03 08:00:00 +0200" value="HKCategoryValuePresencePresent"/>
+ <Record type="HKCategoryTypeIdentifierAppetiteChanges" sourceName="Health" creationDate="2024-03-03 08:00:00 +0200" startDate="2024-03-03 08:00:00 +0200" endDate="2024-03-03 08:00:00 +0200" value="HKCategoryValueAppetiteChangesIncreased"/>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health" creationDate="2024-03-31 08:00:00 +0200" startDate="2024-03-31 12:00:00 +0200" endDate="2024-03-31 12:00:00 +0200" value="HKCategoryValueMenstrualFlowLight"/>
+ <Record type="HKCategoryTypeIdentifierMenstrualFlow" sourceName="Health &amp; Co &quot;Tracker&quot; &gt; 1" creationDate="2024-04-01 08:00:00 +0200" startDate="2024-04-01 12:00:00 +0200" endDate="2024-04-01 12:00:00 +0200" value="HKCategoryValueMenstrualFlowMedium"/>
+ <Workout workoutActivityType="HKWorkoutActivityTypeWalking" duration="30" startDate="2024-03-10 08:00:00 +0200" endDate="2024-03-10 08:30:00 +0200"/>
+</HealthData>

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/store.dart';
 import '../../widgets/widgets.dart';
+import '../import/import_screen.dart';
 import 'data_export.dart';
 import 'settings_widgets.dart';
 
@@ -123,6 +124,18 @@ class MyDataScreen extends StatelessWidget {
         ),
         _Section(
           label: 'Import',
+          title: 'Bring your history from another app',
+          body: 'Import your periods and logs from Flo, Clue, Apple Health, drip, Mensinator, or a CSV file. '
+              'Bloom reads the file on this device and shows you what it found before anything changes.',
+          children: [
+            InkButton.outlined(
+              label: 'Import from another app',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<bool>(builder: (_) => const ImportScreen())),
+            ),
+          ],
+        ),
+        _Section(
+          label: 'Restore',
           title: 'Bring a backup back',
           body: 'Replace everything in Bloom with a backup file you exported earlier.',
           children: [InkButton.outlined(label: 'Import backup', onPressed: () => _import(context))],

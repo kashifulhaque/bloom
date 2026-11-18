@@ -1,0 +1,19 @@
+[
+  {"date": "2024-02-01", "type": "period", "value": {"option": "medium"}},
+  {"date": "2024-02-02", "type": "period", "value": {"option": "very_heavy"}},
+  {"date": "2024-02-03", "type": "period", "value": {"option": "light"}},
+  {"date": "2024-02-01", "type": "pain", "value": [{"option": "period_cramps"}, {"option": "headache"}, {"option": "ovulation"}]},
+  {"date": "2024-02-02", "type": "feelings", "value": [{"option": "sad"}, {"option": "sensitive"}]},
+  {"date": "2024-02-02", "type": "energy", "value": [{"option": "exhausted"}]},
+  {"date": "2024-02-10", "type": "spotting", "value": {"option": "red"}},
+  {"date": "2024-02-14", "type": "bbt", "value": {"celsius": 36.55, "excluded": false}},
+  {"date": "2024-02-15", "type": "bbt", "value": {"celsius": 37.9, "excluded": true}},
+  {"date": "2024-02-14", "type": "discharge", "value": {"option": "egg_white"}},
+  {"date": "2024-02-14", "type": "tests", "value": [{"option": "ovulation_positive"}]},
+  {"date": "2024-02-14", "type": "sex_life", "value": [{"option": "protected"}, {"option": "high_sex_drive"}]},
+  {"date": "2024-02-16", "type": "digestion", "value": [{"option": "bloated"}]},
+  {"date": "2024-02-16", "type": "tags", "value": [{"option": "beach_day"}]},
+  {"date": "2024-02-16", "type": "birth_control_pill", "value": {"option": "taken"}},
+  {"date": "not-a-date", "type": "period", "value": {"option": "light"}},
+  {"date": "2024-03-01", "type": "period", "value": {"option": "heavy"}}
+]

@@ -1,0 +1,21 @@
+{
+  "periods": [
+    {"id": "1", "date": "2024-05-01", "period_id": "1"},
+    {"id": "2", "date": "2024-05-02", "period_id": "1"},
+    {"id": "3", "date": "2024-05-03", "period_id": "1"}
+  ],
+  "symptoms": [
+    {"id": "1", "symptom_name": "Heavy_Flow", "active": "1", "color": "Red"},
+    {"id": "2", "symptom_name": "Headache", "active": "1", "color": "Blue"},
+    {"id": "3", "symptom_name": "Sore knee", "active": "1", "color": "Grey"}
+  ],
+  "symptom_date": [
+    {"symptom_date": "2024-05-01", "symptom_id": "1"},
+    {"symptom_date": "2024-05-02", "symptom_id": "2"},
+    {"symptom_date": "2024-05-09", "symptom_id": "3"}
+  ],
+  "ovulations": [
+    {"id": "1", "date": "2024-05-15"}
+  ],
+  "app_settings": []
+}

@@ -1,0 +1,8 @@
+{
+  "data": [
+    {"day": "2023-11-05", "period": "heavy", "pain": ["cramps", "headache"]},
+    {"day": "2023-11-06", "period": "medium", "skin": ["acne"]},
+    {"day": "2023-11-07", "period": "spotting"},
+    {"day": "2023-11-20", "sleep": ["6_to_9_hours"]}
+  ]
+}

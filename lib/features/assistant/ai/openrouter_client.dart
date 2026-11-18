@@ -16,9 +16,10 @@ import 'ai_settings.dart';
 
 export 'ai_settings.dart' show AiEndpoint, kOpenRouterUrl;
 
-/// OpenRouter's router that picks any available free model. Bloom doesn't
-/// use it by default: it can pick very small models that get health facts
-/// wrong. It stays allowed for a client created with an explicit `model`.
+/// OpenRouter's router that picks any available free model. Bloom asks for
+/// [kAiModels] instead, because the router can pick very small models that
+/// get health facts wrong. The router is the last resort when OpenRouter no
+/// longer lists any model in [kAiModels].
 const String kAiModel = 'openrouter/free';
 
 /// The free models Bloom asks for, in order of preference. These are the
@@ -130,46 +131,60 @@ class OpenRouterClient {
   /// empty answer counts as a failure unless [allowEmpty] is true.
   ///
   /// The request names up to [kMaxModelsPerRequest] of [models], and
-  /// OpenRouter falls back down that list. Bloom asks a second time, at
-  /// most, in two cases: OpenRouter rejected a model id it no longer lists
-  /// (that id is dropped), or none of the named models could answer and
-  /// [models] has others left to try. A rate limit from Bloom's proxy is
-  /// never retried.
+  /// OpenRouter falls back down that list. When a request fails, Bloom asks
+  /// again in these cases only:
+  ///
+  /// * OpenRouter rejected model ids it no longer lists. Those ids are
+  ///   dropped, and Bloom asks the remaining models. When every model in
+  ///   [models] has been dropped, Bloom asks the free router [kAiModel] once
+  ///   as a last resort, so a stale list never turns AI answers off.
+  /// * None of the named models could answer (busy or unavailable) and
+  ///   [models] has others that weren't named yet. Bloom asks those once.
+  ///
+  /// A rate limit from Bloom's proxy is never retried.
   Future<AiReply> complete(
     List<AiMessage> messages, {
     int maxTokens = kAiMaxTokens,
     double temperature = 0.4,
     bool allowEmpty = false,
   }) async {
-    final batch = models.take(kMaxModelsPerRequest).toList();
-    try {
-      return await _attempt(batch, messages, maxTokens, temperature, allowEmpty);
-    } on _AttemptFailed catch (f) {
-      final retired = [
-        for (final m in batch)
-          if (f.detail.contains(m)) m,
-      ];
-      final List<String> next;
-      if (f.status == 400 && retired.isNotEmpty) {
-        next = [
-          for (final m in models)
-            if (!retired.contains(m)) m,
-        ];
-      } else if (_couldTryOthers(f.status)) {
-        next = [
-          for (final m in models)
-            if (!batch.contains(m)) m,
-        ];
-      } else {
-        next = const [];
-      }
-      if (next.isEmpty) throw f.error;
+    var pending = [...models];
+    var triedOthers = false;
+    var triedRouter = false;
+    // Each pass either returns, throws, or shrinks the candidates, so this
+    // bound is only a guard.
+    for (var pass = 0; pass < models.length + 2; pass++) {
+      final batch = pending.take(kMaxModelsPerRequest).toList();
       try {
-        return await _attempt(next.take(kMaxModelsPerRequest).toList(), messages, maxTokens, temperature, allowEmpty);
-      } on _AttemptFailed catch (again) {
-        throw again.error;
+        return await _attempt(batch, messages, maxTokens, temperature, allowEmpty);
+      } on _AttemptFailed catch (f) {
+        final retired = f.status == 400
+            ? [
+                for (final m in batch)
+                  if (f.detail.contains(m)) m,
+              ]
+            : const <String>[];
+        if (retired.isNotEmpty) {
+          pending = [
+            for (final m in pending)
+              if (!retired.contains(m)) m,
+          ];
+          if (pending.isEmpty) {
+            if (triedRouter || models.contains(kAiModel)) throw f.error;
+            triedRouter = true;
+            pending = [kAiModel];
+          }
+          continue;
+        }
+        if (!triedOthers && _couldTryOthers(f.status) && pending.length > batch.length) {
+          triedOthers = true;
+          pending = pending.skip(batch.length).toList();
+          continue;
+        }
+        throw f.error;
       }
     }
+    throw aiErrorFor(502, '', viaProxy);
   }
 
   bool _couldTryOthers(int? status) => status == 404 || status == 502 || status == 503 || (status == 429 && !viaProxy);

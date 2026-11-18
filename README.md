@@ -144,11 +144,14 @@ in `lib/features/assistant/ai/openrouter_client.dart`, in order of preference:
 1. `google/gemma-4-26b-a4b-it:free`
 1. `nvidia/nemotron-3.5-super-vl:free`
 
-Bloom doesn't use the `openrouter/free` router, because it can pick very small models that
-get health facts wrong. Each request names the first three models, and OpenRouter answers
-with the first one that's available. Bloom asks a second time, at most, in two cases:
+Bloom doesn't use the `openrouter/free` router by default, because it can pick very small
+models that get health facts wrong. Each request names the first three models, and OpenRouter answers
+with the first one that's available. Bloom asks again only in the following cases:
 
-- OpenRouter rejects a model ID that it no longer lists. Bloom drops that ID.
+- OpenRouter rejects a model ID that it no longer lists. Bloom drops that ID and asks the
+  remaining models. If OpenRouter no longer lists any of them, Bloom asks the
+  `openrouter/free` router once as a last resort, so an outdated list doesn't turn AI
+  answers off.
 - None of the three models can answer. Bloom tries the fourth.
 
 The app has no setting to change the models, and the client rejects any model ID that

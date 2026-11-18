@@ -1,6 +1,7 @@
 // Tests for how Bloom picks free models: an ordered list of larger free
-// models, at most three per request, with one retry when OpenRouter rejects a
-// retired model id or none of the named models can answer.
+// models, at most three per request, retries when OpenRouter rejects a retired
+// model id or none of the named models can answer, and the free router as the
+// last resort when every preferred model is retired.
 import 'dart:convert';
 
 import 'package:bloom/features/assistant/ai/openrouter_client.dart';
@@ -112,16 +113,57 @@ void main() {
     expect(s.bodies, hasLength(1));
   });
 
-  test('when every preferred model is retired, the message says so', () async {
+  test('when every preferred model is retired, the free router answers', () async {
     final s = _script([
       _err(400, '${kAiModels[0]} is not a valid model ID'),
       _err(400, '${kAiModels[1]} is not a valid model ID'),
+      _err(400, '${kAiModels[2]} is not a valid model ID'),
+      _err(400, '${kAiModels[3]} is not a valid model ID'),
+      _ok('Router answer', 'some/free-model:free'),
+    ]);
+    final reply = await OpenRouterClient(apiKey: 'k', httpClient: s.client).complete(_msgs);
+    expect(reply.text, 'Router answer');
+    expect(reply.model, 'some/free-model:free');
+    expect(s.bodies.last['model'], kAiModel);
+    expect(s.bodies.last.containsKey('models'), isFalse);
+    // Every earlier request named only preferred models, as a `models` list
+    // or, once a single one is left, as `model`.
+    for (final b in s.bodies.take(s.bodies.length - 1)) {
+      final named = b['models'] as List? ?? [b['model']];
+      for (final m in named) {
+        expect(kAiModels, contains(m));
+      }
+    }
+  });
+
+  test('the router is not used while a preferred model is still listed', () async {
+    final s = _script([_err(400, '${kAiModels[0]} is not a valid model ID'), _ok('Answer', kAiModels[1])]);
+    await OpenRouterClient(apiKey: 'k', httpClient: s.client).complete(_msgs);
+    for (final b in s.bodies) {
+      final named = b['models'] as List? ?? [b['model']];
+      expect(named, isNot(contains(kAiModel)));
+    }
+  });
+
+  test('the router is the last resort and is asked only once', () async {
+    final s = _script([
+      for (final m in kAiModels) _err(400, '$m is not a valid model ID'),
+      _err(400, '$kAiModel is not a valid model ID'),
     ]);
     final client = OpenRouterClient(apiKey: 'k', httpClient: s.client);
     await expectLater(
       client.complete(_msgs),
       throwsA(isA<AiException>().having((e) => e.message, 'message', contains("aren't available"))),
     );
+    expect(s.bodies.where((b) => b['model'] == kAiModel), hasLength(1));
+  });
+
+  test('busy models never fall back to the router', () async {
+    final s = _script([_err(404, 'No endpoints found'), _err(404, 'No endpoints found')]);
+    final client = OpenRouterClient(apiKey: 'k', httpClient: s.client);
+    await expectLater(client.complete(_msgs), throwsA(isA<AiException>()));
+    expect(s.bodies, hasLength(2));
+    expect(s.bodies.where((b) => b['model'] == kAiModel), isEmpty);
   });
 
   test('an explicit single model is sent as model, not models', () async {

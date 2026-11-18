@@ -90,7 +90,7 @@ class MyDataScreen extends StatelessWidget {
     return SettingsPage(
       eyebrow: 'Data & privacy',
       title: 'My data',
-      subtitle: 'Everything you log stays on this device unless you turn on sync.',
+      subtitle: 'Everything you log stays on this device unless you turn on sync or share a report link.',
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

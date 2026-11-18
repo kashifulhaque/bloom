@@ -57,9 +57,11 @@ class AboutPrivacyScreen extends StatelessWidget {
           children: [
             const SectionHeader('Privacy', label: 'I.', padding: EdgeInsets.zero),
             Gap.v16,
-            entry('Offline', 'Works without a connection', 'No account needed. Your data stays on this device unless you export it, turn on AI answers in Ask, or turn on sync.'),
+            entry('Offline', 'Works without a connection', 'No account needed. Your data stays on this device unless you export it, turn on AI answers in Ask, turn on sync, or share a report link.'),
             const Hairline(spacing: Space.md),
             entry('Sealed', 'Sync is end-to-end encrypted', 'Optional sync encrypts every record on your device before upload. The server stores only ciphertext and can\'t read your logs or see which days you logged. Only your 12-word recovery phrase unlocks it.'),
+            const Hairline(spacing: Space.md),
+            entry('Shared', 'Report links are encrypted too', 'When you share a report link, Bloom encrypts the report on your device and uploads only the encrypted copy. The key is in the link itself and never reaches the server. Anyone with the link can read the report until it expires, after 1, 7, or 30 days, or until you turn it off.'),
             const Hairline(spacing: Space.md),
             entry('Quiet', 'No analytics or ads', 'Bloom doesn\'t track how you use it and doesn\'t share data with anyone.'),
             const Hairline(spacing: Space.md),

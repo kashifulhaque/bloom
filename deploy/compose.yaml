@@ -1,5 +1,7 @@
 # Bloom on the VM. Install as ~/docs/apps/bloom/compose.yaml next to a .env
-# file that holds OPENROUTER_API_KEY=... (chmod 600). Caddy on the external
+# file (chmod 600) that holds OPENROUTER_API_KEY=..., and for report share
+# links BLOOM_SHARE_UPSTREAM=https://<ref>.supabase.co/functions/v1/report-share
+# and BLOOM_SHARE_PROXY_SECRET=... (the same value as the function's secret). Caddy on the external
 # `edge` network proxies bloom.ifkash.dev to bloom-web:8080. No ports are
 # published on the host.
 name: bloom

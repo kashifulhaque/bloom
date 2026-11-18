@@ -454,3 +454,11 @@ entrypoint = "./functions/delete-account/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/delete-account/*.html" ]
+
+# Doctor-report share links. No JWT: it's reachable only through the nginx
+# proxy on bloom.ifkash.dev, which sends a shared secret the function checks.
+[functions.report-share]
+enabled = true
+verify_jwt = false
+import_map = "./functions/report-share/deno.json"
+entrypoint = "./functions/report-share/index.ts"

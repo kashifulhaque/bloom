@@ -1,0 +1,79 @@
+/* Almanac, by hand: ink on warm paper, one serif column, hairlines.
+   System fonts only: the web build content-hashes the app's font files, and
+   the PDF itself carries Bloom's typefaces. */
+:root {
+  --paper: #f6f1e7;
+  --raised: #fbf8f2;
+  --hairline: #e2d9c8;
+  --ink: #2a2420;
+  --ink2: #6e645a;
+  --period: #a23b2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1a1714;
+    --raised: #23201c;
+    --hairline: #3a342d;
+    --ink: #efe7da;
+    --ink2: #a79c8d;
+    --period: #e07a63;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+.eyebrow, .label, .meta {
+  font: 500 10.5px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink2);
+}
+.meta { text-transform: none; letter-spacing: 0.02em; font-size: 12.5px; }
+h1 {
+  font: 350 34px/1.15 "Iowan Old Style", Charter, Georgia, serif;
+  margin: 12px 0 24px;
+}
+h1 em { font-style: italic; font-weight: 300; }
+h2 { font: 380 23px/1.25 "Iowan Old Style", Charter, Georgia, serif; margin: 0 0 8px; }
+.lede { font-size: 17px; margin: 0 0 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0 12px; }
+.button {
+  display: inline-block;
+  font: 600 15px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 14px 20px;
+  border-radius: 6px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+  cursor: pointer;
+}
+.button.outlined { background: transparent; color: var(--ink); }
+.button:hover { opacity: 0.85; }
+iframe {
+  width: 100%;
+  height: 80vh;
+  margin-top: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+}
+@media (max-width: 720px) {
+  /* Phone browsers don't show PDFs inline; the buttons do the work. */
+  iframe { display: none; }
+}
+hr { border: 0; border-top: 1px solid var(--hairline); margin: 40px 0 20px; }
+aside p { color: var(--ink2); font-size: 14.5px; }
+a { color: inherit; }

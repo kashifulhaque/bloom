@@ -134,6 +134,20 @@ class SyncCrypto {
 
   // ---------------------------------------------------------------- boxes
 
+  /// Seals [plaintext] under a raw 32-byte [key] in the same box format as
+  /// records. Report share links use it with a fresh key per link.
+  static Future<Uint8List> sealWithKey(Uint8List key, List<int> plaintext, List<int> aad) {
+    if (key.length != keyLength) throw ArgumentError('The key must be $keyLength bytes');
+    return _seal(SecretKeyData(key), plaintext, aad);
+  }
+
+  /// Opens a box made by [sealWithKey]. Throws [SyncCryptoException] if the
+  /// key, the associated data, or the box doesn't match.
+  static Future<Uint8List> openWithKey(Uint8List key, Uint8List box, List<int> aad) {
+    if (key.length != keyLength) throw const SyncCryptoException('Wrong key length');
+    return _open(SecretKeyData(key), box, aad);
+  }
+
   static Future<Uint8List> _seal(SecretKey key, List<int> plaintext, List<int> aad) async {
     final nonce = randomBytes(nonceLength);
     final box = await _aead.encrypt(plaintext, secretKey: key, nonce: nonce, aad: aad);

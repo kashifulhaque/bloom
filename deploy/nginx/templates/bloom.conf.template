@@ -1,9 +1,9 @@
 # Bloom web server and AI proxy.
 #
 # The image's entrypoint renders this file with envsubst at startup. Only
-# ${OPENROUTER_API_KEY} and ${NGINX_LOCAL_RESOLVERS} are substituted (see
-# NGINX_ENVSUBST_FILTER in the Dockerfile); every other $name is an nginx
-# variable.
+# ${OPENROUTER_API_KEY}, ${BLOOM_SHARE_UPSTREAM}, ${BLOOM_SHARE_PROXY_SECRET},
+# and ${NGINX_LOCAL_RESOLVERS} are substituted (see NGINX_ENVSUBST_FILTER in
+# the Dockerfile); every other $name is an nginx variable.
 
 # Caddy on the `edge` network terminates TLS and forwards the client address
 # in X-Forwarded-For. Trust it only from private (Docker) ranges.
@@ -18,6 +18,28 @@ real_ip_recursive on;
 limit_req_zone     $binary_remote_addr zone=bloom_ai:1m rate=6r/m;
 limit_req_status   429;
 limit_req_log_level warn;
+
+# Report share links: uploads are limited to 2 a minute per client address
+# (burst 5), and fetches and revokes to 30 a minute (burst 20). The
+# report-share Edge Function adds daily limits behind these.
+map $request_method $bloom_share_upload_key {
+    POST     $binary_remote_addr;
+    default  "";
+}
+map $request_method $bloom_share_read_key {
+    POST     "";
+    default  $binary_remote_addr;
+}
+limit_req_zone $bloom_share_upload_key zone=bloom_share_upload:1m rate=2r/m;
+limit_req_zone $bloom_share_read_key   zone=bloom_share_read:1m   rate=30r/m;
+
+# 1 when the container has no share upstream or secret, so /api/share answers
+# 503.
+map "${BLOOM_SHARE_UPSTREAM}|${BLOOM_SHARE_PROXY_SECRET}" $bloom_share_off {
+    "~^\|"  1;
+    "~\|$"  1;
+    default  0;
+}
 
 # 1 when the container has no OpenRouter key, so the proxy answers 503.
 map "${OPENROUTER_API_KEY}" $bloom_ai_off {
@@ -34,6 +56,9 @@ map "${OPENROUTER_API_KEY}" $bloom_ai_off {
 #  - style-src 'unsafe-inline' covers the splash <style> and the inline
 #    styles that the Flutter engine sets on its DOM elements.
 #  - connect-src https://openrouter.ai is for users who bring their own key.
+#  - The share-link viewer at /r/ needs nothing extra: its scripts and
+#    /sodium.js are same-origin, it fetches /api/share on this origin, and it
+#    shows the decrypted PDF in a blob: iframe (frame-src blob:).
 #  - connect-src https://whnzpkdqghsjogimkszp.supabase.co is the sync server
 #    (Auth, the Data API, and the delete-account Edge Function). Sync's
 #    libsodium.js is the same-origin /sodium.js, and its WebAssembly needs only
@@ -47,6 +72,7 @@ map $host $bloom_csp {
 map $uri $bloom_cache_control {
     ~^/api/                                                         "no-store";
     /healthz                                                        "no-store";
+    ~^/r/                                                           "no-cache";
     ~^/downloads/                                                   "no-cache";
     /                                                               "no-cache";
     /index.html                                                     "no-cache";
@@ -158,6 +184,80 @@ server {
     location @ai_503 {
         default_type application/json;
         return 503 '{"error":{"code":503,"message":"The AI assistant isn\'t configured on this server."}}\n';
+    }
+
+    # Report share links. Proxies to the report-share Edge Function, which
+    # stores only ciphertext: the decryption key is in the link's fragment and
+    # never reaches a server. The shared secret proves to the function that
+    # the request passed these rate limits; clients never see it.
+    location ~ "^/api/share(?<bloom_share_rest>/[A-Za-z0-9_-]{22})?$" {
+        client_max_body_size    3m;
+        client_body_buffer_size 3m;
+
+        error_page 413 @share_413;
+        error_page 429 @share_429;
+        error_page 502 504 @share_502;
+        error_page 503 @share_503;
+
+        if ($bloom_share_off) {
+            return 503;
+        }
+
+        limit_req zone=bloom_share_upload burst=5 nodelay;
+        limit_req zone=bloom_share_read burst=20 nodelay;
+
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=300s ipv6=off;
+        resolver_timeout 5s;
+        proxy_pass ${BLOOM_SHARE_UPSTREAM}$bloom_share_rest$is_args$args;
+
+        proxy_http_version            1.1;
+        proxy_ssl_server_name         on;
+        proxy_ssl_protocols           TLSv1.2 TLSv1.3;
+        proxy_ssl_verify              on;
+        proxy_ssl_verify_depth        3;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+
+        proxy_set_header Connection           "";
+        proxy_set_header X-Bloom-Proxy-Secret "${BLOOM_SHARE_PROXY_SECRET}";
+        proxy_set_header X-Bloom-Client-Ip    $remote_addr;
+        proxy_set_header Authorization        "";
+        proxy_set_header Cookie               "";
+        proxy_set_header Origin               "";
+        proxy_set_header Referer              "";
+        proxy_set_header Forwarded            "";
+        proxy_set_header X-Forwarded-For      "";
+        proxy_set_header X-Real-IP            "";
+        proxy_hide_header  Set-Cookie;
+        proxy_ignore_headers Set-Cookie;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    30s;
+        proxy_read_timeout    30s;
+    }
+
+    location @share_413 {
+        default_type application/json;
+        return 413 '{"error":{"code":413,"message":"The report is larger than 2 MB."}}\n';
+    }
+    location @share_429 {
+        default_type application/json;
+        return 429 '{"error":{"code":429,"message":"Too many requests. Wait a minute, then try again."}}\n';
+    }
+    location @share_502 {
+        default_type application/json;
+        return 502 '{"error":{"code":502,"message":"The share service didn\'t respond. Try again."}}\n';
+    }
+    location @share_503 {
+        default_type application/json;
+        return 503 '{"error":{"code":503,"message":"Sharing isn\'t set up on this server."}}\n';
+    }
+
+    # The share-link viewer: /r/<id> is one static page that decrypts the
+    # report in the browser. Search engines shouldn't index it.
+    location ^~ /r/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri /r/index.html;
     }
 
     # Android and iOS builds. Missing files are 404, not the app shell.

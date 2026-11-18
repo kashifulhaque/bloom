@@ -2,8 +2,9 @@
 
 Bloom is a free, open-source period, fertility, and pregnancy tracker for the web and
 Android, built with Flutter. It works fully offline. You don't need an account, and your
-data stays on your device. The exceptions are the optional AI answers in **Ask** and
-optional end-to-end encrypted sync, which are both off until you turn them on.
+data stays on your device. The exceptions are the optional AI answers in **Ask**,
+optional end-to-end encrypted sync, and end-to-end encrypted report links that you
+choose to share. All three are off until you use them.
 
 Bloom covers the features of the popular commercial trackers, including the ones they
 put behind a subscription. For the full feature inventory, see
@@ -39,6 +40,9 @@ Android APK and an unsigned iOS build.
 - **Sync:** optional, end-to-end encrypted sync between your phone and the web, unlocked
   with a 12-word recovery phrase.
 - **Partner sharing:** a read-only snapshot that you share as a code or QR code.
+- **Report for a doctor:** a PDF to print or share, or an end-to-end encrypted link that
+  expires after 1, 7, or 30 days and that you can turn off at any time. For more
+  information, see [`docs/REPORT_SHARING.md`](docs/REPORT_SHARING.md).
 
 Bloom isn't a medical device or a method of birth control.
 
@@ -454,6 +458,10 @@ The container serves the following:
   the `OPENROUTER_API_KEY` environment variable. Without a key, the proxy returns `503`.
   It accepts only `POST` requests of up to 32 KB, and it allows each client address 6
   requests a minute, with a burst of 4.
+- `/api/share`, a proxy to the `report-share` Edge Function for report links, and
+  `/r/ID`, the page that opens them. Set `BLOOM_SHARE_UPSTREAM` and
+  `BLOOM_SHARE_PROXY_SECRET`. Without both, `/api/share` returns `503`. For more
+  information, see [`docs/REPORT_SHARING.md`](docs/REPORT_SHARING.md).
 
 To set up the VM, do the following:
 

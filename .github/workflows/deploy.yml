@@ -26,6 +26,7 @@ permissions:
 env:
   FLUTTER_VERSION: 3.50.0
   AI_PROXY_URL: https://bloom.ifkash.dev/api/ai/chat
+  SHARE_API_URL: https://bloom.ifkash.dev/api/share
   IMAGE: ghcr.io/kashifulhaque/bloom
   SITE_URL: https://bloom.ifkash.dev
   # SHA-256 of the release signing certificate, used when the
@@ -47,6 +48,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Test the share-link viewer
+        run: node --test 'test/viewer/*.test.mjs'
 
   android:
     name: Android APK
@@ -94,6 +97,7 @@ jobs:
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+          --dart-define=BLOOM_SHARE_API=${{ env.SHARE_API_URL }}
           --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
@@ -150,6 +154,7 @@ jobs:
           flutter build ios --release --no-codesign
           --build-number=${{ github.run_number }}
           --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+          --dart-define=BLOOM_SHARE_API=${{ env.SHARE_API_URL }}
           --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
       - name: Package the IPA
@@ -190,6 +195,7 @@ jobs:
           flutter build web --release --no-web-resources-cdn --csp
           --web-content-hash --no-wasm-dry-run
           --dart-define=BLOOM_AI_PROXY=/api/ai/chat
+          --dart-define=BLOOM_SHARE_API=/api/share
           --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 

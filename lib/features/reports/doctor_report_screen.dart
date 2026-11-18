@@ -1,5 +1,8 @@
-/// "Report for a doctor": an on-screen preview and a PDF to print or share.
+/// "Report for a doctor": an on-screen preview, a PDF to print or share, and
+/// end-to-end encrypted share links (see `share/`).
 library;
+
+import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:printing/printing.dart';
@@ -12,9 +15,18 @@ import '../settings/settings_widgets.dart';
 import 'pregnancy_info.dart';
 import 'report_data.dart';
 import 'report_pdf.dart';
+import 'share/share_api.dart';
+import 'share/share_link_sheet.dart';
 
 class DoctorReportScreen extends StatefulWidget {
-  const DoctorReportScreen({super.key});
+  const DoctorReportScreen({super.key, this.shareApi, this.buildPdf});
+
+  /// The share service. Defaults to the one this build was configured with
+  /// ([kShareApiSetting]); with none, the Share link button is hidden.
+  final ReportShareApi? shareApi;
+
+  /// Renders the PDF. Tests pass a fake; the app uses [buildReportPdf].
+  final Future<Uint8List> Function(ReportData d)? buildPdf;
 
   @override
   State<DoctorReportScreen> createState() => _DoctorReportScreenState();
@@ -22,6 +34,12 @@ class DoctorReportScreen extends StatefulWidget {
 
 class _DoctorReportScreenState extends State<DoctorReportScreen> {
   bool _busy = false;
+  late final ReportSharer? _sharer = () {
+    final api = widget.shareApi ?? switch (resolveShareApi()) { final Uri url => HttpReportShareApi(url), null => null };
+    return api == null ? null : ReportSharer(api);
+  }();
+
+  Future<Uint8List> _pdf(ReportData d) => (widget.buildPdf ?? buildReportPdf)(d);
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -73,11 +91,18 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
-                        await Printing.sharePdf(bytes: await buildReportPdf(d), filename: fileName);
+                        await Printing.sharePdf(bytes: await _pdf(d), filename: fileName);
                       }),
               ),
+              if (_sharer case final sharer?)
+                InkButton.outlined(
+                  label: 'Share link',
+                  icon: Icons.link,
+                  onPressed: _busy ? null : () => showShareLinkSheet(context, sharer: sharer, buildPdf: () => _pdf(d)),
+                ),
             ],
           ),
+          if (_sharer case final sharer?) SharedLinksSection(sharer: sharer),
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

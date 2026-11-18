@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "test:viewer": "node --test 'test/viewer/*.test.mjs'"
+  },
   "devDependencies": {
     "supabase": "^3.2.0"
   }

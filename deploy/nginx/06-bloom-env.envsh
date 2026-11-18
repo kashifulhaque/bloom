@@ -1,5 +1,8 @@
 #!/bin/sh
 # Sourced by the image's entrypoint before the templates are rendered.
-# Defines OPENROUTER_API_KEY when the container has no key, so the template
-# renders it as an empty string and the AI proxy answers 503.
+# Defines the Bloom variables when the container doesn't set them, so the
+# template renders them as empty strings: the AI proxy and /api/share then
+# answer 503.
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
+export BLOOM_SHARE_UPSTREAM="${BLOOM_SHARE_UPSTREAM:-}"
+export BLOOM_SHARE_PROXY_SECRET="${BLOOM_SHARE_PROXY_SECRET:-}"

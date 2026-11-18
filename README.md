@@ -435,6 +435,9 @@ You can also set the following repository variables:
 - `ANDROID_CERT_SHA256`: the expected certificate fingerprint. The workflow has a
   built-in default.
 - `IMAGE_PLATFORMS`: the image platforms. The default is `linux/amd64`.
+- `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`: the Supabase project for sync. Both are
+  public by design, because row-level security protects the data. Without them, the
+  builds show that sync isn't configured.
 
 ### Run the container
 

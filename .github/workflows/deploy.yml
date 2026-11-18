@@ -6,6 +6,9 @@
 #   ANDROID_KEY_PASSWORD, VM_SSH_KEY, VM_KNOWN_HOSTS, VM_HOST, VM_USER.
 # Variables (optional): ANDROID_CERT_SHA256 (expected signing certificate),
 #   IMAGE_PLATFORMS (default linux/amd64).
+# Variables for sync: SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY. Both are
+#   public by design (row-level security protects the data). Without them, the
+#   builds show that sync isn't configured.
 name: Build and deploy
 
 on:
@@ -91,6 +94,8 @@ jobs:
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+          --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Verify the signature
         env:
@@ -145,6 +150,8 @@ jobs:
           flutter build ios --release --no-codesign
           --build-number=${{ github.run_number }}
           --dart-define=BLOOM_AI_PROXY=${{ env.AI_PROXY_URL }}
+          --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
       - name: Package the IPA
         run: |
           mkdir -p dist/Payload
@@ -183,6 +190,8 @@ jobs:
           flutter build web --release --no-web-resources-cdn --csp
           --web-content-hash --no-wasm-dry-run
           --dart-define=BLOOM_AI_PROXY=/api/ai/chat
+          --dart-define=SUPABASE_URL=${{ vars.SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
       - uses: actions/download-artifact@v4
         with:

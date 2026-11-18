@@ -1,0 +1,7 @@
+date,temperature.value,temperature.exclude,temperature.time,temperature.note,bleeding.value,bleeding.exclude,mucus.feeling,mucus.texture,mucus.value,mucus.exclude,cervix.opening,cervix.firmness,cervix.position,cervix.exclude,note.value,desire.value,sex.solo,sex.partner,sex.condom,sex.pill,sex.iud,sex.patch,sex.ring,sex.implant,sex.diaphragm,sex.none,sex.other,sex.note,pain.cramps,pain.ovulationPain,pain.headache,pain.backache,pain.nausea,pain.tenderBreasts,pain.migraine,pain.other,pain.note,mood.happy,mood.sad,mood.stressed,mood.balanced,mood.fine,mood.anxious,mood.energetic,mood.fatigue,mood.angry,mood.other,mood.note
+2024-04-20,36.85,false,07:10,,,,2,2,4,false,2,,,,,2,,true,true,,,,,,,,,,,true,,,,,,,,,,,,,,,,,,
+2024-04-03,,,,,0,false,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-04-02,36.4,false,06:55,"woke early, then slept",1,false,,,,,,,,,,,,true,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-04-01,36.3,false,,,3,false,,,,,,,,,"first day, heavy",,true,,,,,,,,,,,,true,,true,,,,,,,,true,,true,true,,,,,,
+2024-03-25,,,,,2,true,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+2024-03-24,36.2,true,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

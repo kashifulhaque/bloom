@@ -35,8 +35,9 @@ Android APK and an unsigned iOS build.
   free models.
 - **Reminders:** period, fertility, birth control, and wellness reminders. They appear as
   system notifications on Android and as an in-app banner on the web.
-- **Privacy:** a PIN app lock, JSON backup, export and import, CSV export, and an option
-  to delete all data.
+- **Privacy:** a PIN app lock, JSON backup, export and import, CSV export, import from
+  Flo, Clue, Apple Health, and other apps, and an
+  option to delete all data.
 - **Sync:** optional, end-to-end encrypted sync between your phone and the web, unlocked
   with a 12-word recovery phrase.
 - **Partner sharing:** a read-only snapshot that you share as a code or QR code.
@@ -70,6 +71,34 @@ To build an Android APK, run the following command:
 ```bash
 flutter build apk --release
 ```
+
+## Import from another app
+
+Bloom can import your history from another period tracker. To start, go to **You > My
+data > Import from another app**, or on the welcome page, tap **Coming from another
+app?** Bloom shows how to export from each app, previews what it found, and then asks
+whether to add the import to your data or replace your data with it.
+
+Bloom reads the following exports:
+
+- **Apple Health:** `export.zip` from **Export All Health Data**. Bloom streams the file,
+  so exports of several gigabytes work.
+- **Clue:** the password-protected ZIP from **Download my data**, or the
+  `measurements.json` file inside it. Older `.cluedata` backups also work.
+- **Flo:** the JSON export that Flo's support team sends on request, with or without its
+  password-protected ZIP. Flo's export has no flow levels, so periods arrive without one.
+- **drip:** the CSV export.
+- **Mensinator:** the JSON export.
+- **Any other app:** a CSV file with a date column. Bloom asks which column holds the
+  date, flow, temperature, and notes.
+
+Bloom detects the format from the file's contents. It reads the file on the device and
+never uploads it. When sync is on, imported days sync like days that you log by hand. The
+preview lists everything that Bloom can't map, so nothing is left out without a count.
+Bloom can't read Android Health Connect exports, because their format isn't documented.
+
+For the formats, the mappings, and their sources, see
+[`docs/IMPORT_FORMATS.md`](docs/IMPORT_FORMATS.md).
 
 ## AI answers
 

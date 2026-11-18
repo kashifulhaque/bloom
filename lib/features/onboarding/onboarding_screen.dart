@@ -1,6 +1,8 @@
 /// First-run questionnaire: goal, profile basics, and cycle defaults. The
 /// welcome page also offers **Already have an account?**, which restores
-/// synced data instead (see [RestoreFlow]).
+/// synced data instead (see [RestoreFlow]), and **Coming from another app?**,
+/// which imports another tracker's export (see [ImportScreen]) and then
+/// continues setup.
 library;
 
 import 'package:material_ui/material_ui.dart';
@@ -12,6 +14,7 @@ import '../../core/store.dart';
 import '../../core/sync/sync_controller.dart';
 import '../../widgets/widgets.dart';
 import '../downloads/get_app_screen.dart';
+import '../import/import_screen.dart';
 import '../log/almanac_rows.dart';
 import '../sync/sync_screen.dart';
 import 'demo_data.dart';
@@ -154,6 +157,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
+  /// Opens the import flow. After an import, setup continues at the goal
+  /// step with the last imported period as the last period.
+  Future<void> _importFromApp() async {
+    final store = context.read<AppStore>();
+    final imported = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ImportScreen(fromOnboarding: true)),
+    );
+    if (imported != true || !mounted) return;
+    final periods = store.engine.periods;
+    setState(() {
+      if (periods.isNotEmpty) {
+        _lastPeriod = periods.last.start;
+        _lastPeriodUnknown = false;
+      }
+      _dir = 1;
+      _index = 1;
+    });
+  }
+
   void _finish() {
     final store = context.read<AppStore>();
     final pregnant = _goal == Goal.trackPregnancy;
@@ -162,7 +184,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (pregnant && _pregnancyDate != null) (_useDueDate ? 'dueDate' : 'pregnancyLmp'): dayKey(_pregnancyDate!),
     });
     final periodLen = _periodUnknown ? 5 : _periodLength;
-    if (!pregnant && _lastPeriod != null) {
+    // An imported period already holds this day; don't stretch it.
+    if (!pregnant && _lastPeriod != null && !store.isPeriodDay(_lastPeriod!)) {
       // Don't mark days after today as logged period days.
       final len = periodLen.clamp(1, daysBetween(_lastPeriod!, today()) + 1);
       store.startPeriod(_lastPeriod!, length: len);
@@ -440,6 +463,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         Text(
           'Fills the app with 8 months of sample data for trying it out.',
+          style: theme.textTheme.bodySmall,
+        ),
+        Gap.v16,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InkLink('Coming from another app?', key: const ValueKey('onboarding-import'), onTap: _importFromApp),
+        ),
+        Text(
+          'Bring your history from Flo, Clue, Apple Health, and others.',
           style: theme.textTheme.bodySmall,
         ),
         if (showGetTheApp) ...[

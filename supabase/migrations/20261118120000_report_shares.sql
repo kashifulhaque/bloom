@@ -60,7 +60,9 @@ revoke all on table public.report_share_uploads from public, anon, authenticated
 
 -- Stores a new share. Raises 'rate_limited' (P0001 with that message) when the
 -- client has made 20 uploads in 24 hours, and 'busy' when the service-wide
--- daily or storage limit is reached.
+-- daily limit (1,000 uploads) or storage limit is reached. The storage limit is
+-- 100 MiB, well under the free plan's 500 MB database, which turns read-only
+-- when full and would also stop sync.
 create or replace function public.report_share_create(
   p_id          text,
   p_revoke_hash bytea,
@@ -92,7 +94,7 @@ begin
     raise exception 'busy';
   end if;
   if (select coalesce(sum(octet_length(ciphertext)), 0) from public.report_shares)
-      + octet_length(p_ciphertext) > 500 * 1024 * 1024 then
+      + octet_length(p_ciphertext) > 100 * 1024 * 1024 then
     raise exception 'busy';
   end if;
 

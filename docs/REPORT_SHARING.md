@@ -60,7 +60,7 @@ Sharing doesn't need an account. The following limits protect the service from a
 | Upload size | nginx and the function | 2 MiB of report |
 | Uploads per address per day | Postgres | 20 |
 | Uploads per day, all users | Postgres | 1,000 |
-| Total stored | Postgres | 500 MB |
+| Total stored | Postgres | 100 MiB, well under the free plan's 500 MB database |
 | Link lifetime | The function and a table constraint | 1, 7, or 30 days |
 
 For the daily per-address limit, the function stores an HMAC-SHA256 of the uploader's IP

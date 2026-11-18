@@ -291,11 +291,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           Marginalia(
             label: 'Model',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(kAiModel, style: Almanac.data(context, color: p.ink, size: 13.5)),
+              Text(kAiModels.map(modelDisplayName).join(', '), style: Almanac.data(context, color: p.ink, size: 13.5)),
               Gap.v4,
               Text(
-                "OpenRouter's free router picks an available free model for each question. "
-                'Bloom only uses free models.',
+                'Bloom asks for these larger free models, in this order, and the first one '
+                "that's available answers. Bloom never uses paid models.",
                 style: theme.textTheme.bodySmall,
               ),
             ]),

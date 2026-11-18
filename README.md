@@ -136,17 +136,32 @@ key only for local development. For builds that you share, leave the key out and
 
 ### Free models only
 
-Bloom always sends requests to the `openrouter/free` router, which picks an available free
-model for each question, whichever source it uses. The app has no setting to change the model, and the client
-rejects any model ID that isn't `openrouter/free` or doesn't end in `:free`. For extra
-protection, we recommend that you also restrict your OpenRouter key to free models.
+Bloom asks for larger free models only, whichever source it uses. The list is `kAiModels`
+in `lib/features/assistant/ai/openrouter_client.dart`, in order of preference:
+
+1. `google/gemma-4-31b-it:free`
+1. `nvidia/nemotron-3-ultra-550b-a55b:free`
+1. `google/gemma-4-26b-a4b-it:free`
+1. `nvidia/nemotron-3.5-super-vl:free`
+
+Bloom doesn't use the `openrouter/free` router, because it can pick very small models that
+get health facts wrong. Each request names the first three models, and OpenRouter answers
+with the first one that's available. Bloom asks a second time, at most, in two cases:
+
+- OpenRouter rejects a model ID that it no longer lists. Bloom drops that ID.
+- None of the three models can answer. Bloom tries the fourth.
+
+The app has no setting to change the models, and the client rejects any model ID that
+doesn't end in `:free`. For extra protection, we recommend that you also restrict your
+OpenRouter key to free models. Free models change over time, so check the list against
+https://openrouter.ai/api/v1/models and update it when a model is retired.
 
 Free models have rate limits: about 20 requests a minute and a daily cap. If a request
 returns a "no endpoints" error, in your OpenRouter privacy settings, allow the free model
 providers. If the error mentions a guardrail, the key's restrictions block the model; in
 the key's settings, allow free models.
 
-The free router often picks reasoning models, which spend part of the answer budget on
+These free models reason before they answer, which spends part of the answer budget on
 hidden reasoning. Bloom asks for up to 900 tokens. If a model runs out before it writes an
 answer, Bloom shows **Try again**.
 

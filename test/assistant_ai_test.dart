@@ -90,7 +90,8 @@ void main() {
       expect(r.headers['X-Title'], 'Bloom');
       expect(r.headers.keys.map((k) => k.toLowerCase()), isNot(contains('http-referer')));
       final body = jsonDecode(r.body) as Map<String, dynamic>;
-      expect(body['model'], 'openrouter/free');
+      expect(body['models'], kAiModels.take(kMaxModelsPerRequest).toList());
+      expect(body.containsKey('model'), isFalse);
       expect(body['max_tokens'], 900);
       expect(body['temperature'], 0.4);
       expect(body.containsKey('stream'), isFalse);
@@ -362,11 +363,13 @@ void main() {
       await tester.enterText(find.byType(TextField), 'what is ovulation?');
       await tester.testTextInput.receiveAction(TextInputAction.send);
       await tester.pumpAndSettle();
-      expect(rec.requests, hasLength(1));
+      // A 503 for the first three models makes the client try the remaining
+      // preferred model once, so each question sends two requests.
+      expect(rec.requests, hasLength(2));
       expect(find.textContaining('having trouble'), findsOneWidget);
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
-      expect(rec.requests, hasLength(2));
+      expect(rec.requests, hasLength(4));
       final sent = jsonDecode(rec.requests.last.body)['messages'] as List;
       expect(jsonEncode(sent), isNot(contains('hurt myself')));
     });
@@ -405,7 +408,7 @@ void main() {
       await tester.tap(find.text('Test connection'));
       await tester.pumpAndSettle();
       expect(find.textContaining('gemma-3-27b-it answered'), findsOneWidget);
-      expect(jsonDecode(rec.requests.single.body)['model'], 'openrouter/free');
+      expect(jsonDecode(rec.requests.single.body)['models'], kAiModels.take(kMaxModelsPerRequest).toList());
     });
   });
 
@@ -448,7 +451,8 @@ void main() {
       expect(r.url.toString(), proxyAbs);
       expect(r.headers.keys.map((k) => k.toLowerCase()), isNot(contains('authorization')));
       final body = jsonDecode(r.body) as Map<String, dynamic>;
-      expect(body['model'], 'openrouter/free');
+      expect(body['models'], kAiModels.take(kMaxModelsPerRequest).toList());
+      expect(body.containsKey('model'), isFalse);
       expect(body['max_tokens'], 900);
     });
 

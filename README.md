@@ -200,6 +200,11 @@ and a build without sync settings works exactly as before. To turn it on, in the
 to **You > Sync**, sign in with a 6-digit code that Bloom emails you, and save your
 recovery phrase.
 
+To set up a new device from an account that already has sync on, tap **Already have an
+account?** on the welcome page. Sign in with the emailed code and enter your recovery
+phrase. Bloom restores your synced data, skips the setup questions, and keeps sync on. The
+welcome page shows this option only in builds that have sync.
+
 ### What's encrypted
 
 Bloom encrypts every record on the device before upload, so the server stores only

@@ -40,42 +40,29 @@ class LockScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.read<AppStore>();
-    final theme = Theme.of(context);
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: BloomGradients.dusk),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: Insets.all24,
-              child: PinPad(
-                onGradient: true,
-                header: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(Space.sm),
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.18)),
-                      child: const BloomLogo(size: 64),
-                    ),
-                    Gap.v12,
-                    Text('Bloom', style: theme.textTheme.titleLarge!.copyWith(color: Colors.white)),
-                  ],
-                ),
-                title: 'Enter your PIN',
-                subtitle: 'Bloom is locked to keep your data private',
-                onCompleted: (pin) {
-                  if (verifyPin(pin, store.profile.pin)) {
-                    store.unlock();
-                    return null;
-                  }
-                  return 'Wrong PIN. Try again.';
-                },
-                footer: TextButton(
-                  style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  onPressed: () => _forgot(context),
-                  child: const Text('Forgot PIN?'),
-                ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xxl),
+            child: PinPad(
+              header: const Column(
+                children: [
+                  BloomLogo(size: 56),
+                  Gap.v16,
+                  MonoLabel('Bloom is locked'),
+                ],
               ),
+              title: 'Welcome back',
+              subtitle: 'Enter your PIN to open your notebook.',
+              onCompleted: (pin) {
+                if (verifyPin(pin, store.profile.pin)) {
+                  store.unlock();
+                  return null;
+                }
+                return 'Wrong PIN. Try again.';
+              },
+              footer: InkLink('Forgot PIN?', size: 13.5, color: BloomColors.of(context).ink2, onTap: () => _forgot(context)),
             ),
           ),
         ),

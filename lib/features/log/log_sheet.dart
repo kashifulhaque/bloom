@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +15,7 @@ import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../core/units.dart';
 import '../../widgets/widgets.dart';
+import 'almanac_rows.dart';
 import 'edit_trackers_screen.dart';
 import 'tracker_style.dart';
 import 'trackers.dart';
@@ -62,7 +64,7 @@ class _LogSheetBodyState extends State<LogSheetBody> {
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
     if (diff == -1) return 'Tomorrow';
-    return fmtLong(d);
+    return DateFormat('d MMMM').format(d);
   }
 
   void _shift(int dir) => setState(() {
@@ -80,7 +82,7 @@ class _LogSheetBodyState extends State<LogSheetBody> {
     final log = store.logFor(_day);
     final q = _query.trim().toLowerCase();
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final info = store.engine.info(_day);
 
     bool matches(String s) => q.isEmpty || s.toLowerCase().contains(q);
@@ -101,8 +103,8 @@ class _LogSheetBodyState extends State<LogSheetBody> {
     }
 
     final showPeriod = profile.goal != Goal.trackPregnancy && (matches('period') || matches('bleeding'));
-    final subtitle = [
-      if (daysBetween(_day, today()) <= 1 && daysBetween(_day, today()) >= -1) fmtLong(_day),
+    final eyebrow = [
+      DateFormat('EEE, d MMM').format(_day),
       if (info.cycleDay != null) 'Cycle day ${info.cycleDay}',
     ].join(' · ');
 
@@ -110,20 +112,22 @@ class _LogSheetBodyState extends State<LogSheetBody> {
       if (showPeriod) _PeriodToggle(day: _day),
       ...sections,
       if (sections.isEmpty && q.isNotEmpty)
-        EmptyState(
-          compact: true,
-          icon: Icons.search_off_rounded,
-          title: 'No matches',
-          body: 'Nothing matches "$_query". Try another word, or turn on more categories.',
-          action: TextButton(onPressed: _editTrackers, child: const Text('Edit categories')),
+        Padding(
+          padding: const EdgeInsets.only(top: Space.xl),
+          child: EmptyState(
+            compact: true,
+            title: 'No matches',
+            body: 'Nothing matches "$_query". Try another word, or turn on more categories.',
+            action: InkLink('Edit categories', onTap: _editTrackers),
+          ),
         ),
       if (q.isEmpty) ...[
         _NoteField(key: ValueKey(dayKey(_day)), day: _day, initial: log.note),
-        Center(
-          child: TextButton.icon(
-            onPressed: _editTrackers,
-            icon: const Icon(Icons.tune_rounded, size: 18),
-            label: const Text('Edit categories'),
+        Padding(
+          padding: const EdgeInsets.only(top: Space.lg),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: InkLink('Edit categories', icon: Icons.tune, arrow: true, size: 13.5, onTap: _editTrackers),
           ),
         ),
       ],
@@ -131,58 +135,54 @@ class _LogSheetBodyState extends State<LogSheetBody> {
 
     return Column(
       children: [
-        // Day switcher.
+        // Day header: mono date, serif day name, thin arrows.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.md, 0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              IconButton.filledTonal(
-                tooltip: 'Previous day',
-                onPressed: () => _shift(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
               Expanded(
                 child: AnimatedSwitcher(
                   duration: Motion.medium,
-                  switchInCurve: Motion.emphasized,
+                  switchInCurve: Motion.curve,
+                  layoutBuilder: (current, previous) =>
+                      Stack(alignment: Alignment.bottomLeft, children: [...previous, ?current]),
                   transitionBuilder: (child, a) => FadeTransition(
                     opacity: a,
                     child: SlideTransition(
-                      position: Tween(begin: Offset(0.15 * _dir, 0), end: Offset.zero).animate(a),
+                      position: Tween(begin: Offset(0.06 * _dir, 0), end: Offset.zero).animate(a),
                       child: child,
                     ),
                   ),
                   child: Column(
                     key: ValueKey(dayKey(_day)),
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      MonoLabel(eyebrow, maxLines: 1),
+                      Gap.v4,
                       Text(
                         _dayLabel(_day),
-                        textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.headlineSmall,
+                        style: theme.textTheme.headlineMedium,
                       ),
-                      if (subtitle.isNotEmpty)
-                        Text(subtitle,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted)),
                     ],
                   ),
                 ),
               ),
-              IconButton.filledTonal(
+              ThinIconButton(icon: Icons.chevron_left, tooltip: 'Previous day', boxed: false, onTap: () => _shift(-1)),
+              ThinIconButton(
+                icon: Icons.chevron_right,
                 tooltip: 'Next day',
-                onPressed: _day.isBefore(today()) ? () => _shift(1) : null,
-                icon: const Icon(Icons.chevron_right_rounded),
+                boxed: false,
+                onTap: _day.isBefore(today()) ? () => _shift(1) : null,
               ),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(Space.xl, Space.lg, Space.md, Space.sm),
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.md, Space.xs),
           child: Row(
             children: [
               Expanded(
@@ -193,12 +193,13 @@ class _LogSheetBodyState extends State<LogSheetBody> {
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: 'Search symptoms and moods',
-                    prefixIcon: const Icon(Icons.search_rounded),
+                    prefixIcon: Icon(Icons.search, size: 18, color: p.ink2),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 36),
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
                             tooltip: 'Clear search',
-                            icon: const Icon(Icons.close_rounded),
+                            icon: Icon(Icons.close, size: 18, color: p.ink2),
                             onPressed: () => setState(() {
                               _searchCtrl.clear();
                               _query = '';
@@ -210,39 +211,28 @@ class _LogSheetBodyState extends State<LogSheetBody> {
               Gap.h4,
               IconButton(
                 tooltip: 'Edit categories',
-                icon: const Icon(Icons.tune_rounded),
+                icon: Icon(Icons.tune, size: 20, color: p.ink2),
                 onPressed: _editTrackers,
               ),
             ],
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: ListView.builder(
             controller: widget.scrollController,
-            padding: const EdgeInsets.fromLTRB(Space.xl, Space.sm, Space.xl, Space.xxl),
+            padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.xxl),
             itemCount: children.length,
             itemBuilder: (_, i) => children[i],
-            separatorBuilder: (_, _) => Gap.v12,
           ),
         ),
-        // Sticky Done button.
+        // Pinned Done button on a hairline.
         DecoratedBox(
-          decoration: BoxDecoration(
-            color: theme.bottomSheetTheme.backgroundColor ?? theme.colorScheme.surface,
-            border: Border(top: BorderSide(color: tokens.border)),
-          ),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: p.hairline))),
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(Space.xl, Space.md, Space.xl, Space.md),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('Done'),
-                ),
-              ),
+              padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.md),
+              child: InkButton(label: 'Done', expanded: true, onPressed: () => Navigator.of(context).maybePop()),
             ),
           ),
         ),
@@ -251,21 +241,39 @@ class _LogSheetBodyState extends State<LogSheetBody> {
   }
 }
 
-/// The header row of a tracker card: badge, title, and a trailing widget.
+/// The opener of a tracker section: a dot, a mono category name, and a
+/// trailing mono status or widget.
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.emoji, required this.title, required this.color, this.trailing});
-  final String emoji;
+  const _SectionTitle({required this.title, required this.color, this.trailing});
   final String title;
   final Color color;
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => SizedBox(
+        height: 32,
+        child: Row(
+          children: [
+            ToneDot(color),
+            Gap.h8,
+            Expanded(child: MonoLabel(title, maxLines: 1)),
+            ?trailing,
+          ],
+        ),
+      );
+}
+
+/// A tracker section: hairline on top, then its content.
+class _Ruled extends StatelessWidget {
+  const _Ruled({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconBadge(emoji: emoji, color: color, size: 36),
-          Gap.h12,
-          Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
-          ?trailing,
+          const Hairline(),
+          Padding(padding: const EdgeInsets.only(top: Space.md, bottom: Space.xl), child: child),
         ],
       );
 }
@@ -280,29 +288,41 @@ class _PeriodToggle extends StatelessWidget {
     final store = context.watch<AppStore>();
     final on = store.isPeriodDay(day);
     final theme = Theme.of(context);
-    void toggle(bool v) => store.setPeriodDay(day, v);
-    final content = Row(
-      children: [
-        IconBadge(emoji: '🩸', color: BloomColors.period, filled: on),
-        Gap.h12,
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Period day', style: theme.textTheme.titleMedium),
-              Text(
-                on ? 'Marked as a day of your period' : 'Mark this day as a day of your period',
-                style: theme.textTheme.bodySmall!.copyWith(color: BloomTokens.of(context).muted),
+    final p = BloomColors.of(context);
+    void toggle(bool v) {
+      Almanac.tick();
+      store.setPeriodDay(day, v);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.md),
+      child: Pressable(
+        onTap: () => toggle(!on),
+        child: Row(
+          children: [
+            const ToneDot(BloomColors.period, size: 8),
+            Gap.h12,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Period day',
+                      style: Almanac.serif(
+                          size: 20,
+                          weight: 380,
+                          color: on ? readableTint(BloomColors.period, theme.brightness) : p.ink)),
+                  Text(
+                    on ? 'Marked as a day of your period' : 'Mark this day as a day of your period',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            InkSwitch(value: on, onChanged: toggle, semanticLabel: 'Period day'),
+          ],
         ),
-        Switch(value: on, activeThumbColor: BloomColors.period, onChanged: toggle),
-      ],
+      ),
     );
-    return on
-        ? BloomCard.tinted(color: BloomColors.period, padding: Insets.cardCompact, onTap: () => toggle(false), child: content)
-        : BloomCard(padding: Insets.cardCompact, onTap: () => toggle(true), child: content);
   }
 }
 
@@ -317,39 +337,44 @@ class _CategorySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.read<AppStore>();
-    final color = Color(category.colorHex);
+    final color = categoryColor(category.id);
     final single = category.kind == CategoryKind.single;
     final picked = options.where((o) => log.has(category.id, o.id)).length;
-    return BloomCard(
-      padding: Insets.cardCompact,
+    return _Ruled(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SectionTitle(
-            emoji: category.emoji,
             title: category.title,
             color: color,
             trailing: AnimatedSwitcher(
               duration: Motion.medium,
-              child: picked > 0
-                  ? PillChip(single ? 'Picked' : '$picked selected', key: ValueKey(picked), color: color, dense: true)
-                  : single
-                      ? const PillChip('Pick one', key: ValueKey('one'), dense: true, color: BloomColors.info)
-                      : const SizedBox.shrink(),
+              child: Text(
+                picked > 0
+                    ? (single ? 'Picked' : '$picked selected')
+                    : single
+                        ? 'Pick one'
+                        : '',
+                key: ValueKey('$picked'),
+                style: Almanac.data(context, size: 11.5),
+              ),
             ),
           ),
-          Gap.v12,
+          Gap.v8,
           Wrap(
             spacing: Space.sm,
             runSpacing: Space.sm,
             children: [
               for (final o in options)
                 SelectChip(
-                  emoji: o.emoji,
                   label: o.label,
                   color: color,
+                  showCheck: false,
                   selected: log.has(category.id, o.id),
-                  onSelected: (_) => store.toggleOption(day, category.id, o.id, single: single),
+                  onSelected: (_) {
+                    Almanac.tick();
+                    store.toggleOption(day, category.id, o.id, single: single);
+                  },
                 ),
             ],
           ),
@@ -469,38 +494,24 @@ class _MetricSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final view = _MetricView(metric, profile);
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final color = metricColor(metric.id);
     final clear = AnimatedSwitcher(
       duration: Motion.fast,
       child: value == null
           ? const SizedBox.shrink()
-          : IconButton(
-              key: const ValueKey('clear'),
-              tooltip: 'Clear ${metric.title.toLowerCase()}',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => _set(null),
-              icon: Icon(Icons.close_rounded, size: 18, color: tokens.muted),
-            ),
+          : InkLink('Clear', key: const ValueKey('clear'), size: 12.5, color: p.ink2, onTap: () => _set(null)),
     );
-    final header = _SectionTitle(emoji: metric.emoji, title: metric.title, color: color, trailing: clear);
+    final header = _SectionTitle(title: metric.title, color: color, trailing: clear);
 
-    Widget card(List<Widget> children) => BloomCard(
-          padding: Insets.cardCompact,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [header, Gap.v12, ...children]),
+    Widget section(List<Widget> children) => _Ruled(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [header, Gap.v4, ...children]),
         );
 
     if (metric.id == 'energy') {
       const labels = ['Very low', 'Low', 'Okay', 'Good', 'Great'];
-      const icons = [
-        Icons.battery_1_bar_rounded,
-        Icons.battery_2_bar_rounded,
-        Icons.battery_4_bar_rounded,
-        Icons.battery_5_bar_rounded,
-        Icons.battery_full_rounded,
-      ];
-      return card([
+      return section([
+        Gap.v4,
         Wrap(
           spacing: Space.sm,
           runSpacing: Space.sm,
@@ -508,7 +519,6 @@ class _MetricSection extends StatelessWidget {
             for (var i = 1; i <= 5; i++)
               SelectChip(
                 label: labels[i - 1],
-                icon: icons[i - 1],
                 color: color,
                 showCheck: false,
                 selected: value?.round() == i,
@@ -523,6 +533,7 @@ class _MetricSection extends StatelessWidget {
     final displayStep = view.step;
 
     void bump(int dir) {
+      Almanac.tick();
       if (value == null && dir > 0 && metric.id != 'water' && metric.id != 'steps') {
         _set(_startValue());
         return;
@@ -536,43 +547,44 @@ class _MetricSection extends StatelessWidget {
       _set(view.fromDisplay(next));
     }
 
-    final valueText = AnimatedSwitcher(
-      duration: Motion.fast,
-      child: Text(
-        display,
-        key: ValueKey(display),
-        textAlign: TextAlign.center,
-        style: theme.textTheme.titleLarge!.copyWith(color: value == null ? tokens.muted : null),
-      ),
-    );
-
-    final stepper = Row(
+    // A ledger row: the value in serif (tap to type) and a thin stepper.
+    final row = Row(
       children: [
-        IconButton.filledTonal(
-          tooltip: 'Decrease ${metric.title.toLowerCase()}',
-          onPressed: value == null ? null : () => bump(-1),
-          icon: const Icon(Icons.remove_rounded),
-        ),
         Expanded(
-          child: InkWell(
-            borderRadius: Radii.smAll,
+          child: Pressable(
             onTap: () => _typeValue(context, view),
+            semanticLabel: '${metric.title}: $display. Tap to type a value',
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: Space.sm),
+              padding: const EdgeInsets.symmetric(vertical: Space.xs),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  valueText,
-                  Text(metric.id == 'water' ? '1 glass = 250 ml' : 'Tap to type',
-                      style: theme.textTheme.labelSmall!.copyWith(color: tokens.muted)),
+                  AnimatedSwitcher(
+                    duration: Motion.fast,
+                    layoutBuilder: (current, previous) =>
+                        Stack(alignment: Alignment.centerLeft, children: [...previous, ?current]),
+                    child: Text(
+                      display,
+                      key: ValueKey(display),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: value == null
+                          ? Almanac.italic(context, size: 20, color: p.ink2)
+                          : Almanac.serif(size: 22, weight: 360, color: p.ink, tabular: true),
+                    ),
+                  ),
+                  Text(metric.id == 'water' ? '1 glass = 250 ml · tap to type' : 'Tap to type',
+                      style: Almanac.data(context, size: 11)),
                 ],
               ),
             ),
           ),
         ),
-        IconButton.filledTonal(
-          tooltip: 'Increase ${metric.title.toLowerCase()}',
-          onPressed: () => bump(1),
-          icon: const Icon(Icons.add_rounded),
+        ThinStepper(
+          minusTooltip: 'Decrease ${metric.title.toLowerCase()}',
+          plusTooltip: 'Increase ${metric.title.toLowerCase()}',
+          onMinus: value == null ? null : () => bump(-1),
+          onPlus: () => bump(1),
         ),
       ],
     );
@@ -580,74 +592,65 @@ class _MetricSection extends StatelessWidget {
     if (metric.id == 'water') {
       final glasses = ((value ?? 0) / _glass).round();
       final extra = math.max(0, glasses - _glassGoal);
-      return card([
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: Space.xs,
-          runSpacing: Space.xs,
+      return section([
+        row,
+        Gap.v8,
+        Row(
           children: [
             for (var i = 0; i < _glassGoal; i++)
-              Semantics(
-                button: true,
-                label: 'Set water to ${i + 1} glasses',
-                excludeSemantics: true,
-                child: InkResponse(
-                  radius: 22,
-                  // Tapping the last filled glass empties it.
-                  onTap: () => _set(i + 1 == glasses ? (i == 0 ? null : i * _glass) : (i + 1) * _glass),
-                  child: SizedBox(
-                    width: 34,
-                    height: 44,
-                    child: AnimatedSwitcher(
-                      duration: Motion.medium,
-                      transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-                      child: Icon(
-                        i < glasses ? Icons.local_drink_rounded : Icons.local_drink_outlined,
-                        key: ValueKey(i < glasses),
-                        size: 28,
-                        color: i < glasses ? color : tokens.muted.withValues(alpha: 0.5),
+              Expanded(
+                child: Semantics(
+                  button: true,
+                  label: 'Set water to ${i + 1} glasses',
+                  excludeSemantics: true,
+                  child: Pressable(
+                    // Tapping the last filled glass empties it.
+                    onTap: () => _set(i + 1 == glasses ? (i == 0 ? null : i * _glass) : (i + 1) * _glass),
+                    child: SizedBox(
+                      height: 32,
+                      child: Center(
+                        child: AnimatedContainer(
+                          duration: Motion.medium,
+                          curve: Motion.curve,
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          height: i < glasses ? 3 : 1,
+                          color: i < glasses ? p.ink : p.hairline,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            if (extra > 0) PillChip('+$extra', color: color, dense: true),
+            if (extra > 0) ...[Gap.h8, Text('+$extra', style: Almanac.data(context))],
           ],
         ),
-        Gap.v8,
-        stepper,
       ]);
     }
 
     if (metric.id == 'sleep') {
-      return card([
-        stepper,
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(activeTrackColor: color, thumbColor: color),
-          child: Slider(
-            value: (value ?? 0).clamp(0.0, _sleepMax),
-            min: 0,
-            max: _sleepMax,
-            divisions: 24,
-            label: value == null ? null : view.format(value!),
-            onChanged: (v) => _set(v),
-          ),
+      return section([
+        row,
+        Slider(
+          value: (value ?? 0).clamp(0.0, _sleepMax),
+          min: 0,
+          max: _sleepMax,
+          divisions: 24,
+          label: value == null ? null : view.format(value!),
+          onChanged: (v) => _set(v),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Space.lg),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              for (final l in ['0 h', '6 h', '12 h'])
-                Text(l, style: theme.textTheme.labelSmall!.copyWith(color: tokens.muted)),
+              for (final l in ['0 h', '6 h', '12 h']) Text(l, style: Almanac.data(context, size: 11)),
             ],
           ),
         ),
       ]);
     }
 
-    return card([stepper]);
+    return section([row]);
   }
 }
 
@@ -692,19 +695,17 @@ class _NoteFieldState extends State<_NoteField> {
 
   @override
   Widget build(BuildContext context) {
-    return BloomCard(
-      padding: Insets.cardCompact,
+    return _Ruled(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _SectionTitle(emoji: '📝', title: 'Note', color: BloomColors.pregnancy),
-          Gap.v12,
-          TextField(
+          const _SectionTitle(title: 'Note', color: BloomColors.ink2),
+          Gap.v4,
+          LinedPaperField(
             controller: _ctrl,
-            minLines: 3,
-            maxLines: 8,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'How are you feeling today?'),
+            minLines: 4,
+            maxLines: 12,
+            hintText: 'How are you feeling today?',
             onChanged: (_) {
               _debounce?.cancel();
               _debounce = Timer(const Duration(milliseconds: 500), _save);

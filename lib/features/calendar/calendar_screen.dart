@@ -54,8 +54,7 @@ DateTime? pregnancyLmp(AppStore store) {
   return due == null ? null : addDays(due, -_pregnancyDays);
 }
 
-bool _inPregnancy(DateTime? lmp, DateTime d) =>
-    lmp != null && !d.isBefore(lmp) && daysBetween(lmp, d) < _pregnancyDays;
+bool _inPregnancy(DateTime? lmp, DateTime d) => lmp != null && !d.isBefore(lmp) && daysBetween(lmp, d) < _pregnancyDays;
 
 String _plural(int n, String one) => n == 1 ? '1 $one' : '$n ${one}s';
 
@@ -156,42 +155,59 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final lmp = pregnancyLmp(store);
+    final p = BloomColors.of(context);
+    final title = _yearView
+        ? Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'The year '),
+                TextSpan(
+                  text: '$_year',
+                  style: Almanac.serif(size: 34, weight: 300, italic: true, color: p.ink2),
+                ),
+              ],
+            ),
+            key: ValueKey('y$_year'),
+            style: Theme.of(context).textTheme.headlineLarge,
+          )
+        : Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '${DateFormat.MMMM().format(_month)} '),
+                TextSpan(
+                  text: '${_month.year}',
+                  style: Almanac.serif(size: 34, weight: 300, italic: true, color: p.ink2),
+                ),
+              ],
+            ),
+            key: ValueKey(_month),
+            style: Theme.of(context).textTheme.headlineLarge,
+          );
     return Scaffold(
       body: BloomPage(
-        title: 'Calendar',
-        subtitle: _summary(store, lmp),
+        eyebrow: _summary(store, lmp),
+        header: AnimatedSwitcher(
+          duration: Motion.medium,
+          switchInCurve: Motion.curve,
+          layoutBuilder: (current, previous) =>
+              Stack(alignment: Alignment.centerLeft, children: [...previous, ?current]),
+          child: title,
+        ),
         actions: [
-          FilledButton.tonal(
-            onPressed: _jumpToday,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(44, 40),
-              padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-              visualDensity: VisualDensity.compact,
-            ),
-            child: const Text('Today'),
-          ),
           IconButton(
             tooltip: 'Edit period dates',
-            icon: const Icon(Icons.edit_calendar_rounded),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const EditPeriodScreen()),
-            ),
+            icon: Icon(Icons.edit_calendar_outlined, size: 20, color: p.ink2),
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const EditPeriodScreen())),
           ),
         ],
         children: [
-          Center(
-            child: SizedBox(
-              width: 280,
-              child: SegmentedButton<bool>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: false, icon: Icon(Icons.calendar_view_month_rounded), label: Text('Month')),
-                  ButtonSegment(value: true, icon: Icon(Icons.grid_view_rounded), label: Text('Year')),
-                ],
-                selected: {_yearView},
-                onSelectionChanged: (s) => _setView(s.first),
-              ),
-            ),
+          _Controls(
+            yearView: _yearView,
+            onView: _setView,
+            onToday: _jumpToday,
+            onPrevious: _yearView ? () => setState(() => _year--) : () => _goToMonth(addMonths(_month, -1)),
+            onNext: _yearView ? () => setState(() => _year++) : () => _goToMonth(addMonths(_month, 1)),
           ),
           if (_yearView) ..._buildYear(store, lmp) else ..._buildMonth(store, lmp),
         ],
@@ -200,66 +216,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   List<Widget> _buildMonth(AppStore store, DateTime? lmp) {
-    final theme = Theme.of(context);
-    final month = _month;
     return [
-      BloomCard(
-        padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.md, Space.lg),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Previous month',
-                  icon: const Icon(Icons.chevron_left_rounded),
-                  onPressed: () => _goToMonth(addMonths(month, -1)),
-                ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: Motion.medium,
-                    switchInCurve: Motion.curve,
-                    transitionBuilder: (child, a) => FadeTransition(
-                      opacity: a,
-                      child: SlideTransition(
-                        position: Tween(begin: const Offset(0, 0.25), end: Offset.zero).animate(a),
-                        child: child,
-                      ),
-                    ),
-                    child: Row(
-                      key: ValueKey(month),
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            DateFormat.MMMM().format(month),
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                        ),
-                        Gap.h8,
-                        Text(
-                          '${month.year}',
-                          style: theme.textTheme.titleMedium?.copyWith(color: BloomTokens.of(context).muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Next month',
-                  icon: const Icon(Icons.chevron_right_rounded),
-                  onPressed: () => _goToMonth(addMonths(month, 1)),
-                ),
-              ],
-            ),
-            Gap.v12,
-            WeekdayHeader(firstDayOfWeek: store.profile.firstDayOfWeek),
-            Gap.v8,
-            LayoutBuilder(builder: (context, box) {
+      Column(
+        children: [
+          WeekdayHeader(firstDayOfWeek: store.profile.firstDayOfWeek),
+          Gap.v8,
+          const Hairline(),
+          Gap.v8,
+          LayoutBuilder(
+            builder: (context, box) {
               final cellW = box.maxWidth / 7;
-              final cellH = (cellW * 1.15).clamp(48.0, 60.0);
+              final cellH = (cellW * 1.1).clamp(52.0, 62.0);
               return SizedBox(
                 height: cellH * 6,
                 child: PageView.builder(
@@ -272,29 +239,31 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     store: store,
                     lmp: lmp,
                     selected: _selected,
-                    onTap: (d) => setState(() => _selected = d),
+                    onTap: (d) {
+                      Almanac.tick();
+                      setState(() => _selected = d);
+                    },
                   ),
                 ),
               );
-            }),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: Space.md),
-              child: Divider(height: 1, color: BloomTokens.of(context).border),
-            ),
-            CalendarLegend(showPregnancy: lmp != null),
-          ],
-        ),
+            },
+          ),
+          const Hairline(spacing: Space.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: CalendarLegend(showPregnancy: lmp != null),
+          ),
+        ],
       ),
+      Gap.v8,
       AnimatedSize(
         duration: Motion.medium,
         curve: Motion.curve,
         alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
           duration: Motion.medium,
-          layoutBuilder: (current, previous) => Stack(
-            alignment: Alignment.topCenter,
-            children: [...previous, ?current],
-          ),
+          layoutBuilder: (current, previous) =>
+              Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
           child: DayDetailPanel(key: ValueKey(_selected), day: _selected),
         ),
       ),
@@ -302,59 +271,78 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   List<Widget> _buildYear(AppStore store, DateTime? lmp) {
-    final theme = Theme.of(context);
     return [
-      Row(
+      LayoutBuilder(
+        builder: (context, box) {
+          final cols = box.maxWidth >= 520 ? 3 : 2;
+          const gap = Space.xl;
+          final tileW = (box.maxWidth - gap * (cols - 1)) / cols;
+          return Wrap(
+            spacing: gap,
+            runSpacing: Space.xs,
+            children: [
+              for (var m = 1; m <= 12; m++)
+                SizedBox(
+                  width: tileW,
+                  child: _MiniMonth(
+                    month: DateTime(_year, m),
+                    store: store,
+                    lmp: lmp,
+                    onTap: () => _openMonthFromYear(DateTime(_year, m)),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+      const Hairline(),
+      CalendarLegend(showPregnancy: lmp != null),
+    ];
+  }
+}
+
+/// The row under the title: "Month · Year" text tabs on the left, then the
+/// previous and next arrows around a "Today" link.
+class _Controls extends StatelessWidget {
+  const _Controls({
+    required this.yearView,
+    required this.onView,
+    required this.onToday,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final bool yearView;
+  final ValueChanged<bool> onView;
+  final VoidCallback onToday;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final unit = yearView ? 'year' : 'month';
+    Widget arrow(IconData icon, String tip, VoidCallback onTap) => IconButton(
+      tooltip: tip,
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      icon: Icon(icon, size: 20, color: p.ink),
+    );
+    return Transform.translate(
+      offset: const Offset(-Space.xs, 0),
+      child: Row(
         children: [
-          IconButton(
-            tooltip: 'Previous year',
-            icon: const Icon(Icons.chevron_left_rounded),
-            onPressed: () => setState(() => _year--),
-          ),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: Motion.medium,
-              child: Text(
-                '$_year',
-                key: ValueKey(_year),
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Next year',
-            icon: const Icon(Icons.chevron_right_rounded),
-            onPressed: () => setState(() => _year++),
+          TextTabs<bool>(options: const [(false, 'Month'), (true, 'Year')], selected: yearView, onSelected: onView),
+          const Spacer(),
+          arrow(Icons.chevron_left, 'Previous $unit', onPrevious),
+          InkLink('Today', onTap: onToday, size: 14),
+          Transform.translate(
+            offset: const Offset(Space.sm, 0),
+            child: arrow(Icons.chevron_right, 'Next $unit', onNext),
           ),
         ],
       ),
-      LayoutBuilder(builder: (context, box) {
-        final cols = box.maxWidth >= 520 ? 3 : 2;
-        const gap = Space.md;
-        final tileW = (box.maxWidth - gap * (cols - 1)) / cols;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (var m = 1; m <= 12; m++)
-              SizedBox(
-                width: tileW,
-                child: _MiniMonth(
-                  month: DateTime(_year, m),
-                  store: store,
-                  lmp: lmp,
-                  onTap: () => _openMonthFromYear(DateTime(_year, m)),
-                ),
-              ),
-          ],
-        );
-      }),
-      BloomCard.outlined(
-        padding: Insets.cardCompact,
-        child: CalendarLegend(showPregnancy: lmp != null),
-      ),
-    ];
+    );
   }
 }
 
@@ -379,16 +367,16 @@ class _MonthGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     final blanks = leadingBlanks(month, store.profile.firstDayOfWeek);
     final days = daysInMonth(month);
     final now = today();
-    final scheme = theme.colorScheme;
-    // Ring area: the circle plus room for the today ring, leaving space for
-    // the logged dot underneath.
-    final outer = math.min(cellW - Space.sm, cellH - 13);
-    final circle = outer - DayCircle.todayRingExtent;
-    final textStyle = theme.textTheme.bodyMedium?.copyWith(fontSize: (circle * 0.42).clamp(12.0, 16.0));
+    final circle = math.min(cellW - Space.sm, 34.0);
+    final numeral = Almanac.serif(size: (circle * 0.52).clamp(14.0, 18.0), tabular: true);
+    DayStyle styleOf(DateTime d) => DayStyle.fromInfo(store.engine.info(d), pregnancy: _inPregnancy(lmp, d));
+    final styles = {for (var n = 0; n <= days + 1; n++) n: styleOf(DateTime(month.year, month.month, n))};
+    final fertile = fertileWash(context);
+    final pregnancy = pregnancyWash(context);
     return Column(
       children: [
         for (var row = 0; row < 6; row++)
@@ -398,65 +386,92 @@ class _MonthGrid extends StatelessWidget {
               children: [
                 for (var col = 0; col < 7; col++)
                   Expanded(
-                    child: Builder(builder: (context) {
-                      final n = row * 7 + col - blanks + 1;
-                      if (n < 1 || n > days) return const SizedBox.shrink();
-                      final d = DateTime(month.year, month.month, n);
-                      final info = store.engine.info(d);
-                      final isSelected = sameDay(d, selected);
-                      final hasLog = store.logs[dayKey(d)]?.isEmpty == false;
-                      return Semantics(
-                        button: true,
-                        selected: isSelected,
-                        label: fmtLong(d),
-                        child: Padding(
-                          padding: const EdgeInsets.all(1.5),
-                          child: AnimatedContainer(
-                            duration: Motion.medium,
-                            curve: Motion.curve,
-                            decoration: BoxDecoration(
-                              borderRadius: Radii.smAll,
-                              color: isSelected ? scheme.primary.withValues(alpha: 0.09) : Colors.transparent,
-                            ),
-                            foregroundDecoration: BoxDecoration(
-                              borderRadius: Radii.smAll,
-                              border: Border.all(
-                                color: isSelected ? scheme.primary.withValues(alpha: 0.45) : Colors.transparent,
-                                width: 1.4,
+                    child: Builder(
+                      builder: (context) {
+                        final n = row * 7 + col - blanks + 1;
+                        if (n < 1 || n > days) return const SizedBox.shrink();
+                        final d = DateTime(month.year, month.month, n);
+                        final style = styles[n]!;
+                        final isSelected = sameDay(d, selected);
+                        final isToday = sameDay(d, now);
+                        final hasLog = store.logs[dayKey(d)]?.isEmpty == false;
+                        bool joins(int m) => styles[m]!.washed && styles[m]!.pregnancy == style.pregnancy;
+                        final label = [
+                          fmtLong(d),
+                          if (isToday) 'today',
+                          if (style.period) 'period',
+                          if (style.isPredictedOnly) 'predicted period',
+                          if (style.ovulation) 'ovulation' else if (style.fertile) 'fertile',
+                          if (style.pregnancy) 'pregnancy',
+                          if (hasLog) 'logged',
+                        ].join(', ');
+                        return Semantics(
+                          button: true,
+                          selected: isSelected,
+                          label: label,
+                          excludeSemantics: true,
+                          child: Pressable(
+                            key: ValueKey('day-${dayKey(d)}'),
+                            onTap: () => onTap(d),
+                            borderRadius: Radii.mdAll,
+                            child: AnimatedContainer(
+                              duration: Motion.medium,
+                              curve: Motion.curve,
+                              margin: const EdgeInsets.symmetric(vertical: 1),
+                              decoration: BoxDecoration(
+                                borderRadius: Radii.mdAll,
+                                color: isSelected ? p.raised.withValues(alpha: 0.7) : Colors.transparent,
                               ),
-                            ),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: InkWell(
-                                key: ValueKey('day-${dayKey(d)}'),
-                                borderRadius: Radii.smAll,
-                                onTap: () => onTap(d),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox.square(
-                                      dimension: outer,
-                                      child: Center(
-                                        child: DayCircle(
-                                          style: DayStyle.fromInfo(info, pregnancy: _inPregnancy(lmp, d)),
+                              // A foreground border takes no layout space, so wash bands meet edge to edge.
+                              foregroundDecoration: BoxDecoration(
+                                borderRadius: Radii.mdAll,
+                                border: Border.all(
+                                  color: isSelected ? p.ink2.withValues(alpha: 0.5) : Colors.transparent,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: circle,
+                                    width: double.infinity,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        if (style.washed)
+                                          Positioned.fill(
+                                            child: Center(
+                                              child: WashBand(
+                                                color: style.pregnancy ? pregnancy : fertile,
+                                                height: circle - 4,
+                                                // Joins only inside the cell when selected, so the box stays clean.
+                                                joinLeft: !isSelected && col > 0 && joins(n - 1),
+                                                joinRight: !isSelected && col < 6 && joins(n + 1),
+                                              ),
+                                            ),
+                                          ),
+                                        DayCircle(
+                                          style: style,
                                           label: '$n',
-                                          isToday: sameDay(d, now),
+                                          isToday: isToday,
                                           size: circle,
-                                          textStyle: textStyle,
+                                          textStyle: numeral,
                                           compact: false,
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 3),
-                                    LoggedDot(visible: hasLog),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  TodayRule(visible: isToday, width: circle * 0.5),
+                                  const SizedBox(height: 3),
+                                  LoggedDot(visible: hasLog),
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }),
+                        );
+                      },
+                    ),
                   ),
               ],
             ),
@@ -475,88 +490,121 @@ class _MiniMonth extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
     final blanks = leadingBlanks(month, store.profile.firstDayOfWeek);
     final days = daysInMonth(month);
     final now = today();
     final isCurrent = month.year == now.year && month.month == now.month;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final rows = ((blanks + days) / 7).ceil();
-    return BloomCard(
+    final fertile = fertileWash(context);
+    final pregnancy = pregnancyWash(context);
+    DayStyle styleOf(DateTime d) => DayStyle.fromInfo(store.engine.info(d), pregnancy: _inPregnancy(lmp, d));
+    final styles = {for (var n = 0; n <= days + 1; n++) n: styleOf(DateTime(month.year, month.month, n))};
+    return Pressable(
       onTap: onTap,
-      padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.md, Space.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  DateFormat.MMMM().format(month),
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: isCurrent ? scheme.primary : null,
-                  ),
-                ),
-              ),
-              if (isCurrent)
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle),
-                ),
-            ],
-          ),
-          Gap.v8,
-          WeekdayHeader(firstDayOfWeek: store.profile.firstDayOfWeek, compact: true),
-          Gap.v4,
-          LayoutBuilder(builder: (context, box) {
-            final cellW = box.maxWidth / 7;
-            final cell = math.min(cellW, 26.0);
-            final textStyle = TextStyle(fontSize: (cell * 0.46).clamp(8.5, 11.0), letterSpacing: -0.2);
-            return Column(
+      semanticLabel: DateFormat.yMMMM().format(month),
+      borderRadius: Radii.smAll,
+      child: Padding(
+        padding: const EdgeInsets.only(top: Space.sm, bottom: Space.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Hairline(),
+            Gap.v8,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                for (var row = 0; row < 6; row++)
-                  SizedBox(
-                    height: cell,
-                    child: row >= rows
-                        ? null
-                        : Row(
-                            children: [
-                              for (var col = 0; col < 7; col++)
-                                SizedBox(
-                                  width: cellW,
-                                  height: cell,
-                                  child: Builder(builder: (context) {
-                                    final n = row * 7 + col - blanks + 1;
-                                    if (n < 1 || n > days) return const SizedBox.shrink();
-                                    final d = DateTime(month.year, month.month, n);
-                                    return Center(
-                                      child: DayCircle(
-                                        style: DayStyle.fromInfo(store.engine.info(d), pregnancy: _inPregnancy(lmp, d)),
-                                        label: '$n',
-                                        isToday: sameDay(d, now),
-                                        size: cell - 2,
-                                        compact: true,
-                                        textStyle: textStyle,
-                                      ),
-                                    );
-                                  }),
-                                ),
-                            ],
-                          ),
+                Expanded(
+                  child: Text(
+                    DateFormat.MMMM().format(month),
+                    overflow: TextOverflow.ellipsis,
+                    style: Almanac.serif(size: 17, weight: isCurrent ? 450 : 360, color: p.ink),
                   ),
+                ),
+                if (isCurrent) Text('NOW', style: Almanac.label(context, size: 9)),
               ],
-            );
-          }),
-        ],
+            ),
+            Gap.v8,
+            WeekdayHeader(firstDayOfWeek: store.profile.firstDayOfWeek, compact: true),
+            Gap.v4,
+            LayoutBuilder(
+              builder: (context, box) {
+                final cellW = box.maxWidth / 7;
+                final cell = math.min(cellW, 22.0);
+                final mark = cell - 3;
+                final textStyle = Almanac.serif(size: (cell * 0.46).clamp(8.5, 10.5), tabular: true);
+                return Column(
+                  children: [
+                    for (var row = 0; row < 6; row++)
+                      SizedBox(
+                        height: cell,
+                        child: row >= rows
+                            ? null
+                            : Row(
+                                children: [
+                                  for (var col = 0; col < 7; col++)
+                                    SizedBox(
+                                      width: cellW,
+                                      height: cell,
+                                      child: Builder(
+                                        builder: (context) {
+                                          final n = row * 7 + col - blanks + 1;
+                                          if (n < 1 || n > days) return const SizedBox.shrink();
+                                          final d = DateTime(month.year, month.month, n);
+                                          final style = styles[n]!;
+                                          final isToday = sameDay(d, now);
+                                          bool joins(int m) =>
+                                              styles[m]!.washed && styles[m]!.pregnancy == style.pregnancy;
+                                          return Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              if (style.washed)
+                                                Positioned.fill(
+                                                  child: Center(
+                                                    child: WashBand(
+                                                      color: style.pregnancy ? pregnancy : fertile,
+                                                      height: mark - 2,
+                                                      joinLeft: col > 0 && joins(n - 1),
+                                                      joinRight: col < 6 && joins(n + 1),
+                                                    ),
+                                                  ),
+                                                ),
+                                              DayCircle(
+                                                style: style,
+                                                label: '$n',
+                                                isToday: isToday,
+                                                size: mark,
+                                                compact: true,
+                                                textStyle: textStyle,
+                                              ),
+                                              if (isToday)
+                                                Positioned(
+                                                  bottom: 0,
+                                                  child: TodayRule(visible: true, width: mark * 0.55, thickness: 1.2),
+                                                ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Details for one day: cycle day, phase, chance, logged entries, and actions.
+/// Details for one day, set like a dated entry in a notebook: a mono date in
+/// the margin, the serif date and italic phase, text tags, ledger rows, and
+/// the day's actions.
 class DayDetailPanel extends StatelessWidget {
   const DayDetailPanel({super.key, required this.day});
   final DateTime day;
@@ -565,7 +613,7 @@ class DayDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final info = store.engine.info(day);
     final log = store.logs[dayKey(day)];
     final lmp = pregnancyLmp(store);
@@ -573,194 +621,250 @@ class DayDetailPanel extends StatelessWidget {
     final isFuture = day.isAfter(today());
     final isPeriod = store.isPeriodDay(day);
 
-    final facts = <String>[];
+    // The italic line under the date: "Cycle day 11 · follicular."
+    final spans = <InlineSpan>[];
+    final quiet = Almanac.sans(size: 14, color: p.ink2, height: 1.4);
     if (pregnant) {
       final days = daysBetween(lmp!, day);
-      facts.add('Pregnancy week ${days ~/ 7 + 1} (${days ~/ 7}w ${days % 7}d)');
+      spans.add(TextSpan(text: 'Pregnancy week ${days ~/ 7 + 1} ', style: quiet));
+      spans.add(
+        TextSpan(
+          text: '(${days ~/ 7}w ${days % 7}d)',
+          style: Almanac.italic(context, size: 16, color: readableTint(BloomColors.pregnancy, theme.brightness)),
+        ),
+      );
     } else {
-      if (info.cycleDay != null) facts.add('Cycle day ${info.cycleDay}');
-      if (info.phase != null) facts.add(info.phase!.label);
+      if (info.cycleDay != null) spans.add(TextSpan(text: 'Cycle day ${info.cycleDay}', style: quiet));
+      if (info.phase != null) {
+        if (spans.isNotEmpty) spans.add(TextSpan(text: ' · ', style: quiet));
+        spans.add(
+          TextSpan(
+            text: '${info.phase!.label.toLowerCase()}.',
+            style: Almanac.italic(context, size: 16.5, color: readableTint(phaseColor(info.phase!), theme.brightness)),
+          ),
+        );
+      }
     }
 
     String? status;
     Color? statusColor;
-    IconData? statusIcon;
     if (pregnant) {
       status = 'Pregnancy';
       statusColor = BloomColors.pregnancy;
-      statusIcon = Icons.child_friendly_rounded;
     } else if (info.isPeriod) {
       status = 'Period day';
       statusColor = BloomColors.period;
-      statusIcon = Icons.water_drop_rounded;
     } else if (info.isPredictedPeriod) {
       status = 'Predicted period';
-      statusColor = BloomColors.period;
-      statusIcon = Icons.water_drop_outlined;
+      statusColor = BloomColors.predicted;
     } else if (info.isOvulation) {
       status = info.isPredicted ? 'Predicted ovulation' : 'Ovulation';
       statusColor = BloomColors.ovulation;
-      statusIcon = Icons.egg_alt_rounded;
     } else if (info.isFertile) {
       status = info.isPredicted ? 'Predicted fertile day' : 'Fertile window';
       statusColor = BloomColors.fertile;
-      statusIcon = Icons.spa_rounded;
     }
     final emptyStatus = store.engine.hasData ? 'No period or fertile window' : 'Log a period to see predictions';
-    final accent = statusColor ?? (info.phase != null ? phaseColor(info.phase!) : theme.colorScheme.primary);
 
-    final chanceColor = switch (info.chance) {
-      Chance.low => tokens.muted,
-      Chance.medium => BloomColors.fertile,
-      Chance.high => BloomColors.ovulation,
-    };
-
-    return BloomCard(
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Hairline(),
+          Gap.v20,
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DateBadge(day: day, color: accent),
-              Gap.h16,
+              SizedBox(
+                width: Space.margin,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6, right: Space.sm),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      MonoLabel(DateFormat.E().format(day)),
+                      const SizedBox(height: 2),
+                      MonoLabel(DateFormat('d MMM').format(day)),
+                    ],
+                  ),
+                ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(fmtLong(day), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                    if (facts.isNotEmpty) ...[
-                      const SizedBox(height: Space.xxs),
-                      Text(facts.join(' · '), style: theme.textTheme.bodyMedium?.copyWith(color: tokens.muted)),
-                    ],
+                    Text(fmtLong(day), style: theme.textTheme.headlineSmall),
+                    if (spans.isNotEmpty) ...[Gap.v4, Text.rich(TextSpan(children: spans))],
+                    Gap.v12,
+                    _Tag(status ?? emptyStatus, color: statusColor, hollow: status == null),
                   ],
                 ),
               ),
             ],
           ),
-          Gap.v16,
-          if (status != null)
-            PillChip(status, color: statusColor, icon: statusIcon)
-          else
-            PillChip(emptyStatus, color: theme.colorScheme.secondary, icon: Icons.radio_button_unchecked_rounded),
           if (!pregnant && info.cycleDay != null) ...[
-            Gap.v12,
-            _StatRow(
-              icon: Icons.favorite_rounded,
-              iconColor: chanceColor == tokens.muted ? BloomColors.brand : chanceColor,
-              label: 'Chance of getting pregnant',
-              trailing: PillChip(info.chance.label, color: chanceColor == tokens.muted ? theme.colorScheme.secondary : chanceColor, dense: true),
+            Gap.v16,
+            Marginalia(
+              label: 'Odds',
+              child: _LedgerRow(
+                label: 'Chance of pregnancy',
+                value: info.chance.label,
+                color: switch (info.chance) {
+                  Chance.low => null,
+                  Chance.medium => BloomColors.fertile,
+                  Chance.high => BloomColors.ovulation,
+                },
+              ),
             ),
           ],
-          if (info.isPredicted && !pregnant)
+          if (info.isPredicted && !pregnant) ...[
+            Gap.v12,
             const Disclaimer(text: 'Predictions are estimates and are not a form of birth control.'),
-          Gap.v8,
-          Divider(height: Space.xxl, color: tokens.border),
+          ],
+          Gap.v16,
           if (log != null && !log.isEmpty)
             _LoggedEntries(log: log, store: store)
           else
-            Row(
-              children: [
-                Icon(isFuture ? Icons.schedule_rounded : Icons.edit_note_rounded, size: 20, color: tokens.muted),
-                Gap.h8,
-                Expanded(
-                  child: Text(
-                    isFuture ? 'You can log this day when it comes.' : 'Nothing logged for this day.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: tokens.muted),
-                  ),
-                ),
-              ],
+            Marginalia(
+              label: 'Logged',
+              child: Text(
+                isFuture ? 'You can log this day when it comes.' : 'Nothing logged for this day.',
+                style: Almanac.italic(context, size: 16, color: p.ink2),
+              ),
             ),
-          Gap.v20,
-          LayoutBuilder(builder: (context, box) {
-            final log = FilledButton.icon(
-              onPressed: isFuture ? null : () => showLogSheet(context, day),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Log symptoms'),
-            );
-            final mark = OutlinedButton.icon(
-              onPressed: isFuture ? null : () => store.setPeriodDay(day, !isPeriod),
-              icon: Icon(isPeriod ? Icons.remove_circle_outline_rounded : Icons.water_drop_outlined),
-              label: Text(isPeriod ? 'Unmark period day' : 'Mark period day', overflow: TextOverflow.ellipsis),
-            );
-            if (box.maxWidth < 420) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [log, Gap.v8, mark],
-              );
-            }
-            return Row(children: [Expanded(child: log), Gap.h12, Expanded(child: mark)]);
-          }),
+          Gap.v24,
+          Wrap(
+            spacing: Space.md,
+            runSpacing: Space.md,
+            children: [
+              InkButton(
+                label: 'Log symptoms',
+                icon: Icons.add,
+                onPressed: isFuture ? null : () => showLogSheet(context, day),
+              ),
+              InkButton.outlined(
+                label: isPeriod ? 'Unmark period day' : 'Mark period day',
+                color: BloomColors.period,
+                onPressed: isFuture
+                    ? null
+                    : () {
+                        Almanac.tick();
+                        store.setPeriodDay(day, !isPeriod);
+                      },
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// A tinted square with the weekday and day number, in the day's phase color.
-class _DateBadge extends StatelessWidget {
-  const _DateBadge({required this.day, required this.color});
-  final DateTime day;
+/// A borderless text tag: a small colored dot and a label. [hollow] draws
+/// the dot as a thin ring, for "nothing here" states.
+class _Tag extends StatelessWidget {
+  const _Tag(this.label, {this.color, this.hollow = false});
+  final String label;
+  final Color? color;
+  final bool hollow;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final c = color == null ? p.ink2 : BloomColors.resolve(context, color!);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: hollow ? null : c,
+            border: hollow ? Border.all(color: c) : null,
+          ),
+        ),
+        const SizedBox(width: 7),
+        Flexible(
+          child: Text(
+            label,
+            style: Almanac.sans(size: 14, weight: FontWeight.w500, color: p.ink, height: 1.3),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A ledger line: a label, a dotted leader, and a mono value on the right.
+class _LedgerRow extends StatelessWidget {
+  const _LedgerRow({required this.label, required this.value, this.color});
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final c = color == null ? p.ink : readableTint(color!, Theme.of(context).brightness);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: box.maxWidth * 0.55),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: Almanac.sans(size: 14, color: p.ink, height: 1.3),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Space.sm, 0, Space.sm, 4),
+                child: SizedBox(height: 2, child: CustomPaint(painter: _LeaderPainter(p.ink2.withValues(alpha: 0.5)))),
+              ),
+            ),
+            Text(
+              value,
+              maxLines: 1,
+              style: Almanac.mono(size: 13, weight: FontWeight.w500, color: c),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LeaderPainter extends CustomPainter {
+  _LeaderPainter(this.color);
   final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final fg = readableTint(color, theme.brightness);
-    return AnimatedContainer(
-      duration: Motion.medium,
-      width: 60,
-      height: 64,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: dark ? 0.22 : 0.13),
-        borderRadius: Radii.mdAll,
-        border: Border.all(color: color.withValues(alpha: dark ? 0.35 : 0.25)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            DateFormat.E().format(day).toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(color: fg, fontWeight: FontWeight.w800, letterSpacing: 0.8),
-          ),
-          Text(
-            '${day.day}',
-            style: theme.textTheme.headlineSmall?.copyWith(color: fg, height: 1.1),
-          ),
-        ],
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    for (var x = 1.0; x < size.width; x += 4) {
+      canvas.drawCircle(Offset(x, size.height / 2), 0.7, paint);
+    }
   }
-}
-
-/// A compact label and value row inside the day panel.
-class _StatRow extends StatelessWidget {
-  const _StatRow({required this.label, required this.trailing, this.icon, this.emoji, this.iconColor});
-  final String label;
-  final Widget trailing;
-  final IconData? icon;
-  final String? emoji;
-  final Color? iconColor;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.xs),
-      child: Row(
-        children: [
-          IconBadge(icon: icon, emoji: emoji, color: iconColor, size: 32),
-          Gap.h12,
-          Expanded(
-            child: Text(label, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium),
-          ),
-          Gap.h8,
-          trailing,
-        ],
-      ),
-    );
-  }
+  bool shouldRepaint(_LeaderPainter old) => old.color != color;
 }
+
+/// The Almanac meaning color for a log category's tag dot.
+Color _categoryColor(String id) => switch (id) {
+  'flow' || 'clots' || 'products' => BloomColors.period,
+  'discharge' || 'ovulation_test' => BloomColors.fertile,
+  'mood' => BloomColors.luteal,
+  'symptoms' || 'digestion' || 'pregnancy_symptoms' || 'postpartum' || 'menopause' => BloomColors.follicular,
+  'pregnancy_test' => BloomColors.pregnancy,
+  _ => BloomColors.ink2,
+};
 
 class _LoggedEntries extends StatelessWidget {
   const _LoggedEntries({required this.log, required this.store});
@@ -769,70 +873,45 @@ class _LoggedEntries extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final chips = <Widget>[];
+    final p = BloomColors.of(context);
+    final tags = <Widget>[];
     for (final cat in kCategories) {
       for (final id in log.get(cat.id)) {
-        final opt = cat.option(id);
-        chips.add(PillChip(optionLabel(cat.id, id), emoji: opt?.emoji ?? cat.emoji, color: Color(cat.colorHex)));
+        tags.add(_Tag(optionLabel(cat.id, id), color: _categoryColor(cat.id)));
       }
     }
     // Categories not in the catalog (for example from a newer backup).
     for (final e in log.selections.entries) {
       if (categoryById(e.key) != null) continue;
       for (final id in e.value) {
-        chips.add(PillChip(optionLabel(e.key, id), color: theme.colorScheme.secondary));
+        tags.add(_Tag(optionLabel(e.key, id)));
       }
     }
-    final metrics = <Widget>[];
-    for (final m in kMetrics) {
-      final v = log.metrics[m.id];
-      if (v == null) continue;
-      metrics.add(_StatRow(
-        emoji: m.emoji,
-        iconColor: theme.colorScheme.secondary,
-        label: m.title,
-        trailing: Text(
-          formatMetric(m.id, v, store.profile),
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-      ));
-    }
-    final heading = theme.textTheme.labelMedium?.copyWith(color: tokens.muted, letterSpacing: 0.8);
+    final metrics = <Widget>[
+      for (final m in kMetrics)
+        if (log.metrics[m.id] != null)
+          _LedgerRow(label: m.title, value: formatMetric(m.id, log.metrics[m.id]!, store.profile)),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('LOGGED', style: heading),
-        Gap.v12,
-        if (chips.isNotEmpty) Wrap(spacing: Space.sm, runSpacing: Space.sm, children: chips),
+        if (tags.isNotEmpty)
+          Marginalia(
+            label: 'Logged',
+            child: Wrap(spacing: Space.lg, runSpacing: Space.sm, children: tags),
+          ),
         if (metrics.isNotEmpty) ...[
-          if (chips.isNotEmpty) Gap.v12,
-          ...metrics,
+          if (tags.isNotEmpty) Gap.v16,
+          Marginalia(
+            label: 'Metrics',
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: metrics),
+          ),
         ],
         if (log.note.trim().isNotEmpty) ...[
-          Gap.v12,
-          Container(
-            width: double.infinity,
-            padding: Insets.all12,
-            decoration: BoxDecoration(color: tokens.subtle, borderRadius: Radii.mdAll),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.sticky_note_2_rounded, size: 18, color: tokens.muted),
-                Gap.h8,
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Note', style: theme.textTheme.labelLarge),
-                      const SizedBox(height: Space.xxs),
-                      Text(log.note, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          Gap.v16,
+          Marginalia(
+            label: 'Note',
+            child: Text(log.note, style: Almanac.italic(context, size: 16.5, color: p.ink).copyWith(height: 1.4)),
           ),
         ],
       ],
@@ -842,13 +921,13 @@ class _LoggedEntries extends StatelessWidget {
 
 /// Formats a stored metric value in the user's display units.
 String formatMetric(String id, double v, Profile p) => switch (id) {
-      'bbt' => fmtTemp(v, p.tempUnit),
-      'weight' => fmtWeight(v, p.weightUnit),
-      'water' => '${v.round()} ml',
-      'sleep' => '${_trim(v)} h',
-      'steps' => NumberFormat.decimalPattern().format(v.round()),
-      'energy' => '${v.round()}/5',
-      _ => _trim(v),
-    };
+  'bbt' => fmtTemp(v, p.tempUnit),
+  'weight' => fmtWeight(v, p.weightUnit),
+  'water' => '${v.round()} ml',
+  'sleep' => '${_trim(v)} h',
+  'steps' => NumberFormat.decimalPattern().format(v.round()),
+  'energy' => '${v.round()}/5',
+  _ => _trim(v),
+};
 
 String _trim(double v) => v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);

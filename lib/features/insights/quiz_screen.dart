@@ -1,7 +1,6 @@
-/// Quiz player: standard multiple choice, and a pass-the-phone couples mode.
+/// Quiz player, set like a printed exam paper: standard multiple choice,
+/// and a pass-the-phone couples mode.
 library;
-
-import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +18,9 @@ void openQuiz(BuildContext context, String id) {
       builder: (_) => q.couples ? CouplesQuizScreen(quiz: q) : QuizScreen(quiz: q)));
 }
 
+/// "Puzzle No. 3", from the quiz's place in the list.
+String _puzzleNo(Quiz q) => 'No. ${kQuizzes.indexOf(q) + 1}';
+
 class QuizScreen extends StatefulWidget {
   const QuizScreen({super.key, required this.quiz});
   final Quiz quiz;
@@ -35,6 +37,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _pick(int i) {
     if (_picked != null) return;
+    Almanac.tick();
     setState(() {
       _picked = i;
       if (i == widget.quiz.questions[_index].correct) _score++;
@@ -63,8 +66,6 @@ class _QuizScreenState extends State<QuizScreen> {
   @override
   Widget build(BuildContext context) {
     final q = widget.quiz;
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
     final total = q.questions.length;
 
     final List<Widget> content;
@@ -72,49 +73,49 @@ class _QuizScreenState extends State<QuizScreen> {
       final pct = _score / total;
       content = [
         _ResultHero(
-          emoji: pct >= .8 ? '🏆' : pct >= .5 ? '🌟' : '🌱',
-          value: pct,
-          big: '$_score/$total',
-          title: 'You scored $_score of $total',
-          message: pct >= .8
-              ? 'Impressive. You know this topic well.'
+          score: _score,
+          total: total,
+          lead: '${_cap(Almanac.spell(_score))} of ${Almanac.spell(total)},',
+          italic: pct >= .8
+              ? 'well read.'
               : pct >= .5
-                  ? 'Nice work. You learned something new today.'
-                  : 'Every question is a chance to learn. Try again any time.',
-          celebrate: pct >= .5,
+                  ? 'nicely done.'
+                  : 'a fine beginning.',
+          message: pct >= .8
+              ? 'You know this subject well. Pass it on to someone who might not.'
+              : pct >= .5
+                  ? 'Good work. You picked up something new today.'
+                  : 'Every question is a small lesson. Try again whenever you like.',
         ),
-        GradientButton(label: 'Done', expanded: true, onPressed: () => Navigator.pop(context)),
-        Center(
-          child: TextButton.icon(
-            onPressed: _restart,
-            icon: const Icon(Icons.replay_rounded, size: 18),
-            label: const Text('Play again'),
-          ),
-        ),
+        Row(children: [
+          InkButton(label: 'Done', onPressed: () => Navigator.pop(context)),
+          Gap.h16,
+          InkLink('Play again', onTap: _restart),
+        ]),
       ];
     } else {
       final qq = q.questions[_index];
       final answered = _picked != null;
       final right = _picked == qq.correct;
       content = [
-        _QuizProgress(
+        _PaperProgress(
           label: 'Question ${_index + 1} of $total',
           trailing: '$_score correct',
           value: (_index + (answered ? 1 : 0)) / total,
         ),
         AnimatedSwitcher(
           duration: Motion.medium,
-          transitionBuilder: _slideFade,
+          transitionBuilder: _fade,
           child: Column(
             key: ValueKey(_index),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(qq.prompt, style: t.headlineSmall?.copyWith(height: 1.25)),
+              _QuestionText(number: _index + 1, text: qq.prompt),
               Gap.v20,
               for (var i = 0; i < qq.options.length; i++)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: Space.md),
-                  child: _OptionCard(
+                  padding: const EdgeInsets.only(bottom: Space.sm),
+                  child: _OptionBox(
                     letter: String.fromCharCode(65 + i),
                     label: qq.options[i],
                     state: _picked == null
@@ -124,7 +125,7 @@ class _QuizScreenState extends State<QuizScreen> {
                             : i == _picked
                                 ? _OptState.wrong
                                 : _OptState.dim,
-                    onTap: () => _pick(i),
+                    onTap: answered ? null : () => _pick(i),
                   ),
                 ),
             ],
@@ -137,17 +138,15 @@ class _QuizScreenState extends State<QuizScreen> {
           child: !answered
               ? const SizedBox(width: double.infinity)
               : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  InfoBanner(
-                    tone: right ? BannerTone.success : BannerTone.warning,
-                    icon: right ? Icons.celebration_rounded : Icons.lightbulb_rounded,
-                    title: right ? 'Correct!' : 'Not quite',
-                    message: qq.explanation,
+                  _Verdict(
+                    word: right ? 'Correct.' : 'Not quite.',
+                    color: right ? BloomColors.fertile : BloomColors.period,
+                    explanation: qq.explanation,
                   ),
-                  Gap.v16,
-                  FilledButton(
-                    onPressed: _next,
-                    child: Text(_index + 1 >= total ? 'See results' : 'Next'),
-                  ),
+                  Gap.v20,
+                  Row(children: [
+                    InkButton(label: _index + 1 >= total ? 'See results' : 'Next question', onPressed: _next),
+                  ]),
                 ]),
         ),
       ];
@@ -155,7 +154,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
     return Scaffold(
       body: BloomPage(
-        eyebrow: '${q.emoji}  QUIZ',
+        eyebrow: 'Puzzle ${_puzzleNo(q)} · ${q.questions.length} questions',
         title: q.title,
         children: content,
       ),
@@ -163,252 +162,183 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 }
 
-Widget _slideFade(Widget child, Animation<double> anim) => FadeTransition(
-      opacity: anim,
-      child: SlideTransition(
-        position: Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(anim),
-        child: child,
-      ),
-    );
+String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-/// "Question 2 of 5" with a slim gradient progress bar.
-class _QuizProgress extends StatelessWidget {
-  const _QuizProgress({required this.label, required this.value, this.trailing});
+Widget _fade(Widget child, Animation<double> anim) => FadeTransition(opacity: anim, child: child);
+
+/// "QUESTION 2 OF 5" in mono with a rule-thin progress line.
+class _PaperProgress extends StatelessWidget {
+  const _PaperProgress({required this.label, required this.value, this.trailing});
   final String label;
   final String? trailing;
   final double value;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: Text(label, style: t.labelLarge?.copyWith(color: BloomTokens.of(context).muted))),
-        if (trailing != null) Text(trailing!, style: t.labelLarge?.copyWith(color: Theme.of(context).colorScheme.primary)),
+        Expanded(child: MonoLabel(label)),
+        if (trailing != null) MonoLabel(trailing!, color: BloomColors.of(context).ink),
       ]),
       Gap.v8,
-      SoftProgressBar(value: value, gradient: BloomGradients.brand, height: 10),
+      RuleProgress(value: value),
     ]);
   }
 }
 
-enum _OptState { idle, correct, wrong, dim }
+/// A numbered question: a serif numeral in the margin and the prompt.
+class _QuestionText extends StatelessWidget {
+  const _QuestionText({required this.number, required this.text});
+  final int number;
+  final String text;
 
-/// One answer. Correct answers pop, wrong ones shake.
-class _OptionCard extends StatelessWidget {
-  const _OptionCard({required this.letter, required this.label, required this.state, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.md),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 36, child: Text('$number.', style: Almanac.serif(size: 23, weight: 330, color: p.ink2, height: 1.25))),
+        Expanded(child: Text(text, style: Almanac.serif(size: 23, weight: 370, color: p.ink, height: 1.25))),
+      ]),
+    );
+  }
+}
+
+/// The italic verdict after an answer ("Correct." in sage, "Not quite." in
+/// oxblood) followed by the explanation.
+class _Verdict extends StatelessWidget {
+  const _Verdict({required this.word, required this.color, required this.explanation});
+  final String word;
+  final Color color;
+  final String explanation;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final c = BloomColors.resolve(context, color);
+    return Container(
+      margin: const EdgeInsets.only(top: Space.md),
+      padding: const EdgeInsets.only(left: Space.md),
+      decoration: BoxDecoration(border: Border(left: BorderSide(color: c, width: 2))),
+      child: Text.rich(TextSpan(children: [
+        TextSpan(text: '$word ', style: Almanac.italic(context, size: 20, color: c)),
+        TextSpan(text: explanation, style: Almanac.sans(size: 15, color: p.ink, height: 1.55)),
+      ])),
+    );
+  }
+}
+
+enum _OptState { idle, correct, wrong, dim, marked }
+
+/// One lettered answer in a hairline box. A correct answer gets a sage
+/// tick; a wrong pick is struck through in oxblood.
+class _OptionBox extends StatelessWidget {
+  const _OptionBox({required this.letter, required this.label, required this.state, required this.onTap, this.note});
   final String letter;
   final String label;
   final _OptState state;
   final VoidCallback? onTap;
 
+  /// A small mono note at the end of the row (a partner's name).
+  final String? note;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final tokens = BloomTokens.of(context);
-    final cs = theme.colorScheme;
-    final accent = switch (state) {
-      _OptState.correct => BloomColors.success,
-      _OptState.wrong => cs.error,
-      _ => cs.primary,
+    final p = BloomColors.of(context);
+    final sage = p.fertile;
+    final oxblood = p.period;
+    final border = switch (state) {
+      _OptState.correct => sage,
+      _OptState.wrong => oxblood,
+      _OptState.marked => p.ink,
+      _ => p.hairline,
     };
-    final tinted = state == _OptState.correct || state == _OptState.wrong;
-    final bg = tinted ? accent.withValues(alpha: dark ? 0.22 : 0.12) : theme.cardTheme.color;
-    final border = tinted ? accent.withValues(alpha: 0.8) : tokens.border;
-    final fg = state == _OptState.dim ? tokens.muted : cs.onSurface;
-
-    Widget card = AnimatedContainer(
-      duration: Motion.medium,
-      curve: Motion.curve,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: Radii.mdAll,
-        border: Border.all(color: border, width: tinted ? 2 : 1.2),
-        boxShadow: state == _OptState.idle ? tokens.cardShadow : const [],
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          borderRadius: Radii.mdAll,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md + 2),
-            child: Row(children: [
-              AnimatedContainer(
-                duration: Motion.medium,
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: tinted ? accent : tokens.subtle,
-                  borderRadius: Radii.smAll,
-                ),
-                child: tinted
-                    ? Icon(state == _OptState.correct ? Icons.check_rounded : Icons.close_rounded,
-                        size: 20, color: BloomColors.onColor(accent))
-                    : Text(letter, style: theme.textTheme.labelLarge?.copyWith(color: fg)),
-              ),
-              Gap.h12,
-              Expanded(
-                child: AnimatedDefaultTextStyle(
-                  duration: Motion.medium,
-                  style: theme.textTheme.bodyLarge!.copyWith(color: fg, fontWeight: tinted ? FontWeight.w700 : null),
-                  child: Text(label),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ),
+    final fg = state == _OptState.dim ? p.ink2 : p.ink;
+    final textStyle = Almanac.sans(size: 15.5, color: fg, height: 1.4).copyWith(
+      decoration: state == _OptState.wrong ? TextDecoration.lineThrough : null,
+      decorationColor: oxblood,
+      decorationThickness: 1.6,
     );
 
-    if (state == _OptState.correct) {
-      card = TweenAnimationBuilder<double>(
-        key: const ValueKey('pop'),
-        tween: Tween(begin: 0.94, end: 1),
-        duration: Motion.slow,
-        curve: Curves.elasticOut,
-        builder: (_, v, child) => Transform.scale(scale: v, child: child),
-        child: card,
-      );
-    } else if (state == _OptState.wrong) {
-      card = TweenAnimationBuilder<double>(
-        key: const ValueKey('shake'),
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 420),
-        builder: (_, v, child) =>
-            Transform.translate(offset: Offset(math.sin(v * math.pi * 5) * 8 * (1 - v), 0), child: child),
-        child: card,
-      );
-    }
-    return card;
-  }
-}
-
-/// The results hero: a ring with the score and a burst of confetti.
-class _ResultHero extends StatelessWidget {
-  const _ResultHero({
-    required this.emoji,
-    required this.value,
-    required this.big,
-    required this.title,
-    required this.message,
-    this.celebrate = true,
-    this.gradient = BloomGradients.dusk,
-  });
-
-  final String emoji;
-  final double value;
-  final String big;
-  final String title;
-  final String message;
-  final bool celebrate;
-  final LinearGradient gradient;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    const white = Colors.white;
-    return BloomCard.gradient(
-      gradient: gradient,
-      padding: EdgeInsets.zero,
-      child: Stack(children: [
-        if (celebrate) const Positioned.fill(child: IgnorePointer(child: _Confetti())),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xxxl, Space.xxl, Space.xxl),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            const SizedBox(width: double.infinity),
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.6, end: 1),
-              duration: Motion.slow,
-              curve: Curves.elasticOut,
-              builder: (_, v, child) => Transform.scale(scale: v, child: child),
-              child: Text(emoji, style: const TextStyle(fontSize: 56, height: 1)),
+    return Semantics(
+      button: onTap != null,
+      label: switch (state) {
+        _OptState.correct => 'Correct answer',
+        _OptState.wrong => 'Your answer, wrong',
+        _ => null,
+      },
+      child: Pressable(
+        onTap: onTap,
+        borderRadius: Radii.mdAll,
+        child: AnimatedContainer(
+          duration: Motion.medium,
+          curve: Motion.curve,
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const EdgeInsets.symmetric(horizontal: Space.md + 2, vertical: Space.md),
+          decoration: BoxDecoration(
+            borderRadius: Radii.mdAll,
+            border: Border.all(color: border, width: state == _OptState.idle || state == _OptState.dim ? 1 : 1.3),
+          ),
+          child: Row(children: [
+            SizedBox(
+              width: 28,
+              child: Text(letter, style: Almanac.data(context, size: 12.5, color: state == _OptState.dim ? p.ink2 : p.ink)),
             ),
-            Gap.v16,
-            ProgressRing(
-              value: value,
-              size: 128,
-              stroke: 10,
-              color: white,
-              trackColor: ringTrackOn(gradient),
-              child: Text(big, style: t.headlineMedium?.copyWith(color: white)),
+            Expanded(child: Text(label, style: textStyle)),
+            if (note != null) ...[Gap.h8, MonoLabel(note!, size: 9.5)],
+            SizedBox(
+              width: 28,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: AnimatedSwitcher(
+                  duration: Motion.medium,
+                  child: switch (state) {
+                    _OptState.correct => Icon(Icons.check, key: const ValueKey('c'), size: 20, color: sage),
+                    _OptState.wrong => Icon(Icons.close, key: const ValueKey('w'), size: 18, color: oxblood),
+                    _ => const SizedBox.shrink(),
+                  },
+                ),
+              ),
             ),
-            Gap.v20,
-            Text(title, textAlign: TextAlign.center, style: t.headlineSmall?.copyWith(color: white)),
-            Gap.v8,
-            Text(message, textAlign: TextAlign.center, style: t.bodyLarge?.copyWith(color: white.withValues(alpha: 0.92))),
           ]),
         ),
-      ]),
+      ),
     );
   }
 }
 
-/// A one-shot burst of falling confetti.
-class _Confetti extends StatefulWidget {
-  const _Confetti();
+/// The result, in serif: a large score numeral, a two-part headline, and a
+/// short note.
+class _ResultHero extends StatelessWidget {
+  const _ResultHero({required this.score, required this.total, required this.lead, required this.italic, required this.message});
+  final int score;
+  final int total;
+  final String lead;
+  final String italic;
+  final String message;
 
   @override
-  State<_Confetti> createState() => _ConfettiState();
-}
-
-class _ConfettiState extends State<_Confetti> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..forward();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const MonoLabel('Result'),
+      Gap.v12,
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Text('$score', style: Almanac.numeral(context, size: 88)),
+        Padding(
+          padding: const EdgeInsets.only(bottom: Space.sm, left: Space.xs),
+          child: Text('/ $total', style: Almanac.numeral(context, size: 30, color: p.ink2)),
+        ),
+      ]),
+      Gap.v16,
+      const Hairline(),
+      Gap.v16,
+      PhaseTitle(lead: lead, italic: italic, size: 28),
+      Gap.v12,
+      Text(message, style: Theme.of(context).textTheme.bodyLarge),
+    ]);
   }
-
-  @override
-  Widget build(BuildContext context) =>
-      AnimatedBuilder(animation: _c, builder: (_, _) => CustomPaint(painter: _ConfettiPainter(_c.value)));
-}
-
-class _ConfettiPainter extends CustomPainter {
-  _ConfettiPainter(this.t);
-  final double t;
-
-  static const _colors = [
-    Color(0xFFFFFFFF),
-    Color(0xFFFFD36E),
-    Color(0xFFFFB3C7),
-    Color(0xFFB9F3E8),
-    Color(0xFFD9CCFF),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (t >= 1) return;
-    final rnd = math.Random(7);
-    final paint = Paint();
-    for (var i = 0; i < 42; i++) {
-      final x0 = rnd.nextDouble() * size.width;
-      final drift = (rnd.nextDouble() - 0.5) * 80;
-      final speed = 0.6 + rnd.nextDouble() * 0.6;
-      final delay = rnd.nextDouble() * 0.25;
-      final p = ((t - delay) / (1 - delay)).clamp(0.0, 1.0);
-      if (p <= 0) continue;
-      final y = -12 + p * speed * (size.height + 24);
-      final x = x0 + drift * p + math.sin(p * 10 + i) * 6;
-      paint.color = _colors[i % _colors.length].withValues(alpha: (1 - p) * 0.95);
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.rotate(p * 8 + i);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(const Rect.fromLTWH(-4, -2, 8, 4), const Radius.circular(1.5)),
-        paint,
-      );
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ConfettiPainter old) => old.t != t;
 }
 
 /// Pass-the-phone couples quiz. Partner A answers about themself in private,
@@ -472,72 +402,73 @@ class _CouplesQuizScreenState extends State<CouplesQuizScreen> {
   }
 
   Widget _handoff(String name, String note, VoidCallback onReady) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      EmptyState(
-        emoji: '📱',
-        color: BloomColors.coral,
-        title: 'Pass the phone to $name',
-        body: note,
-        action: GradientButton(label: "I'm $name, ready", icon: Icons.visibility_rounded, onPressed: onReady),
-      ),
-    ]);
+    return EmptyState(
+      glyph: Botanical.flower,
+      title: 'Pass the phone to $name',
+      body: note,
+      action: InkButton(label: "I'm $name, ready", icon: Icons.visibility_outlined, onPressed: onReady),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final q = widget.quiz;
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
+    final p = BloomColors.of(context);
+    final t = Theme.of(context).textTheme;
     final total = q.questions.length;
     final qq = q.questions[_index];
 
     final Widget content = switch (_stage) {
       _Stage.setup => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(q.description, style: t.bodyLarge),
-          Gap.v16,
-          const InfoBanner(
-            tone: BannerTone.brand,
-            icon: Icons.favorite_rounded,
-            title: 'How it works',
-            message: 'The first partner answers each question about themself without showing the screen. '
-                'Then the second partner guesses. Each match scores a point.',
-          ),
-          Gap.v24,
-          TextField(
-            controller: _aCtrl,
-            decoration: const InputDecoration(labelText: 'Answers about themself', prefixIcon: Icon(Icons.person_rounded)),
+          Text(q.description, style: Almanac.italic(context, size: 19).copyWith(height: 1.4)),
+          Gap.v20,
+          const Hairline(),
+          Gap.v12,
+          const Marginalia(
+            label: 'Rules',
+            labelWidth: 72,
+            child: Text('The first partner answers each question about themself without showing the screen. '
+                'Then the second partner guesses. Each match scores a point.'),
           ),
           Gap.v12,
+          const Hairline(),
+          Gap.v20,
+          TextField(
+            controller: _aCtrl,
+            decoration: const InputDecoration(labelText: 'Answers about themself'),
+          ),
+          Gap.v16,
           TextField(
             controller: _bCtrl,
-            decoration: const InputDecoration(labelText: 'Guesses', prefixIcon: Icon(Icons.psychology_rounded)),
+            decoration: const InputDecoration(labelText: 'Guesses'),
           ),
-          Gap.v24,
-          GradientButton(label: 'Start', icon: Icons.play_arrow_rounded, expanded: true, onPressed: () => _go(_Stage.handToA)),
+          Gap.v32,
+          InkButton(label: 'Start', expanded: true, onPressed: () => _go(_Stage.handToA)),
         ]),
       _Stage.handToA => _handoff(_nameA, 'Question ${_index + 1} of $total. Answer honestly about yourself.',
           () => _go(_Stage.answerA)),
       _Stage.handToB => _handoff(_nameB, 'Guess what $_nameA answered.', () => _go(_Stage.guessB)),
       _Stage.answerA || _Stage.guessB => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _QuizProgress(label: 'Question ${_index + 1} of $total', trailing: '$_matches matches', value: _index / total),
+          _PaperProgress(label: 'Question ${_index + 1} of $total', trailing: '$_matches matches', value: _index / total),
           Gap.v20,
-          PillChip(
-            _stage == _Stage.answerA ? '$_nameA, answer for yourself' : '$_nameB, what did $_nameA pick?',
-            icon: _stage == _Stage.answerA ? Icons.person_rounded : Icons.psychology_rounded,
-            color: _stage == _Stage.answerA ? BloomColors.coral : BloomColors.luteal,
+          Text(
+            _stage == _Stage.answerA ? '$_nameA, answer for yourself.' : '$_nameB, what did $_nameA pick?',
+            style: Almanac.italic(context, size: 17, color: p.ink2),
           ),
-          Gap.v12,
-          Text(_stage == _Stage.answerA ? qq.prompt : qq.prompt.replaceAll(RegExp(r'\bI\b'), _nameA),
-              style: t.headlineSmall?.copyWith(height: 1.25)),
+          _QuestionText(
+            number: _index + 1,
+            text: _stage == _Stage.answerA ? qq.prompt : qq.prompt.replaceAll(RegExp(r'\bI\b'), _nameA),
+          ),
           Gap.v20,
           for (var i = 0; i < qq.options.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: Space.md),
-              child: _OptionCard(
+              padding: const EdgeInsets.only(bottom: Space.sm),
+              child: _OptionBox(
                 letter: String.fromCharCode(65 + i),
                 label: qq.options[i],
                 state: _OptState.idle,
                 onTap: () {
+                  Almanac.tick();
                   if (_stage == _Stage.answerA) {
                     setState(() {
                       _a = i;
@@ -555,16 +486,21 @@ class _CouplesQuizScreenState extends State<CouplesQuizScreen> {
             ),
         ]),
       _Stage.reveal => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(_a == _b ? '💞 It\'s a match!' : '🙈 Not this time', textAlign: TextAlign.center, style: t.headlineSmall),
+          PhaseTitle(
+            italic: _a == _b ? 'A match.' : 'Not this time.',
+            color: _a == _b ? BloomColors.fertile : null,
+            size: 30,
+          ),
           Gap.v16,
-          Text(qq.prompt, style: t.titleMedium),
-          Gap.v12,
+          _QuestionText(number: _index + 1, text: qq.prompt),
+          Gap.v16,
           for (var i = 0; i < qq.options.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: Space.md),
-              child: _OptionCard(
+              padding: const EdgeInsets.only(bottom: Space.sm),
+              child: _OptionBox(
                 letter: String.fromCharCode(65 + i),
-                label: '${qq.options[i]}${i == _a ? '  ($_nameA)' : ''}${i == _b ? '  ($_nameB)' : ''}',
+                label: qq.options[i],
+                note: [if (i == _a) _nameA, if (i == _b) _nameB].join(' · ').ifEmpty,
                 state: i == _a
                     ? _OptState.correct
                     : i == _b
@@ -573,43 +509,49 @@ class _CouplesQuizScreenState extends State<CouplesQuizScreen> {
                 onTap: null,
               ),
             ),
-          InfoBanner(tone: BannerTone.info, icon: Icons.lightbulb_rounded, title: 'Tip', message: qq.explanation),
+          Gap.v8,
+          Marginalia(label: 'Note', child: Text(qq.explanation, style: t.bodyMedium)),
           Gap.v16,
-          Center(child: PillChip('Matches so far: $_matches', icon: Icons.favorite_rounded, color: BloomColors.coral)),
+          MonoLabel('Matches so far: $_matches of ${_index + 1}'),
           Gap.v16,
-          FilledButton(onPressed: _nextQuestion, child: Text(_index + 1 >= total ? 'See results' : 'Next question')),
+          Row(children: [
+            InkButton(label: _index + 1 >= total ? 'See results' : 'Next question', onPressed: _nextQuestion),
+          ]),
         ]),
       _Stage.done => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _ResultHero(
-            emoji: '💞',
-            value: total == 0 ? 0 : _matches / total,
-            big: '$_matches/$total',
-            title: '$_matches of $total matches',
+            score: _matches,
+            total: total,
+            lead: '${_cap(Almanac.spell(_matches))} of ${Almanac.spell(total)}',
+            italic: _matches >= total - 1 ? 'in step.' : 'and much to talk about.',
             message: _matches >= total - 1
                 ? '$_nameB knows $_nameA really well.'
                 : 'Every miss is a conversation starter. Talk about the answers that surprised you.',
-            celebrate: _matches >= total - 1,
-            gradient: BloomGradients.brand,
           ),
-          Gap.v20,
-          GradientButton(label: 'Swap roles and play again', icon: Icons.swap_horiz_rounded, expanded: true, onPressed: _swap),
+          Gap.v24,
+          InkButton(label: 'Swap roles and play again', icon: Icons.swap_horiz, expanded: true, onPressed: _swap),
           Gap.v8,
-          Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))),
+          Center(child: InkLink('Done', onTap: () => Navigator.pop(context))),
         ]),
     };
 
     return Scaffold(
       body: BloomPage(
-        eyebrow: '${q.emoji}  FOR TWO',
+        eyebrow: 'Puzzle ${_puzzleNo(q)} · For two',
         title: q.title,
         children: [
           AnimatedSwitcher(
             duration: Motion.medium,
-            transitionBuilder: _slideFade,
+            transitionBuilder: _fade,
             child: KeyedSubtree(key: ValueKey('$_stage$_index'), child: content),
           ),
         ],
       ),
     );
   }
+}
+
+extension on String {
+  /// Null when empty.
+  String? get ifEmpty => isEmpty ? null : this;
 }

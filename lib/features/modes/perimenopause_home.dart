@@ -62,8 +62,6 @@ const _bandText = {
   Severity.severe: 'Your symptoms are affecting you a lot. Please talk to a clinician; effective treatments exist.',
 };
 
-const _periColor = BloomColors.luteal;
-
 class PerimenopauseHome extends StatelessWidget {
   const PerimenopauseHome({super.key});
 
@@ -71,6 +69,7 @@ class PerimenopauseHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final t = Theme.of(context);
+    final p = BloomColors.of(context);
     final scores = readScores(store);
     final latest = scores.lastOrNull;
     final birthYear = store.profile.birthYear;
@@ -88,127 +87,116 @@ class PerimenopauseHome extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionCard(
-          title: 'Perimenopause score',
-          icon: Icons.insights_rounded,
-          accent: _periColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (latest == null) ...[
-                Row(
-                  children: [
-                    const IconBadge(emoji: '🌸', color: _periColor, size: 52),
-                    Gap.h16,
-                    Expanded(
-                      child: Text(
-                        'Answer 11 quick questions to see how much your symptoms affect you, and track it over time.',
-                        style: t.textTheme.bodyMedium,
-                      ),
-                    ),
-                  ],
-                ),
-              ] else ...[
-                _ScoreSummary(result: latest),
-                Gap.v16,
-                for (final s in Subscale.values) _SubscaleBar(subscale: s, score: latest.subscore(s)),
-              ],
-              if (scores.length >= 2) ...[
-                Gap.v16,
-                Text('Over time', style: t.textTheme.labelLarge),
-                Gap.v8,
-                SizedBox(height: 160, child: ScoreChart(scores: scores)),
-              ],
-              Gap.v16,
-              FilledButton(
-                onPressed: () => open(const PerimenopauseScoreScreen()),
-                child: Text(latest == null ? 'Take the check-in' : 'Check in again'),
-              ),
-            ],
-          ),
-        ),
+        const SectionHeader('Perimenopause score', label: 'Check-in', padding: EdgeInsets.zero),
         Gap.v16,
-        SectionCard(
-          title: 'Your stage',
-          icon: Icons.timeline_rounded,
-          accent: _periColor,
-          child: Column(
+        if (latest == null)
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(stage.title, style: t.textTheme.titleLarge),
-              Gap.v16,
-              _StageTrack(stage: stage.stage),
-              Gap.v16,
-              Text(stage.explanation),
-              if (stage.note != null) ...[Gap.v8, Text(stage.note!, style: t.textTheme.bodySmall)],
-              Gap.v8,
-              const EduNote(
-                text:
-                    'This estimate is based only on your logged periods. It is educational, not a diagnosis. '
-                    'Hormonal contraception, pregnancy, and some conditions affect bleeding patterns.',
+              BotanicalGlyph(Botanical.seedHead, size: 36, accent: BloomColors.luteal),
+              Gap.h16,
+              Expanded(
+                child: Text(
+                  'Answer 11 quick questions to see how much your symptoms affect you, and track it over time.',
+                  style: t.textTheme.bodyMedium,
+                ),
               ),
             ],
+          )
+        else ...[
+          _ScoreSummary(result: latest),
+          Gap.v20,
+          for (final s in Subscale.values) _SubscaleBar(subscale: s, score: latest.subscore(s)),
+        ],
+        if (scores.length >= 2) ...[
+          Gap.v20,
+          const MonoLabel('Over time'),
+          Gap.v12,
+          SizedBox(height: 150, child: ScoreChart(scores: scores)),
+        ],
+        Gap.v16,
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkButton(
+            label: latest == null ? 'Take the check-in' : 'Check in again',
+            dense: true,
+            onPressed: () => open(const PerimenopauseScoreScreen()),
           ),
         ),
-        Gap.v16,
-        SectionCard(
-          title: 'Relief options',
-          icon: Icons.spa_rounded,
-          accent: BloomColors.fertile,
-          trailing: const CardChevron(),
-          onTap: () => open(const ReliefOptionsScreen()),
-          child: top.isEmpty
-              ? const Text('Explore lifestyle, self-care, therapy, and medical options.')
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Options matched to your top symptoms:'),
-                    Gap.v8,
-                    Wrap(
-                      spacing: Space.sm,
-                      runSpacing: Space.sm,
-                      children: [for (final id in top) PillChip(itemTitle(id), color: _periColor)],
-                    ),
-                  ],
-                ),
+        const SectionHeader(
+          'Your stage',
+          label: 'Estimate',
+          padding: EdgeInsets.only(top: Space.xxxl),
         ),
-        Gap.v16,
-        SectionCard(
-          title: 'Symptoms in the last 30 days',
-          icon: Icons.bar_chart_rounded,
-          accent: BloomColors.coral,
-          child: freq.isEmpty
-              ? const Text(
-                  'Log symptoms like hot flashes and night sweats in the daily log to see how often they happen.',
-                )
-              : Column(
-                  children: [
-                    for (final e in freq)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: Space.xs + 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(child: Text(optionLabel('menopause', e.key), style: t.textTheme.bodyMedium)),
-                                Text('${e.value} ${e.value == 1 ? 'day' : 'days'}', style: t.textTheme.labelLarge),
-                              ],
-                            ),
-                            Gap.v4,
-                            SoftBar(value: e.value / 30, color: BloomColors.coral),
-                          ],
-                        ),
+        Gap.v8,
+        Text(stage.title, style: Almanac.italic(context, size: 24, color: p.ink)),
+        Gap.v20,
+        _StageTrack(stage: stage.stage),
+        Gap.v20,
+        Text(stage.explanation),
+        if (stage.note != null) ...[Gap.v8, Text(stage.note!, style: t.textTheme.bodySmall)],
+        Gap.v12,
+        const EduNote(
+          text:
+              'This estimate is based only on your logged periods. It is educational, not a diagnosis. '
+              'Hormonal contraception, pregnancy, and some conditions affect bleeding patterns.',
+        ),
+        SectionHeader(
+          'Relief options',
+          label: 'Remedies',
+          padding: const EdgeInsets.only(top: Space.xxxl),
+          actionLabel: 'See all',
+          onAction: () => open(const ReliefOptionsScreen()),
+        ),
+        Gap.v8,
+        if (top.isEmpty)
+          const Text('Explore lifestyle, self-care, therapy, and medical options.')
+        else
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Options matched to your top symptoms: '),
+                TextSpan(text: top.map(itemTitle).join(', '), style: Almanac.italic(context, size: 16.5)),
+                const TextSpan(text: '.'),
+              ],
+            ),
+          ),
+        const SectionHeader(
+          'Symptoms in the last 30 days',
+          label: 'Frequency',
+          padding: EdgeInsets.only(top: Space.xxxl),
+        ),
+        Gap.v12,
+        if (freq.isEmpty)
+          const Text('Log symptoms like hot flashes and night sweats in the daily log to see how often they happen.')
+        else
+          Column(
+            children: [
+              for (final e in freq)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.sm),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: Text(optionLabel('menopause', e.key), style: t.textTheme.bodyMedium)),
+                          Text('${e.value} ${e.value == 1 ? 'day' : 'days'}', style: Almanac.data(context)),
+                        ],
                       ),
-                  ],
+                      Gap.v8,
+                      SoftBar(value: e.value / 30, height: 2),
+                    ],
+                  ),
                 ),
-        ),
+            ],
+          ),
       ],
     );
   }
 }
 
-/// Ring gauge with the total score, band chip, and band text.
+/// The total score as a serif numeral with an italic band name.
 class _ScoreSummary extends StatelessWidget {
   const _ScoreSummary({required this.result, this.large = false});
   final ScoreResult result;
@@ -217,40 +205,44 @@ class _ScoreSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final c = severityColor(result.severity, t.colorScheme);
-    final ring = ProgressRing(
-      value: result.total / maxScore(),
-      size: large ? 168 : 112,
-      stroke: large ? 14 : 11,
-      gradient: BloomGradients.of(c),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${result.total}',
-            style: (large ? t.textTheme.displayMedium : t.textTheme.headlineMedium)!.copyWith(height: 1),
-          ),
-          Text('of ${maxScore()}', style: t.textTheme.bodySmall),
-        ],
-      ),
-    );
-    final info = [
-      PillChip(result.severity.label, color: c, icon: Icons.circle),
-      Gap.v8,
-      Text(_bandText[result.severity]!, style: t.textTheme.bodyMedium, textAlign: large ? TextAlign.center : null),
-      Gap.v4,
-      Text('Checked ${fmtFull(result.date)}', style: t.textTheme.bodySmall),
-    ];
-    if (large) {
-      return Column(children: [ring, Gap.v16, ...info]);
-    }
-    return Row(
+    final p = BloomColors.of(context);
+    final c = readableTint(BloomColors.resolve(context, severityColor(result.severity, t.colorScheme)), t.brightness);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ring,
-        Gap.h16,
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: info),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${result.total}',
+                style: Almanac.numeral(context, size: large ? 96 : 64),
+              ),
+              TextSpan(
+                text: ' of ${maxScore()}',
+                style: Almanac.italic(context, size: large ? 20 : 17, color: p.ink2),
+              ),
+            ],
+          ),
         ),
+        Gap.v8,
+        Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+            ),
+            Gap.h8,
+            Text(
+              result.severity.label,
+              style: Almanac.italic(context, size: large ? 26 : 22, color: c),
+            ),
+          ],
+        ),
+        Gap.v8,
+        Text(_bandText[result.severity]!, style: t.textTheme.bodyMedium),
+        Gap.v8,
+        MonoLabel('Checked ${fmtFull(result.date)}'),
       ],
     );
   }
@@ -267,120 +259,134 @@ class _SubscaleBar extends StatelessWidget {
     final sev = bandFor(score, subscale);
     final c = severityColor(sev, t.colorScheme);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.xs + 2),
+      padding: const EdgeInsets.symmetric(vertical: Space.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(child: Text(subscale.label, style: t.textTheme.bodyMedium)),
-              Text('$score/${maxScore(subscale)}', style: t.textTheme.labelLarge),
-              Gap.h8,
-              PillChip(sev.label, color: c, dense: true),
+              Text(
+                sev.label.toLowerCase(),
+                style: Almanac.italic(
+                  context,
+                  size: 15,
+                  color: readableTint(BloomColors.resolve(context, c), t.brightness),
+                ),
+              ),
+              Gap.h12,
+              SizedBox(
+                width: 40,
+                child: Text('$score/${maxScore(subscale)}', style: Almanac.data(context), textAlign: TextAlign.right),
+              ),
             ],
           ),
           Gap.v8,
-          SoftBar(value: score / maxScore(subscale), color: c),
+          SoftBar(value: score / maxScore(subscale), color: c, height: 2),
         ],
       ),
     );
   }
 }
 
-/// A horizontal stepper: reproductive, early transition, late transition,
-/// postmenopause, with the estimate highlighted.
+/// A printed horizontal timeline: reproductive, early transition, late
+/// transition, postmenopause, with an ink marker on the estimate.
 class _StageTrack extends StatelessWidget {
   const _StageTrack({required this.stage});
   final MenoStage stage;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     const steps = [
       (MenoStage.reproductive, 'Reproductive'),
-      (MenoStage.earlyTransition, 'Early transition'),
-      (MenoStage.lateTransition, 'Late transition'),
+      (MenoStage.earlyTransition, 'Early\ntransition'),
+      (MenoStage.lateTransition, 'Late\ntransition'),
       (MenoStage.postmenopause, 'Post-\nmenopause'),
     ];
     final idx = steps.indexWhere((s) => s.$1 == stage);
-    final accent = readableTint(_periColor, t.brightness);
-    const dot = 28.0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < steps.length; i++)
-          Expanded(
-            child: Column(
-              children: [
-                SizedBox(
-                  height: dot,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 3,
-                              color: i == 0 ? Colors.transparent : (i <= idx ? _periColor : tokens.subtle),
-                            ),
-                          ),
-                          Expanded(
-                            child: Container(
-                              height: 3,
-                              color: i == steps.length - 1
-                                  ? Colors.transparent
-                                  : (i < idx ? _periColor : tokens.subtle),
-                            ),
-                          ),
-                        ],
-                      ),
-                      AnimatedContainer(
-                        duration: Motion.medium,
-                        width: i == idx ? dot : 14,
-                        height: i == idx ? dot : 14,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: i <= idx ? BloomGradients.luteal : null,
-                          color: i <= idx ? null : tokens.subtle,
-                          boxShadow: i == idx && t.brightness == Brightness.light
-                              ? BloomShadows.glow(_periColor)
-                              : null,
+    return Semantics(
+      label: idx < 0 ? 'Stage not estimated yet' : 'Estimated stage: ${steps[idx].$2.replaceAll(RegExp(r'-?\n'), ' ')}',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < steps.length; i++)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 22,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // The rule, ink up to the estimate.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 14,
+                          child: Container(height: i <= idx ? 1.5 : 1, color: i <= idx ? p.ink : p.hairline),
                         ),
-                        child: i == idx ? const Icon(Icons.place_rounded, size: 16, color: Colors.white) : null,
-                      ),
-                    ],
+                        Positioned(left: 0, top: 9, child: Container(width: 1, height: 11, color: p.ink2)),
+                        if (i == idx)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            child: CustomPaint(size: const Size(10, 22), painter: _MarkerPainter(p.ink)),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                Gap.v8,
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.xxs),
-                  child: Builder(
-                    builder: (context) {
-                      final label = Text(
-                        steps[i].$2,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        style: t.textTheme.labelSmall!.copyWith(
-                          color: i == idx ? accent : tokens.muted,
-                          fontWeight: i == idx ? FontWeight.w800 : null,
-                        ),
-                      );
-                      // Single words shrink to fit instead of breaking mid-word.
-                      return steps[i].$2.contains(RegExp(r'\s'))
-                          ? label
-                          : FittedBox(fit: BoxFit.scaleDown, child: label);
-                    },
+                  Gap.v8,
+                  Padding(
+                    padding: const EdgeInsets.only(right: Space.xs),
+                    child: Text(indexNumber(i + 1), style: Almanac.label(context, color: i == idx ? p.ink : null)),
                   ),
-                ),
-              ],
+                  Gap.v4,
+                  Padding(
+                    padding: const EdgeInsets.only(right: Space.sm),
+                    child: Text(
+                      steps[i].$2,
+                      maxLines: 2,
+                      style: i == idx
+                          ? Almanac.italic(context, size: 14, color: p.ink)
+                          : Almanac.sans(size: 12, color: p.ink2, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
+}
+
+class _MarkerPainter extends CustomPainter {
+  _MarkerPainter(this.ink);
+  final Color ink;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(-5, 0)
+      ..lineTo(5, 0)
+      ..lineTo(0, 7)
+      ..close();
+    canvas.drawPath(path, Paint()..color = ink);
+    canvas.drawLine(
+      const Offset(0, 6),
+      Offset(0, size.height),
+      Paint()
+        ..color = ink
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MarkerPainter old) => old.ink != ink;
 }
 
 class ScoreChart extends StatelessWidget {
@@ -389,10 +395,9 @@ class ScoreChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final first = scores.first.date;
-    final line = readableTint(_periColor, t.brightness);
+    final axis = Almanac.data(context, size: 10.5);
     return LineChart(
       LineChartData(
         minY: 0,
@@ -400,18 +405,17 @@ class ScoreChart extends StatelessWidget {
         gridData: FlGridData(
           drawVerticalLine: false,
           horizontalInterval: 11,
-          getDrawingHorizontalLine: (_) => FlLine(color: tokens.border, strokeWidth: 1, dashArray: [4, 4]),
+          getDrawingHorizontalLine: (_) => FlLine(color: p.hairline, strokeWidth: 1),
         ),
-        borderData: FlBorderData(show: false),
+        borderData: FlBorderData(
+          show: true,
+          border: Border(bottom: BorderSide(color: p.ink.withValues(alpha: 0.6))),
+        ),
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => t.colorScheme.inverseSurface,
+            getTooltipColor: (_) => p.ink,
             getTooltipItems: (spots) => [
-              for (final s in spots)
-                LineTooltipItem(
-                  '${s.y.round()}',
-                  t.textTheme.labelMedium!.copyWith(color: t.colorScheme.onInverseSurface),
-                ),
+              for (final s in spots) LineTooltipItem('${s.y.round()}', Almanac.mono(size: 11.5, color: p.paper)),
             ],
           ),
         ),
@@ -425,7 +429,7 @@ class ScoreChart extends StatelessWidget {
               interval: 11,
               getTitlesWidget: (v, meta) => SideTitleWidget(
                 meta: meta,
-                child: Text(meta.formattedValue, style: t.textTheme.bodySmall),
+                child: Text(meta.formattedValue, style: axis),
               ),
             ),
           ),
@@ -436,7 +440,7 @@ class ScoreChart extends StatelessWidget {
               interval: (daysBetween(first, scores.last.date) / 3).clamp(1, 10000).toDouble(),
               getTitlesWidget: (v, meta) => SideTitleWidget(
                 meta: meta,
-                child: Text(fmtShort(addDays(first, v.round())), style: t.textTheme.bodySmall),
+                child: Text(fmtShort(addDays(first, v.round())), style: axis),
               ),
             ),
           ),
@@ -444,26 +448,14 @@ class ScoreChart extends StatelessWidget {
         lineBarsData: [
           LineChartBarData(
             spots: [for (final s in scores) FlSpot(daysBetween(first, s.date).toDouble(), s.total.toDouble())],
-            color: line,
-            barWidth: 3,
+            color: p.ink,
+            barWidth: 1.5,
             isCurved: true,
             preventCurveOverShooting: true,
             isStrokeCapRound: true,
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [_periColor.withValues(alpha: 0.28), _periColor.withValues(alpha: 0)],
-              ),
-            ),
             dotData: FlDotData(
-              getDotPainter: (_, _, _, _) => FlDotCirclePainter(
-                radius: 4,
-                color: line,
-                strokeWidth: 2,
-                strokeColor: t.brightness == Brightness.dark ? t.colorScheme.surfaceContainer : Colors.white,
-              ),
+              getDotPainter: (_, _, _, _) =>
+                  FlDotCirclePainter(radius: 2.5, color: p.ink, strokeWidth: 1.5, strokeColor: p.paper),
             ),
           ),
         ],
@@ -485,50 +477,45 @@ class _PerimenopauseScoreScreenState extends State<PerimenopauseScoreScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final p = BloomColors.of(context);
     final answered = _answers.where((a) => a != null).length;
     final complete = answered == _answers.length;
     return ModePage(
-      title: 'Perimenopause check-in',
+      eyebrow: 'Perimenopause',
+      title: 'Check-in',
       subtitle: 'How much has each of these bothered you over the past two weeks?',
-      heroColor: _periColor,
       children: [
         Row(
           children: [
-            Expanded(
-              child: SoftBar(value: answered / _answers.length, color: _periColor),
-            ),
+            Expanded(child: SoftBar(value: answered / _answers.length)),
             Gap.h12,
-            Text('$answered of ${_answers.length}', style: t.textTheme.labelLarge),
+            Text('$answered of ${_answers.length}', style: Almanac.data(context)),
           ],
         ),
         for (var i = 0; i < kScoreItems.length; i++)
           BloomCard(
+            padding: const EdgeInsets.symmetric(vertical: Space.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AnimatedContainer(
-                      duration: Motion.medium,
-                      width: 28,
-                      height: 28,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: _answers[i] != null ? BloomGradients.luteal : null,
-                        color: _answers[i] != null ? null : BloomTokens.of(context).subtle,
+                    SizedBox(
+                      width: 40,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Text(
+                          indexNumber(i + 1),
+                          style: Almanac.label(context, size: 11, color: _answers[i] != null ? p.ink : null),
+                        ),
                       ),
-                      child: _answers[i] != null
-                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                          : Text('${i + 1}', style: t.textTheme.labelMedium),
                     ),
-                    Gap.h12,
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(kScoreItems[i].title, style: t.textTheme.titleMedium),
+                          Text(kScoreItems[i].title, style: t.textTheme.titleLarge),
                           const SizedBox(height: Space.xxs),
                           Text(kScoreItems[i].question, style: t.textTheme.bodySmall),
                         ],
@@ -537,26 +524,19 @@ class _PerimenopauseScoreScreenState extends State<PerimenopauseScoreScreen> {
                   ],
                 ),
                 Gap.v12,
-                Wrap(
-                  spacing: Space.sm,
-                  runSpacing: Space.sm,
-                  children: [
-                    for (var v = 0; v < kAnswerLabels.length; v++)
-                      SelectChip(
-                        label: kAnswerLabels[v],
-                        color: _periColor,
-                        showCheck: false,
-                        selected: _answers[i] == v,
-                        onSelected: (_) => setState(() => _answers[i] = v),
-                      ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(left: 40),
+                  child: UnderlineTabs<int?>(
+                    options: [for (var v = 0; v < kAnswerLabels.length; v++) (v, kAnswerLabels[v])],
+                    selected: _answers[i],
+                    onChanged: (v) => setState(() => _answers[i] = v),
+                  ),
                 ),
               ],
             ),
           ),
-        GradientButton(
+        InkButton(
           label: complete ? 'See my score' : 'Answer all ${kScoreItems.length} questions',
-          gradient: BloomGradients.luteal,
           expanded: true,
           onPressed: complete
               ? () {
@@ -584,23 +564,17 @@ class ScoreResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ModePage(
+      eyebrow: 'Perimenopause · Your score',
       title: 'Your score',
-      heroColor: severityColor(result.severity, Theme.of(context).colorScheme),
+      header: _ScoreSummary(result: result, large: true),
       children: [
-        BloomCard(
-          padding: const EdgeInsets.fromLTRB(Space.xl, Space.xxl, Space.xl, Space.xl),
-          child: _ScoreSummary(result: result, large: true),
+        const SectionHeader('By area', label: 'Subscales'),
+        Column(
+          children: [for (final s in Subscale.values) _SubscaleBar(subscale: s, score: result.subscore(s))],
         ),
-        const SectionHeader('By area'),
-        BloomCard(
-          child: Column(
-            children: [for (final s in Subscale.values) _SubscaleBar(subscale: s, score: result.subscore(s))],
-          ),
-        ),
-        GradientButton(
+        Gap.v8,
+        InkButton(
           label: 'See relief options',
-          icon: Icons.spa_rounded,
-          gradient: BloomGradients.luteal,
           expanded: true,
           onPressed: () =>
               Navigator.of(context)
@@ -611,13 +585,6 @@ class ScoreResultScreen extends StatelessWidget {
     );
   }
 }
-
-const _categoryStyle = {
-  'Lifestyle': (Icons.directions_walk_rounded, BloomColors.fertile),
-  'Self-care': (Icons.spa_rounded, BloomColors.coral),
-  'Therapy': (Icons.psychology_rounded, BloomColors.luteal),
-  'Medical': (Icons.medication_rounded, BloomColors.info),
-};
 
 class ReliefOptionsScreen extends StatefulWidget {
   const ReliefOptionsScreen({super.key});
@@ -633,6 +600,7 @@ class _ReliefOptionsScreenState extends State<ReliefOptionsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final p = BloomColors.of(context);
     final store = context.watch<AppStore>();
     final top = topSymptoms(store);
     final filter = _filter ?? (top.isEmpty ? 'all' : 'mine');
@@ -649,94 +617,71 @@ class _ReliefOptionsScreenState extends State<ReliefOptionsScreen> {
       options.sort((a, b) => b.tags.where(top.contains).length.compareTo(a.tags.where(top.contains).length));
     }
     String itemTitle(String id) => kScoreItems.firstWhereOrNull((i) => i.id == id)?.title ?? id;
-    void set(String f) => setState(() => _filter = f);
 
     return ModePage(
+      eyebrow: 'Perimenopause',
       title: 'Relief options',
       subtitle: filter == 'mine'
           ? 'Matched to: ${top.map(itemTitle).join(', ')}'
-          : 'Ways to ease perimenopause symptoms',
-      heroColor: _periColor,
+          : 'Ways to ease perimenopause symptoms.',
       children: [
-        Wrap(
-          spacing: Space.sm,
-          runSpacing: Space.sm,
-          children: [
-            if (top.isNotEmpty)
-              SelectChip(
-                label: 'For my symptoms',
-                icon: Icons.favorite_rounded,
-                color: BloomColors.brand,
-                showCheck: false,
-                selected: filter == 'mine',
-                onSelected: (_) => set('mine'),
-              ),
-            SelectChip(label: 'All', showCheck: false, selected: filter == 'all', onSelected: (_) => set('all')),
-            for (final c in kReliefCategories)
-              SelectChip(
-                label: c,
-                icon: _categoryStyle[c]?.$1,
-                color: _categoryStyle[c]?.$2,
-                showCheck: false,
-                selected: filter == c,
-                onSelected: (_) => set(c),
-              ),
+        UnderlineTabs<String>(
+          options: [
+            if (top.isNotEmpty) ('mine', 'For my symptoms'),
+            ('all', 'All'),
+            for (final c in kReliefCategories) (c, c),
           ],
+          selected: filter,
+          onChanged: (f) => setState(() => _filter = f),
         ),
-        if (options.isEmpty)
-          const EmptyState(
-            emoji: '🌿',
-            color: BloomColors.fertile,
-            title: 'Nothing here yet',
-            body: 'Try another filter to see more options.',
-          ),
-        for (final o in options)
-          BloomCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    IconBadge(
-                      icon: _categoryStyle[o.category]?.$1 ?? Icons.spa_rounded,
-                      color: _categoryStyle[o.category]?.$2,
-                    ),
-                    Gap.h12,
-                    Expanded(
+        AnimatedSwitcher(
+          duration: Motion.medium,
+          child: Column(
+            key: ValueKey(filter),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (options.isEmpty)
+                const EmptyState(title: 'Nothing here yet', body: 'Try another filter to see more options.'),
+              for (var n = 0; n < options.length; n++)
+                Builder(
+                  builder: (context) {
+                    final o = options[n];
+                    final tags = o.tags.toList();
+                    return BloomCard(
+                      padding: const EdgeInsets.symmetric(vertical: Space.xl),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(o.title, style: t.textTheme.titleMedium),
-                          Text(
-                            o.category,
-                            style: t.textTheme.labelMedium!.copyWith(
-                              color: readableTint(_categoryStyle[o.category]?.$2 ?? _periColor, t.brightness),
+                          MonoLabel('${indexNumber(n + 1)} · ${o.category}'),
+                          Gap.v8,
+                          Text(o.title, style: t.textTheme.headlineSmall),
+                          Gap.v8,
+                          Text(o.body, style: t.textTheme.bodyMedium!.copyWith(height: 1.6)),
+                          Gap.v12,
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                for (var i = 0; i < tags.length; i++) ...[
+                                  if (i > 0) TextSpan(text: '  ·  ', style: Almanac.label(context)),
+                                  TextSpan(
+                                    text: itemTitle(tags[i]).toUpperCase(),
+                                    style: Almanac.label(context, color: top.contains(tags[i]) ? p.ink : null).copyWith(
+                                      decoration: top.contains(tags[i]) ? TextDecoration.underline : null,
+                                      decorationColor: p.ink,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-                Gap.v12,
-                Text(o.body, style: t.textTheme.bodyMedium),
-                Gap.v12,
-                Wrap(
-                  spacing: Space.xs + 2,
-                  runSpacing: Space.xs + 2,
-                  children: [
-                    for (final tag in o.tags)
-                      PillChip(
-                        itemTitle(tag),
-                        dense: true,
-                        icon: top.contains(tag) ? Icons.check_rounded : null,
-                        color: top.contains(tag) ? BloomColors.brand : BloomTokens.of(context).muted,
-                      ),
-                  ],
-                ),
-              ],
-            ),
+            ],
           ),
+        ),
         const EduNote(
           text:
               'These options are educational. Medicines, including hormone therapy, need a conversation with a '

@@ -298,8 +298,8 @@ void openCheckerList(BuildContext context) {
 
 // ------------------------------------------------------------ screens
 
-/// The tone color of a result level: green for few signs, amber for some,
-/// rose for many.
+/// The tone of a result level. Kept for callers that color a level; the
+/// Almanac screens draw levels in ink and use oxblood only for "many".
 Color levelColor(String level) => switch (level) {
       'many' => BloomColors.period,
       'some' => BloomColors.warning,
@@ -312,49 +312,62 @@ class CheckerListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final t = Theme.of(context).textTheme;
+    final p = BloomColors.of(context);
     return Scaffold(
       body: BloomPage(
+        eyebrow: 'Ask · Self-checks',
         title: 'Symptom checker',
-        subtitle: 'Short self-checks that use what you have logged.',
-        spacing: Space.md,
+        subtitle: 'Short questionnaires that draw on what you have logged.',
         children: [
-          const InfoBanner(
-            tone: BannerTone.info,
-            icon: Icons.health_and_safety_rounded,
-            message: 'These questionnaires are educational. They can\'t diagnose a condition. '
-                'Talk to a clinician about your results.',
-          ),
-          Gap.v4,
-          for (final c in kCheckers)
-            Builder(builder: (context) {
-              final r = savedCheckerResult(store, c.id);
-              final level = r?['level'] as String? ?? 'few';
-              return BloomCard(
-                padding: Insets.cardCompact,
-                onTap: () => openChecker(context, c.id),
-                child: Row(children: [
-                  IconBadge(emoji: c.emoji, color: BloomColors.luteal, size: 52),
-                  Gap.h16,
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(c.title, style: t.titleMedium),
-                      Gap.v4,
-                      Text('${c.questions.length} questions · about 2 min', style: t.bodySmall),
-                      if (r != null) ...[
-                        Gap.v8,
-                        PillChip(
-                          'Last: ${levelLabel(level)} · ${fmtShort(parseDayKey(r['date'] as String))}',
-                          color: levelColor(level),
-                          dense: true,
+          Column(children: [
+            for (var i = 0; i < kCheckers.length; i++) ...[
+              const Hairline(),
+              Builder(builder: (context) {
+                final c = kCheckers[i];
+                final r = savedCheckerResult(store, c.id);
+                final level = r?['level'] as String? ?? 'few';
+                return Pressable(
+                  semanticLabel: '${c.title} check, ${c.questions.length} questions',
+                  onTap: () => openChecker(context, c.id),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Space.lg),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      SizedBox(
+                        width: 44,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text('Form ${String.fromCharCode(65 + i)}', style: Almanac.data(context, size: 11)),
                         ),
-                      ],
+                      ),
+                      Gap.h8,
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(c.title, style: Almanac.serif(size: 20, weight: 380, color: p.ink)),
+                          Gap.v4,
+                          MonoLabel('${c.questions.length} questions · about 2 min', size: 10),
+                          if (r != null) ...[
+                            Gap.v8,
+                            Text(
+                              'Last time: ${levelLabel(level).toLowerCase()}, ${fmtShort(parseDayKey(r['date'] as String))}.',
+                              style: Almanac.italic(context, size: 15, color: p.ink2),
+                            ),
+                          ],
+                        ]),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Icon(Icons.arrow_forward, size: 18, color: p.ink2),
+                      ),
                     ]),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: BloomTokens.of(context).muted),
-                ]),
-              );
-            }),
+                );
+              }),
+            ],
+            const Hairline(),
+          ]),
+          Gap.v8,
+          const Footnote('These questionnaires are educational. They can\'t diagnose a condition. '
+              'Talk to a clinician about your results.'),
         ],
       ),
     );
@@ -374,9 +387,6 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   late final List<CheckerHint?> _hints;
   bool _started = false;
   int _index = 0;
-
-  /// 1 when moving forward, -1 when going back, for the slide direction.
-  int _dir = 1;
   Timer? _advance;
   ({String level, double score, int max})? _result;
 
@@ -398,6 +408,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
 
   void _answer(Answer a) {
     _advance?.cancel();
+    Almanac.tick();
     setState(() => _answers[_index] = a);
     if (_isLast) return;
     _advance = Timer(const Duration(milliseconds: 280), () {
@@ -409,10 +420,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
     _advance?.cancel();
     final i = (_index + delta).clamp(0, widget.checker.questions.length - 1);
     if (i == _index) return;
-    setState(() {
-      _dir = delta.sign;
-      _index = i;
-    });
+    setState(() => _index = i);
   }
 
   void _finish() {
@@ -439,44 +447,35 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
 
   List<Widget> _intro(BuildContext context) {
     final c = widget.checker;
-    final t = Theme.of(context).textTheme;
+    final p = BloomColors.of(context);
     return [
-      BloomCard.tinted(
-        color: BloomColors.luteal,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          IconBadge(emoji: c.emoji, color: BloomColors.luteal, size: 64),
-          Gap.v16,
-          Text(c.intro, style: t.bodyLarge?.copyWith(height: 1.55)),
-        ]),
-      ),
-      BloomCard(
-        child: Column(children: [
-          _InfoRow(icon: Icons.quiz_rounded, text: '${c.questions.length} questions, about 2 minutes'),
-          Gap.v12,
-          const _InfoRow(
-            icon: Icons.insights_rounded,
-            text: 'Where you have logged related data, you\'ll see it as a hint, and some answers may be '
-                'pre-filled. You can change any answer.',
-          ),
-          Gap.v12,
-          const _InfoRow(icon: Icons.lock_rounded, text: 'Your answers stay on this device.'),
-        ]),
-      ),
-      const Disclaimer(
-          text: 'This is an educational self-check, not a diagnosis. Only a clinician can diagnose a condition.'),
-      GradientButton(
-        label: 'Start',
-        icon: Icons.arrow_forward_rounded,
-        expanded: true,
-        onPressed: () => setState(() => _started = true),
-      ),
+      Text(c.intro, style: Almanac.italic(context, size: 19, color: p.ink).copyWith(height: 1.45)),
+      Column(children: [
+        const Hairline(),
+        Gap.v12,
+        Marginalia(label: 'Length', labelWidth: 72, child: Text('${c.questions.length} questions, about 2 minutes.')),
+        Gap.v12,
+        const Marginalia(
+          label: 'Hints',
+          labelWidth: 72,
+          child: Text('Where you have logged related data, you\'ll see it as a note, and some answers may be '
+              'filled in for you. You can change any answer.'),
+        ),
+        Gap.v12,
+        const Marginalia(label: 'Privacy', labelWidth: 72, child: Text('Your answers stay on this device.')),
+        Gap.v12,
+        const Hairline(),
+      ]),
+      Gap.v8,
+      InkButton(label: 'Start', icon: Icons.arrow_forward, expanded: true, onPressed: () => setState(() => _started = true)),
+      Gap.v8,
+      const Footnote('This is an educational self-check, not a diagnosis. Only a clinician can diagnose a condition.'),
     ];
   }
 
   List<Widget> _question(BuildContext context) {
     final c = widget.checker;
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
+    final p = BloomColors.of(context);
     final total = c.questions.length;
     final answered = _answers.where((a) => a != null).length;
     final q = c.questions[_index];
@@ -486,68 +485,66 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
     return [
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Expanded(
-            child: Text('Question ${_index + 1} of $total',
-                style: t.labelLarge?.copyWith(color: BloomTokens.of(context).muted)),
-          ),
-          Text('$answered answered', style: t.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+          Expanded(child: MonoLabel('Question ${_index + 1} of $total')),
+          MonoLabel('$answered answered', color: p.ink),
         ]),
         Gap.v8,
-        SoftProgressBar(value: (_index + 1) / total, gradient: BloomGradients.luteal, height: 10),
+        RuleProgress(value: (_index + 1) / total),
       ]),
       AnimatedSwitcher(
         duration: Motion.medium,
-        transitionBuilder: (child, a) {
-          final incoming = child.key == ValueKey(_index);
-          final from = Offset(0.08 * (incoming ? _dir : -_dir), 0);
-          return FadeTransition(
-            opacity: a,
-            child: SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(a), child: child),
-          );
-        },
+        switchInCurve: Motion.curve,
+        transitionBuilder: (child, a) => FadeTransition(opacity: a, child: child),
         child: Column(
           key: ValueKey(_index),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Gap.v8,
-            Text(q.text, style: t.headlineSmall?.copyWith(height: 1.3)),
+            Gap.v12,
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(
+                width: 40,
+                child: Text('${_index + 1}.', style: Almanac.serif(size: 23, weight: 330, color: p.ink2, height: 1.3)),
+              ),
+              Expanded(child: Text(q.text, style: Almanac.serif(size: 23, weight: 370, color: p.ink, height: 1.3))),
+            ]),
             if (hint != null) ...[
               Gap.v16,
-              InfoBanner(tone: BannerTone.brand, icon: Icons.insights_rounded, title: 'From your logs', message: hint.text),
-            ],
-            Gap.v20,
-            for (final a in [Answer.yes, Answer.no, Answer.unsure])
               Padding(
-                padding: const EdgeInsets.only(bottom: Space.md),
-                child: _AnswerCard(answer: a, selected: _answers[_index] == a, onTap: () => _answer(a)),
+                padding: const EdgeInsets.only(left: 40),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const MonoLabel('From your logs', size: 9.5),
+                  Gap.v4,
+                  Text(hint.text, style: Almanac.italic(context, size: 16, color: p.ink2).copyWith(height: 1.4)),
+                ]),
               ),
+            ],
+            Gap.v24,
+            Padding(
+              padding: const EdgeInsets.only(left: 40),
+              child: Wrap(spacing: Space.sm, runSpacing: Space.sm, children: [
+                for (final a in [Answer.yes, Answer.no, Answer.unsure])
+                  _AnswerBox(answer: a, selected: _answers[_index] == a, onTap: () => _answer(a)),
+              ]),
+            ),
           ],
         ),
       ),
       if (_isLast && unanswered > 0)
-        Text(
-          '$unanswered unanswered question${unanswered == 1 ? '' : 's'} will count as "No".',
-          textAlign: TextAlign.center,
-          style: t.bodySmall,
-        ),
-      Row(children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _index == 0 ? null : () => _go(-1),
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Back'),
+        Padding(
+          padding: const EdgeInsets.only(left: 40),
+          child: Text(
+            '$unanswered unanswered question${unanswered == 1 ? '' : 's'} will count as "No".',
+            style: Almanac.italic(context, size: 15, color: p.ink2),
           ),
         ),
-        Gap.h12,
-        Expanded(
-          child: _isLast
-              ? FilledButton(onPressed: _finish, child: const Text('See my result'))
-              : FilledButton.icon(
-                  onPressed: () => _go(1),
-                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                  label: Text(_answers[_index] == null ? 'Skip' : 'Next'),
-                ),
-        ),
+      Gap.v8,
+      const Hairline(),
+      Row(children: [
+        InkButton.outlined(label: 'Back', dense: true, icon: Icons.arrow_back, onPressed: _index == 0 ? null : () => _go(-1)),
+        const Spacer(),
+        _isLast
+            ? InkButton(label: 'See my result', dense: true, onPressed: _finish)
+            : InkButton(label: _answers[_index] == null ? 'Skip' : 'Next', dense: true, onPressed: () => _go(1)),
       ]),
     ];
   }
@@ -555,45 +552,49 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   List<Widget> _resultView(BuildContext context) {
     final c = widget.checker;
     final r = _result!;
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
-    final color = levelColor(r.level);
-    final ink = readableTint(color, theme.brightness);
+    final p = BloomColors.of(context);
+    final steps = [
+      'Bring your cycle history and symptom log from this app.',
+      'Describe how symptoms affect your daily life, not just what they are.',
+      'Ask what could be causing them and which tests could help.',
+      'If you feel dismissed, it\'s okay to ask for a second opinion.',
+    ];
 
     return [
-      BloomCard.tinted(
-        color: color,
-        padding: Insets.all24,
-        child: Column(children: [
-          IconBadge(emoji: c.emoji, color: color, size: 64),
-          Gap.v16,
-          Text(levelLabel(r.level), style: t.headlineMedium?.copyWith(color: ink)),
-          Text('of $_conditionName', style: t.titleMedium),
-          Gap.v20,
-          _LevelMeter(ratio: r.max == 0 ? 0 : r.score / r.max, color: color),
-          Gap.v20,
-          Text(c.results[r.level]!, textAlign: TextAlign.center, style: t.bodyLarge?.copyWith(height: 1.55)),
+      Text.rich(
+        TextSpan(children: [
+          TextSpan(text: '${levelLabel(r.level)}\n', style: Almanac.serif(size: 36, weight: 300, italic: true, color: p.ink, height: 1.1)),
+          TextSpan(text: 'of $_conditionName.', style: Almanac.serif(size: 36, weight: 300, italic: true, color: p.ink2, height: 1.1)),
         ]),
       ),
-      const SectionHeader('Talking to a clinician'),
-      const BloomCard(
-        child: ArticleBody('- Bring your cycle history and symptom log from this app\n'
-            '- Describe how symptoms affect your daily life, not just what they are\n'
-            '- Ask what could be causing them and which tests could help\n'
-            '- If you feel dismissed, it\'s okay to ask for a second opinion'),
-      ),
+      _LevelMeter(ratio: r.max == 0 ? 0 : r.score / r.max, level: r.level),
+      Text(c.results[r.level]!, style: Theme.of(context).textTheme.bodyLarge!.copyWith(height: 1.6)),
+      const SectionHeader('Talking to a clinician', label: 'Clinician note', padding: EdgeInsets.only(top: Space.xl)),
+      Column(children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          const Hairline(),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: Space.md),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 32, child: Text('${i + 1}.', style: Almanac.serif(size: 17, weight: 330, color: p.ink2, height: 1.4))),
+              Expanded(child: Text(steps[i], style: Theme.of(context).textTheme.bodyMedium!.copyWith(height: 1.5))),
+            ]),
+          ),
+        ],
+        const Hairline(),
+      ]),
       const InfoBanner(
-        tone: BannerTone.warning,
+        tone: BannerTone.error,
         title: 'Get urgent care',
         message: 'For sudden severe pelvic pain, fainting, or bleeding that soaks a pad every hour.',
       ),
-      OutlinedButton.icon(
-        onPressed: () => openArticle(context, c.articleId),
-        icon: const Icon(Icons.menu_book_rounded, size: 18),
-        label: Text('Read about ${c.title}'),
-      ),
-      FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done')),
-      const Disclaimer(text: 'This is an educational self-check, not a diagnosis.'),
+      Row(children: [
+        InkButton(label: 'Done', onPressed: () => Navigator.pop(context)),
+        Gap.h16,
+        Flexible(child: InkLink('Read about ${c.title}', arrow: true, onTap: () => openArticle(context, c.articleId))),
+      ]),
+      Gap.v8,
+      const Footnote('This is an educational self-check, not a diagnosis.'),
     ];
   }
 
@@ -611,11 +612,10 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
 
     return Scaffold(
       body: BloomPage(
-        heroColor: _result == null ? BloomColors.luteal : levelColor(_result!.level),
-        eyebrow: _result == null ? 'SYMPTOM CHECKER' : 'YOUR RESULT',
+        eyebrow: _result == null ? 'Symptom checker · Questionnaire' : 'Your result · ${fmtShort(today())}',
         title: _started && _result == null ? c.title : '${c.title} check',
         actions: [
-          if (_started && _result == null) TextButton(onPressed: _finish, child: const Text('Finish now')),
+          if (_started && _result == null) InkLink('Finish now', size: 13.5, onTap: _finish),
         ],
         children: children,
       ),
@@ -623,147 +623,96 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 20, color: readableTint(BloomColors.luteal, Theme.of(context).brightness)),
-      Gap.h12,
-      Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium)),
-    ]);
-  }
-}
-
-class _AnswerCard extends StatelessWidget {
-  const _AnswerCard({required this.answer, required this.selected, required this.onTap});
+/// One answer on the form: a small square checkbox and a label in a
+/// hairline box. The selected answer is outlined in ink with a filled box.
+class _AnswerBox extends StatelessWidget {
+  const _AnswerBox({required this.answer, required this.selected, required this.onTap});
   final Answer answer;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final tokens = BloomTokens.of(context);
-    final (label, icon, color) = switch (answer) {
-      Answer.yes => ('Yes', Icons.check_rounded, BloomColors.luteal),
-      Answer.no => ('No', Icons.close_rounded, BloomColors.luteal),
-      Answer.unsure => ('Not sure', Icons.help_outline_rounded, BloomColors.luteal),
+    final p = BloomColors.of(context);
+    final label = switch (answer) {
+      Answer.yes => 'Yes',
+      Answer.no => 'No',
+      Answer.unsure => 'Not sure',
     };
-    return Semantics(
-      button: true,
+    return Pressable(
       selected: selected,
-      child: AnimatedScale(
-        scale: selected ? 1 : 0.985,
+      onTap: onTap,
+      borderRadius: Radii.mdAll,
+      child: AnimatedContainer(
         duration: Motion.medium,
-        curve: Motion.spring,
-        child: AnimatedContainer(
-          duration: Motion.medium,
-          curve: Motion.curve,
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: dark ? 0.26 : 0.14) : theme.cardTheme.color,
-            borderRadius: Radii.mdAll,
-            border: Border.all(color: selected ? color : tokens.border, width: selected ? 2 : 1.2),
-            boxShadow: selected ? const [] : tokens.cardShadow,
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              borderRadius: Radii.mdAll,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md + 2),
-                child: Row(children: [
-                  AnimatedContainer(
-                    duration: Motion.medium,
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: selected ? color : tokens.subtle,
-                      borderRadius: Radii.smAll,
-                    ),
-                    child: Icon(icon, size: 18, color: selected ? BloomColors.onColor(color) : tokens.muted),
-                  ),
-                  Gap.h12,
-                  Expanded(child: Text(label, style: theme.textTheme.titleMedium)),
-                  AnimatedOpacity(
-                    duration: Motion.fast,
-                    opacity: selected ? 1 : 0,
-                    child: Icon(Icons.check_circle_rounded, color: readableTint(color, theme.brightness)),
-                  ),
-                ]),
-              ),
-            ),
-          ),
+        curve: Motion.curve,
+        constraints: const BoxConstraints(minHeight: 48, minWidth: 92),
+        padding: const EdgeInsets.symmetric(horizontal: Space.md + 2, vertical: Space.sm),
+        decoration: BoxDecoration(
+          borderRadius: Radii.mdAll,
+          border: Border.all(color: selected ? p.ink : p.hairline, width: selected ? 1.3 : 1),
         ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          AnimatedContainer(
+            duration: Motion.medium,
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: selected ? p.ink : Colors.transparent,
+              borderRadius: Radii.xsAll,
+              border: Border.all(color: selected ? p.ink : p.ink2, width: 1),
+            ),
+            child: selected ? Icon(Icons.check, size: 11, color: p.paper) : null,
+          ),
+          Gap.h8,
+          Text(label, style: Almanac.sans(size: 15, weight: selected ? FontWeight.w600 : FontWeight.w500, color: p.ink, height: 1.2)),
+        ]),
       ),
     );
   }
 }
 
-/// A three-band meter (few, some, many) with a marker at [ratio].
+/// A rule-thin meter with three bands (few, some, many), tick marks at the
+/// band edges, and an ink marker at [ratio].
 class _LevelMeter extends StatelessWidget {
-  const _LevelMeter({required this.ratio, required this.color});
+  const _LevelMeter({required this.ratio, required this.level});
   final double ratio;
-  final Color color;
+  final String level;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
-    const bands = [(0.3, BloomColors.success), (0.3, BloomColors.warning), (0.4, BloomColors.period)];
+    final p = BloomColors.of(context);
+    final mark = level == 'many' ? p.period : p.ink;
     return Column(children: [
       LayoutBuilder(builder: (context, box) {
         final w = box.maxWidth;
         return SizedBox(
-          height: 22,
+          height: 20,
           child: Stack(clipBehavior: Clip.none, children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 7,
-              child: ClipRRect(
-                borderRadius: Radii.pillAll,
-                child: Row(children: [
-                  for (final (flex, c) in bands)
-                    Expanded(
-                      flex: (flex * 10).round(),
-                      child: Container(height: 8, color: c.withValues(alpha: 0.75)),
-                    ),
-                ]),
-              ),
-            ),
+            Positioned(left: 0, right: 0, top: 9, child: Container(height: 1, color: p.hairline)),
+            for (final edge in const [0.0, 0.3, 0.6, 1.0])
+              Positioned(left: (w * edge - 0.5).clamp(0.0, w - 1), top: 5, child: Container(width: 1, height: 9, color: p.ink2)),
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: ratio.clamp(0.0, 1.0)),
               duration: Motion.slow,
-              curve: Motion.emphasized,
-              builder: (_, v, _) => Positioned(
-                left: (w * v - 11).clamp(0.0, w - 22),
-                top: 0,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: theme.cardTheme.color,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: color, width: 4),
-                    boxShadow: BloomShadows.glow(color),
-                  ),
+              curve: Motion.curve,
+              builder: (_, v, _) => Stack(clipBehavior: Clip.none, children: [
+                Positioned(left: 0, top: 8, child: Container(width: w * v, height: 3, color: mark)),
+                Positioned(
+                  left: (w * v - 5).clamp(0.0, w - 10),
+                  top: 4.5,
+                  child: Container(width: 10, height: 10, decoration: BoxDecoration(color: mark, shape: BoxShape.circle)),
                 ),
-              ),
+              ]),
             ),
           ]),
         );
       }),
       Gap.v8,
       Row(children: [
-        Expanded(flex: 3, child: Text('Few', style: t.labelSmall)),
-        Expanded(flex: 3, child: Text('Some', textAlign: TextAlign.center, style: t.labelSmall)),
-        Expanded(flex: 4, child: Text('Many', textAlign: TextAlign.end, style: t.labelSmall)),
+        Expanded(flex: 3, child: MonoLabel('Few', size: 9.5, color: level == 'few' ? p.ink : null)),
+        Expanded(flex: 3, child: MonoLabel('Some', size: 9.5, color: level == 'some' ? p.ink : null)),
+        Expanded(flex: 4, child: MonoLabel('Many', size: 9.5, color: level == 'many' ? p.ink : null)),
       ]),
     ]);
   }

@@ -1,4 +1,4 @@
-/// Offline, scripted health assistant in a chat UI.
+/// Offline, scripted health assistant, set as a quiet correspondence.
 ///
 /// Chat history is saved under the `assistant` feature key as
 /// `{messages: [{from: 'bot' | 'user', text, ts}], node: nodeId}`, capped at
@@ -6,7 +6,6 @@
 library;
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
 
@@ -185,62 +184,52 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final options = [
       ..._options,
       if (_node != 'menu' && _node != 'start' && _node != 'fallback' && !_options.any((o) => o.next == 'menu'))
         const BotOption('Other topics', next: 'menu'),
     ];
     final showTray = options.isNotEmpty && !_typing;
+    final canPop = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(children: [
-          // Header.
+          // Header: a mono eyebrow, the serif title, and thin tools.
           MaxWidth(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.sm, Space.md),
-              child: Row(children: [
-                if (ModalRoute.of(context)?.impliesAppBarDismissal ?? false) ...[
-                  const BackButton(),
-                  Gap.h4,
-                ],
-                const BloomLogo(size: 40),
-                Gap.h12,
+              padding: EdgeInsets.fromLTRB(canPop ? Space.sm : Space.gutter, Space.sm, Space.sm, Space.md),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                if (canPop) const BackButton(),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Assistant', style: theme.textTheme.headlineSmall),
-                    Row(children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(color: BloomColors.success, shape: BoxShape.circle),
+                    AnimatedSwitcher(
+                      duration: Motion.medium,
+                      child: MonoLabel(
+                        _typing ? 'Writing…' : 'Offline · private',
+                        key: ValueKey(_typing),
+                        maxLines: 1,
                       ),
-                      Gap.h4,
-                      Flexible(
-                        child: Text(
-                          _typing ? 'Typing...' : 'Offline and private',
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                    ]),
+                    ),
+                    Gap.v8,
+                    Text('Ask', style: Theme.of(context).textTheme.headlineLarge),
                   ]),
                 ),
                 IconButton(
                   tooltip: 'Symptom checker',
-                  icon: const Icon(Icons.fact_check_outlined),
+                  icon: Icon(Icons.fact_check_outlined, size: 21, color: p.ink2),
                   onPressed: () => openCheckerList(context),
                 ),
                 IconButton(
                   tooltip: 'Explain my cycle',
-                  icon: const Icon(Icons.insights_rounded),
+                  icon: Icon(Icons.timeline, size: 21, color: p.ink2),
                   onPressed: _typing ? null : () => _choose(const BotOption('Explain my cycle', next: 'report')),
                 ),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded),
+                  tooltip: 'More',
+                  icon: Icon(Icons.more_horiz, size: 22, color: p.ink2),
                   onSelected: (v) {
                     if (v == 'clear') _clear();
                     if (v == 'urgent') _choose(const BotOption('Urgent warning signs', next: 'urgent'));
@@ -253,19 +242,20 @@ class _AssistantScreenState extends State<AssistantScreen> {
               ]),
             ),
           ),
-          Divider(height: 1, thickness: 1, color: tokens.border),
+          const MaxWidth(child: Padding(padding: Insets.pageH, child: Hairline())),
           Expanded(
             child: ListView.builder(
               controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
+              padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xl, Space.gutter, Space.md),
               itemCount: _messages.length + 2,
               itemBuilder: (context, i) {
-                if (i == 0) return const MaxWidth(child: _SafetyNote());
+                if (i == 0) return const MaxWidth(width: Space.maxContentWidth - Space.gutter * 2, child: _SafetyNote());
                 if (i == _messages.length + 1) {
                   return MaxWidth(
+                    width: Space.maxContentWidth - Space.gutter * 2,
                     child: AnimatedSwitcher(
                       duration: Motion.medium,
-                      child: _typing ? const _TypingBubble() : const SizedBox(width: double.infinity),
+                      child: _typing ? const _Typing() : const SizedBox(width: double.infinity),
                     ),
                   );
                 }
@@ -275,7 +265,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 final prev = i >= 2 ? _messages[i - 2] : null;
                 final firstInGroup = prev == null || prev.fromBot != m.fromBot;
                 return MaxWidth(
-                  child: _Bubble(
+                  width: Space.maxContentWidth - Space.gutter * 2,
+                  child: _Letter(
                     msg: m,
                     lastInGroup: lastInGroup,
                     firstInGroup: firstInGroup,
@@ -294,77 +285,60 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 ? const SizedBox(width: double.infinity)
                 : MaxWidth(
                     child: Container(
-                      constraints: const BoxConstraints(maxHeight: 156),
-                      padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.lg, Space.sm),
+                      constraints: const BoxConstraints(maxHeight: 176),
+                      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.md),
                       child: SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Wrap(spacing: Space.sm, runSpacing: Space.sm, children: [
-                          for (final o in options)
-                            SelectChip(
-                              label: o.label,
-                              selected: false,
-                              showCheck: false,
-                              icon: o.articleId != null
-                                  ? Icons.menu_book_rounded
-                                  : o.checkerId != null
-                                      ? Icons.fact_check_outlined
-                                      : o.next == 'urgent'
-                                          ? Icons.warning_amber_rounded
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const MonoLabel('Reply with', size: 9.5),
+                          Gap.v8,
+                          SizedBox(
+                            width: double.infinity,
+                            child: Wrap(spacing: Space.sm, runSpacing: Space.sm, children: [
+                              for (final o in options)
+                                HairlineTag(
+                                  label: o.label,
+                                  icon: o.articleId != null
+                                      ? Icons.menu_book_outlined
+                                      : o.checkerId != null
+                                          ? Icons.fact_check_outlined
                                           : null,
-                              color: o.articleId != null
-                                  ? BloomColors.info
-                                  : o.checkerId != null
-                                      ? BloomColors.luteal
-                                      : o.next == 'urgent'
-                                          ? BloomColors.period
-                                          : null,
-                              onSelected: (_) => _choose(o),
-                            ),
+                                  dot: o.next == 'urgent' ? BloomColors.period : null,
+                                  onTap: () => _choose(o),
+                                ),
+                            ]),
+                          ),
                         ]),
-                        ),
                       ),
                     ),
                   ),
           ),
-          // Input bar.
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.cardTheme.color,
-              border: Border(top: BorderSide(color: tokens.border)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: MaxWidth(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm + 2, Space.md, Space.sm + 2),
-                  child: Row(children: [
+          // Input: an underline field and an ink "Send" link.
+          SafeArea(
+            top: false,
+            child: MaxWidth(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.md, Space.md),
+                child: Column(children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                     Expanded(
                       child: TextField(
                         controller: _input,
                         textInputAction: TextInputAction.send,
                         textCapitalization: TextCapitalization.sentences,
                         onSubmitted: (_) => _send(),
+                        style: Almanac.sans(size: 16, color: p.ink),
                         decoration: InputDecoration(
-                          hintText: 'Ask about your cycle...',
-                          filled: true,
-                          fillColor: tokens.subtle,
+                          hintText: 'Write a question…',
+                          hintStyle: Almanac.italic(context, size: 17, color: p.ink2),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.md + 2),
-                          border: const OutlineInputBorder(borderRadius: Radii.pillAll, borderSide: BorderSide.none),
-                          enabledBorder:
-                              const OutlineInputBorder(borderRadius: Radii.pillAll, borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: Radii.pillAll,
-                            borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4),
-                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: Space.md),
                         ),
                       ),
                     ),
                     Gap.h8,
-                    _SendButton(enabled: _hasText && !_typing, onPressed: _send),
+                    _SendLink(enabled: _hasText && !_typing, onPressed: _send),
                   ]),
-                ),
+                ]),
               ),
             ),
           ),
@@ -374,162 +348,144 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 }
 
-class _SendButton extends StatelessWidget {
-  const _SendButton({required this.enabled, required this.onPressed});
+/// "Send →" as an underlined ink link.
+class _SendLink extends StatelessWidget {
+  const _SendLink({required this.enabled, required this.onPressed});
   final bool enabled;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      duration: Motion.fast,
-      opacity: enabled ? 1 : 0.45,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: BloomGradients.brand,
-          boxShadow: enabled ? BloomShadows.glow(BloomColors.brand) : null,
-        ),
-        child: IconButton(
-          tooltip: 'Send',
-          onPressed: onPressed,
-          iconSize: 22,
-          style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-          icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+    final p = BloomColors.of(context);
+    return Tooltip(
+      message: 'Send',
+      child: AnimatedOpacity(
+        duration: Motion.fast,
+        opacity: enabled ? 1 : 0.4,
+        child: Pressable(
+          onTap: onPressed,
+          borderRadius: Radii.smAll,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 64),
+            child: Center(
+              child: Text.rich(TextSpan(children: [
+                TextSpan(
+                  text: 'Send',
+                  style: Almanac.sans(size: 15, weight: FontWeight.w600, color: p.ink).copyWith(
+                    decoration: TextDecoration.underline,
+                    decorationColor: p.ink.withValues(alpha: 0.55),
+                  ),
+                ),
+                TextSpan(text: ' →', style: Almanac.sans(size: 15, weight: FontWeight.w600, color: p.ink)),
+              ])),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// The compact safety note at the top of the chat.
+/// The safety note at the top of the conversation, set as a footnote.
 class _SafetyNote extends StatelessWidget {
   const _SafetyNote();
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Space.lg),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
-          decoration: BoxDecoration(color: tokens.subtle, borderRadius: Radii.mdAll),
-          child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Icon(Icons.health_and_safety_rounded, size: 16, color: tokens.muted),
-            ),
-            Gap.h8,
-            Flexible(
-              child: Text(
-                'Offline assistant for general education, not a doctor. '
-                'In an emergency, call your local emergency number.',
-                style: theme.textTheme.bodySmall,
-              ),
-            ),
-          ]),
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.only(bottom: Space.xxl),
+        child: Footnote(
+          'An offline assistant for general education, not a doctor. '
+          'In an emergency, call your local emergency number.',
         ),
-      ),
-    );
-  }
+      );
 }
 
-/// The avatar column beside bot bubbles. Only the last bubble of a group
-/// shows the logo.
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.show});
+/// The small line-drawn flower beside the assistant's paragraphs.
+class _Mark extends StatelessWidget {
+  const _Mark({required this.show});
   final bool show;
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 30,
-        child: show ? const BloomLogo(size: 30) : null,
+        width: 28,
+        child: show
+            ? const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Align(alignment: Alignment.topLeft, child: BotanicalGlyph(Botanical.flower, size: 18)),
+              )
+            : null,
       );
 }
 
-class _Bubble extends StatelessWidget {
-  const _Bubble({required this.msg, this.lastInGroup = true, this.firstInGroup = true, this.animate = false});
+/// One message, set like a letter: the assistant's words as typeset
+/// paragraphs beside a line-flower mark, the user's in right-aligned
+/// italics with a thin rule, and a mono timestamp after each group.
+class _Letter extends StatelessWidget {
+  const _Letter({required this.msg, this.lastInGroup = true, this.firstInGroup = true, this.animate = false});
   final _Msg msg;
   final bool lastInGroup;
   final bool firstInGroup;
 
-  /// Slides the bubble in (used for the newest message).
+  /// Fades the newest message in.
   final bool animate;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final bot = msg.fromBot;
-    final fg = bot ? cs.onSurface : cs.onPrimary;
-    const big = Radius.circular(20);
-    const tail = Radius.circular(6);
     final time = DateTime.tryParse(msg.ts);
+    final stamp = time == null ? null : DateFormat.jm().format(time.toLocal());
 
-    Widget bubble = Container(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.xs),
-      decoration: BoxDecoration(
-        color: bot ? theme.cardTheme.color : cs.primary,
-        border: bot ? Border.all(color: tokens.border) : null,
-        boxShadow: bot ? tokens.cardShadow : null,
-        borderRadius: BorderRadius.only(
-          topLeft: bot && !firstInGroup ? tail : big,
-          topRight: !bot && !firstInGroup ? tail : big,
-          bottomLeft: bot ? tail : big,
-          bottomRight: bot ? big : tail,
-        ),
-      ),
-      child: DefaultTextStyle.merge(
-        style: TextStyle(color: fg),
-        child: Theme(
-          data: theme.copyWith(textTheme: theme.textTheme.apply(bodyColor: fg, displayColor: fg)),
-          child: _BubbleText(msg.text),
-        ),
-      ),
-    );
-
-    Widget row = Padding(
-      padding: EdgeInsets.only(bottom: lastInGroup ? Space.md : Space.xs),
-      child: Column(
-        crossAxisAlignment: bot ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-        children: [
-          Row(
-            mainAxisAlignment: bot ? MainAxisAlignment.start : MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (bot) ...[_Avatar(show: lastInGroup), Gap.h8],
-              Flexible(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: Padding(padding: EdgeInsets.only(left: bot ? 0 : 56, right: bot ? 32 : 0), child: bubble),
-                ),
-              ),
-            ],
+    final Widget body;
+    if (bot) {
+      body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _Mark(show: firstInGroup),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(right: Space.xl),
+            child: _LetterText(msg.text),
           ),
-          if (lastInGroup && time != null)
-            Padding(
-              padding: EdgeInsets.only(top: Space.xs, left: bot ? 38 + Space.xs : 0, right: Space.xs),
+        ),
+      ]);
+    } else {
+      body = Align(
+        alignment: Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.only(left: Space.huge),
+            child: Container(
+              padding: const EdgeInsets.only(right: Space.md),
+              decoration: BoxDecoration(border: Border(right: BorderSide(color: p.ink2.withValues(alpha: 0.6)))),
               child: Text(
-                DateFormat.jm().format(time.toLocal()),
-                style: theme.textTheme.labelSmall?.copyWith(color: tokens.muted, fontWeight: FontWeight.w600),
+                msg.text,
+                textAlign: TextAlign.right,
+                style: Almanac.italic(context, size: 18.5, weight: 320).copyWith(height: 1.4),
               ),
             ),
-        ],
-      ),
+          ),
+        ),
+      );
+    }
+
+    Widget row = Padding(
+      padding: EdgeInsets.only(bottom: lastInGroup ? Space.xl : Space.sm),
+      child: Column(crossAxisAlignment: bot ? CrossAxisAlignment.start : CrossAxisAlignment.end, children: [
+        body,
+        if (lastInGroup && stamp != null)
+          Padding(
+            padding: EdgeInsets.only(top: Space.xs, left: bot ? 28 : 0, right: bot ? 0 : Space.md + 1),
+            child: Text(stamp, style: Almanac.data(context, size: 10.5)),
+          ),
+      ]),
     );
 
     if (animate) {
       row = TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
         duration: Motion.medium,
-        curve: Motion.emphasized,
-        builder: (_, v, child) => Opacity(
-          opacity: v,
-          child: Transform.translate(offset: Offset(0, (1 - v) * 12), child: child),
-        ),
+        curve: Motion.curve,
+        builder: (_, v, child) => Opacity(opacity: v, child: child),
         child: row,
       );
     }
@@ -537,50 +493,50 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// Bubble text with the article markup, but tighter than an article.
-class _BubbleText extends StatelessWidget {
-  const _BubbleText(this.text);
+/// The assistant's text with the article markup, set as compact paragraphs.
+class _LetterText extends StatelessWidget {
+  const _LetterText(this.text);
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45, fontSize: 15);
-    final lines = text.split('\n');
+    final p = BloomColors.of(context);
+    final base = Almanac.sans(size: 15.5, color: p.ink, height: 1.6);
     final children = <Widget>[];
-    for (final raw in lines) {
+    for (final raw in text.split('\n')) {
       final line = raw.trimRight();
       if (line.trim().isEmpty) {
-        children.add(Gap.v4);
+        children.add(Gap.v8);
       } else if (line.startsWith('- ')) {
         children.add(Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: Space.xs),
+          padding: const EdgeInsets.only(bottom: Space.xs),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('•  ', style: base),
+            SizedBox(width: 18, child: Text('–', style: base.copyWith(color: p.ink2))),
             Expanded(child: Text.rich(TextSpan(children: ArticleBody.spans(line.substring(2), base)))),
           ]),
         ));
       } else {
         children.add(Padding(
-          padding: const EdgeInsets.only(bottom: 2),
+          padding: const EdgeInsets.only(bottom: Space.xxs),
           child: Text.rich(TextSpan(children: ArticleBody.spans(line, base))),
         ));
       }
     }
-    children.add(Gap.v8);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
   }
 }
 
-class _TypingBubble extends StatefulWidget {
-  const _TypingBubble();
+/// "writing…" in italics beside the mark, with the dots fading in turn.
+class _Typing extends StatefulWidget {
+  const _Typing();
 
   @override
-  State<_TypingBubble> createState() => _TypingBubbleState();
+  State<_Typing> createState() => _TypingState();
 }
 
-class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderStateMixin {
+class _TypingState extends State<_Typing> with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
 
   @override
   void dispose() {
@@ -590,53 +546,27 @@ class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Space.md),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        const _Avatar(show: true),
-        Gap.h8,
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md + 2),
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            border: Border.all(color: tokens.border),
-            boxShadow: tokens.cardShadow,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-              bottomRight: Radius.circular(20),
-              bottomLeft: Radius.circular(6),
-            ),
-          ),
-          child: AnimatedBuilder(
+    final p = BloomColors.of(context);
+    final style = Almanac.italic(context, size: 16, color: p.ink2);
+    return Semantics(
+      label: 'The assistant is writing',
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: Space.xl),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const _Mark(show: true),
+          AnimatedBuilder(
             animation: _c,
-            builder: (_, _) => Row(mainAxisSize: MainAxisSize.min, children: [
-              for (var i = 0; i < 3; i++)
-                Builder(builder: (_) {
-                  // Each dot bounces in turn.
-                  final p = ((_c.value - i * 0.15) % 1.0);
-                  final lift = p < 0.4 ? math.sin(p / 0.4 * math.pi) : 0.0;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                    child: Transform.translate(
-                      offset: Offset(0, -4 * lift),
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color.lerp(tokens.muted, theme.colorScheme.primary, lift),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-            ]),
+            builder: (_, _) {
+              final dots = (_c.value * 4).floor().clamp(0, 3);
+              return Text.rich(TextSpan(children: [
+                TextSpan(text: 'writing', style: style),
+                TextSpan(text: '.' * dots, style: style),
+                TextSpan(text: '.' * (3 - dots), style: style.copyWith(color: Colors.transparent)),
+              ]));
+            },
           ),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
 }

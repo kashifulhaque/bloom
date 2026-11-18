@@ -1,4 +1,4 @@
-/// Today-screen "stories" carousel, the full-screen story viewer, and the
+/// Today-screen "almanac entries", the full-page story viewer, and the
 /// well-being breakdown screen.
 library;
 
@@ -13,24 +13,6 @@ import 'insights_data.dart';
 import 'quiz_screen.dart';
 import 'widgets.dart';
 
-/// The background gradient of a story. Every stop is dark enough for white
-/// text, and a scrim adds more contrast where the text sits.
-LinearGradient _kindGradient(InsightKind k) => switch (k) {
-      InsightKind.wellbeing => const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFD9822B), Color(0xFFF2B347)]),
-      InsightKind.period => BloomGradients.period,
-      InsightKind.fertile => BloomGradients.fertile,
-      InsightKind.pattern => BloomGradients.luteal,
-      InsightKind.cycle => const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4767D6), Color(0xFF7E9CF0)]),
-      InsightKind.habit => const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1F8FA3), Color(0xFF4FC0CF)]),
-      InsightKind.tip => BloomGradients.brand,
-      InsightKind.quiz => BloomGradients.dusk,
-      InsightKind.article => const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2F8257), Color(0xFF5DB585)]),
-    };
-
 String _kindLabel(InsightKind k) => switch (k) {
       InsightKind.wellbeing => 'Well-being',
       InsightKind.period => 'Your period',
@@ -38,13 +20,32 @@ String _kindLabel(InsightKind k) => switch (k) {
       InsightKind.pattern => 'Pattern',
       InsightKind.cycle => 'Your cycle',
       InsightKind.habit => 'Habit',
-      InsightKind.tip => 'Daily tip',
-      InsightKind.quiz => 'Quiz',
-      InsightKind.article => 'Read',
+      InsightKind.tip => 'Daily note',
+      InsightKind.quiz => 'Puzzle',
+      InsightKind.article => 'Essay',
     };
 
-/// Horizontal carousel of personalized story cards. Unseen stories get a
-/// gradient ring, like a story app; seen ones fade back.
+/// The drawing for an entry. Only cycle meanings get a color.
+BotanicalGlyph _glyph(InsightKind k, {double size = 22}) => switch (k) {
+      InsightKind.period => BotanicalGlyph(Botanical.bud, size: size, accent: BloomColors.period),
+      InsightKind.fertile => BotanicalGlyph(Botanical.flower, size: size, accent: BloomColors.fertile),
+      InsightKind.pattern => BotanicalGlyph(Botanical.seedHead, size: size),
+      InsightKind.cycle => BotanicalGlyph(Botanical.sprout, size: size),
+      InsightKind.tip => BotanicalGlyph(Botanical.sprout, size: size),
+      _ => BotanicalGlyph(Botanical.sprig, size: size),
+    };
+
+/// The title without a prefix that repeats the entry's label.
+String _oneLiner(InsightCard c) {
+  for (final prefix in const ['Read: ', 'Quiz of the day: ']) {
+    if (c.title.startsWith(prefix)) return c.title.substring(prefix.length);
+  }
+  return c.title;
+}
+
+/// A horizontal row of small almanac entries: a mono label, a serif
+/// one-liner, and a botanical drawing, divided by hairlines. Unseen entries
+/// carry a small ink dot; seen ones fade back.
 class DailyInsightsStrip extends StatelessWidget {
   const DailyInsightsStrip({super.key});
 
@@ -54,131 +55,83 @@ class DailyInsightsStrip extends StatelessWidget {
     final cards = buildInsights(store);
     final seen = InsightsData.seenToday(store);
 
-    return SizedBox(
-      height: 188,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        itemCount: cards.length,
-        separatorBuilder: (_, _) => Gap.h12,
-        itemBuilder: (context, i) {
-          final c = cards[i];
-          return _StoryTile(
-            card: c,
-            seen: seen.contains(c.id),
-            onTap: () {
-              if (c.kind == InsightKind.wellbeing) {
-                InsightsData.markSeen(store, c.id);
-                openWellbeing(context);
-              } else {
-                openStories(context, cards, i);
-              }
-            },
-          );
-        },
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Hairline(),
+      SizedBox(
+        height: 164,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          itemCount: cards.length,
+          separatorBuilder: (_, _) => const Hairline(vertical: true, spacing: Space.md, indent: Space.lg, endIndent: Space.lg),
+          itemBuilder: (context, i) {
+            final c = cards[i];
+            return _Entry(
+              card: c,
+              seen: seen.contains(c.id),
+              onTap: () {
+                if (c.kind == InsightKind.wellbeing) {
+                  InsightsData.markSeen(store, c.id);
+                  openWellbeing(context);
+                } else {
+                  openStories(context, cards, i);
+                }
+              },
+            );
+          },
+        ),
       ),
-    );
+      const Hairline(),
+    ]);
   }
 }
 
-class _StoryTile extends StatelessWidget {
-  const _StoryTile({required this.card, required this.seen, required this.onTap});
+class _Entry extends StatelessWidget {
+  const _Entry({required this.card, required this.seen, required this.onTap});
   final InsightCard card;
   final bool seen;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
+    final p = BloomColors.of(context);
     final c = card;
-    const white = Colors.white;
-    final ringGap = theme.scaffoldBackgroundColor;
+    final wb = c.wellbeing;
 
-    return Semantics(
-      button: true,
-      label: '${_kindLabel(c.kind)}${seen ? ', seen' : ', new'}',
-      child: AnimatedContainer(
+    return Pressable(
+      semanticLabel: '${_kindLabel(c.kind)}: ${_oneLiner(c)}${seen ? ', seen' : ', new'}',
+      onTap: onTap,
+      child: AnimatedOpacity(
         duration: Motion.medium,
-        width: 128,
-        padding: const EdgeInsets.all(2.5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Radii.md + 5),
-          gradient: seen ? null : BloomGradients.brand,
-          color: seen ? BloomTokens.of(context).border : null,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(color: ringGap, borderRadius: BorderRadius.circular(Radii.md + 2)),
-          child: AnimatedOpacity(
-            duration: Motion.medium,
-            opacity: seen ? 0.72 : 1,
-            child: ClipRRect(
-              borderRadius: Radii.mdAll,
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: _kindGradient(c.kind)),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
-                    onTap: onTap,
-                    child: Stack(children: [
-                      // Scrim behind the title.
-                      const Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              stops: [0.35, 1],
-                              colors: [Color(0x00000000), Color(0x59000000)],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: Insets.all12,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (c.wellbeing != null)
-                            ProgressRing(
-                              value: c.wellbeing!.score / 100,
-                              size: 48,
-                              stroke: 5,
-                              color: white,
-                              trackColor: ringTrackOn(_kindGradient(c.kind)),
-                              child: Text('${c.wellbeing!.score}',
-                                  style: t.labelLarge?.copyWith(color: white, fontWeight: FontWeight.w800)),
-                            )
-                          else
-                            Container(
-                              width: 48,
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(color: white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                              child: Text(c.emoji, style: const TextStyle(fontSize: 26, height: 1)),
-                            ),
-                          const Spacer(),
-                          // Skip the label when the title already starts with it.
-                          if (!c.title.toLowerCase().startsWith(_kindLabel(c.kind).toLowerCase())) ...[
-                            Text(
-                              _kindLabel(c.kind).toUpperCase(),
-                              style: t.labelSmall?.copyWith(
-                                  color: white.withValues(alpha: 0.85), letterSpacing: 0.8, fontWeight: FontWeight.w800),
-                            ),
-                            Gap.v4,
-                          ],
-                          Text(
-                            c.title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.labelLarge?.copyWith(color: white, fontWeight: FontWeight.w800, height: 1.2),
-                          ),
-                        ]),
-                      ),
-                    ]),
-                  ),
+        opacity: seen ? 0.62 : 1,
+        child: SizedBox(
+          width: 132,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Space.lg),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(child: MonoLabel(_kindLabel(c.kind), size: 9.5, maxLines: 1)),
+                if (!seen) ...[
+                  Gap.h4,
+                  Container(width: 5, height: 5, decoration: BoxDecoration(color: p.ink, shape: BoxShape.circle)),
+                ],
+              ]),
+              Gap.v8,
+              if (wb != null) ...[
+                Text('${wb.score}', style: Almanac.numeral(context, size: 44)),
+                Gap.v4,
+                Text('Well-being, ${wb.label.toLowerCase()}.',
+                    maxLines: 2, overflow: TextOverflow.ellipsis, style: Almanac.italic(context, size: 15)),
+              ] else
+                Text(
+                  _oneLiner(c),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: Almanac.serif(size: 16, weight: 360, color: p.ink, height: 1.28),
                 ),
-              ),
-            ),
+              const Spacer(),
+              if (wb == null) _glyph(c.kind, size: 20),
+            ]),
           ),
         ),
       ),
@@ -189,11 +142,10 @@ class _StoryTile extends StatelessWidget {
 void openStories(BuildContext context, List<InsightCard> cards, int start) {
   Navigator.of(context).push(PageRouteBuilder<void>(
     opaque: true,
+    transitionDuration: Motion.medium,
+    reverseTransitionDuration: Motion.medium,
     pageBuilder: (_, _, _) => StoryViewer(cards: cards, start: start),
-    transitionsBuilder: (_, a, _, child) => FadeTransition(
-      opacity: a,
-      child: ScaleTransition(scale: Tween(begin: 0.96, end: 1.0).animate(a), child: child),
-    ),
+    transitionsBuilder: (_, a, _, child) => FadeTransition(opacity: CurvedAnimation(parent: a, curve: Motion.curve), child: child),
   ));
 }
 
@@ -201,7 +153,8 @@ void openWellbeing(BuildContext context) {
   Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WellbeingScreen()));
 }
 
-/// Full-screen stories: tap right to advance, left to go back, auto-advances.
+/// Full-page stories on paper: tap right to turn the page, left to go
+/// back. Pages turn on their own after a few seconds.
 class StoryViewer extends StatefulWidget {
   const StoryViewer({super.key, required this.cards, this.start = 0});
   final List<InsightCard> cards;
@@ -213,7 +166,7 @@ class StoryViewer extends StatefulWidget {
 
 class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStateMixin {
   late int _index = widget.start;
-  late final AnimationController _timer = AnimationController(vsync: this, duration: const Duration(seconds: 7))
+  late final AnimationController _timer = AnimationController(vsync: this, duration: const Duration(seconds: 8))
     ..addStatusListener((s) {
       if (s == AnimationStatus.completed) _next();
     });
@@ -265,260 +218,168 @@ class _StoryViewerState extends State<StoryViewer> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     final c = widget.cards[_index];
-    final t = Theme.of(context).textTheme;
-    const white = Colors.white;
-    final grad = _kindGradient(c.kind);
+    final p = BloomColors.of(context);
 
     String? actionLabel;
     VoidCallback? onAction;
     if (c.wellbeing != null) {
-      actionLabel = 'See breakdown';
+      actionLabel = 'See the breakdown';
       onAction = () => _openLink(
           () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WellbeingScreen())));
     } else if (c.quizId != null) {
-      actionLabel = 'Take the quiz';
+      actionLabel = 'Take the puzzle';
       onAction = () => _openLink(() async => openQuiz(context, c.quizId!));
     } else if (c.articleId != null) {
-      actionLabel = 'Read more';
+      actionLabel = 'Read the essay';
       onAction = () => _openLink(() async => openArticle(context, c.articleId!));
     }
 
     return Scaffold(
-      backgroundColor: grad.colors.first,
-      body: AnimatedContainer(
-        duration: Motion.slow,
-        curve: Motion.curve,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [grad.colors.first, Color.lerp(grad.colors.last, Colors.black, 0.2)!],
-          ),
+      body: Stack(children: [
+        // Tap zones.
+        Positioned.fill(
+          child: Row(children: [
+            Expanded(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _prev)),
+            Expanded(flex: 2, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _next)),
+          ]),
         ),
-        child: Stack(children: [
-          // Soft decorative circles.
-          Positioned(
-            top: -80,
-            right: -60,
-            child: _Blob(size: 260, color: white.withValues(alpha: 0.10)),
-          ),
-          Positioned(
-            bottom: -100,
-            left: -80,
-            child: _Blob(size: 300, color: Colors.black.withValues(alpha: 0.08)),
-          ),
-          // Tap zones.
-          Positioned.fill(
-            child: Row(children: [
-              Expanded(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _prev)),
-              Expanded(flex: 2, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _next)),
-            ]),
-          ),
-          SafeArea(
-            child: MaxWidth(
-              width: 520,
-              child: Column(children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.md, Space.sm, Space.md, 0),
-                  child: AnimatedBuilder(
-                    animation: _timer,
-                    builder: (_, _) => Row(children: [
-                      for (var i = 0; i < widget.cards.length; i++)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: _StoryBar(value: i < _index ? 1 : i == _index ? _timer.value : 0),
-                          ),
+        SafeArea(
+          child: MaxWidth(
+            width: 560,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, 0),
+                child: AnimatedBuilder(
+                  animation: _timer,
+                  builder: (_, _) => Row(children: [
+                    for (var i = 0; i < widget.cards.length; i++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: RuleProgress(value: i < _index ? 1 : i == _index ? _timer.value : 0, animate: false),
                         ),
-                    ]),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.xs, 0),
-                  child: Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.xs + 1),
-                      decoration: BoxDecoration(color: white.withValues(alpha: 0.2), borderRadius: Radii.pillAll),
-                      child: Text(_kindLabel(c.kind), style: t.labelMedium?.copyWith(color: white)),
-                    ),
-                    Gap.h8,
-                    Text('${_index + 1} of ${widget.cards.length}',
-                        style: t.labelMedium?.copyWith(color: white.withValues(alpha: 0.75))),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Close',
-                      icon: const Icon(Icons.close_rounded, color: white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+                      ),
                   ]),
                 ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(Space.xxl + 4, 0, Space.xxl + 4, Space.lg),
-                    child: AnimatedSwitcher(
-                      duration: Motion.medium,
-                      transitionBuilder: (child, a) => FadeTransition(
-                        opacity: a,
-                        child: SlideTransition(
-                          position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(a),
-                          child: child,
-                        ),
-                      ),
-                      child: Column(
-                        key: ValueKey(_index),
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          IgnorePointer(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              if (c.wellbeing != null)
-                                ProgressRing(
-                                  value: c.wellbeing!.score / 100,
-                                  size: 120,
-                                  stroke: 10,
-                                  color: white,
-                                  trackColor: ringTrackOn(grad),
-                                  child: Text('${c.wellbeing!.score}',
-                                      style: t.displayMedium?.copyWith(color: white, height: 1)),
-                                )
-                              else
-                                Container(
-                                  width: 104,
-                                  height: 104,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(color: white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                                  child: Text(c.emoji, style: const TextStyle(fontSize: 56, height: 1)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.sm, 0),
+                child: Row(children: [
+                  Expanded(
+                    child: MonoLabel('${_kindLabel(c.kind)} · ${_index + 1} of ${widget.cards.length}', maxLines: 1),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: Icon(Icons.close, color: p.ink2, size: 22),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.gutter + 4, 0, Space.gutter + 4, Space.lg),
+                  child: AnimatedSwitcher(
+                    duration: Motion.medium,
+                    switchInCurve: Motion.curve,
+                    transitionBuilder: (child, a) => FadeTransition(opacity: a, child: child),
+                    child: Column(
+                      key: ValueKey(_index),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IgnorePointer(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            if (c.wellbeing != null)
+                              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                Text('${c.wellbeing!.score}', style: Almanac.numeral(context, size: 96)),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: Space.sm, bottom: Space.md),
+                                  child: Text('of 100', style: Almanac.italic(context, size: 20, color: p.ink2)),
                                 ),
-                              Gap.v32,
-                              Text(c.title, style: t.headlineLarge?.copyWith(color: white, height: 1.15)),
-                              Gap.v16,
-                              Text(c.body,
-                                  style: t.titleMedium?.copyWith(
-                                      color: white.withValues(alpha: 0.94), height: 1.5, fontWeight: FontWeight.w600)),
-                            ]),
-                          ),
-                          if (actionLabel != null) ...[
-                            Gap.v32,
-                            FilledButton.icon(
-                              onPressed: onAction,
-                              style: FilledButton.styleFrom(backgroundColor: white, foregroundColor: grad.colors.first),
-                              icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                              label: Text(actionLabel),
-                            ),
-                          ],
+                              ])
+                            else
+                              _glyph(c.kind, size: 48),
+                            Gap.v24,
+                            Text(c.title, style: Almanac.serif(size: 34, weight: 350, color: p.ink, height: 1.12)),
+                            Gap.v20,
+                            Container(width: 40, height: 1, color: p.ink2.withValues(alpha: 0.5)),
+                            Gap.v20,
+                            Text(c.body, style: Almanac.serif(size: 20, weight: 320, color: p.ink, height: 1.5)),
+                          ]),
+                        ),
+                        if (actionLabel != null) ...[
+                          Gap.v24,
+                          InkLink(actionLabel, arrow: true, size: 15.5, onTap: onAction),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
-                IgnorePointer(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: Space.md),
-                    child: Text(
-                      'Educational, not medical advice.',
-                      textAlign: TextAlign.center,
-                      style: t.bodySmall?.copyWith(color: white.withValues(alpha: 0.75)),
-                    ),
-                  ),
+              ),
+              IgnorePointer(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: Space.lg),
+                  child: MonoLabel('Educational, not medical advice', size: 9.5, textAlign: TextAlign.center),
                 ),
-              ]),
-            ),
+              ),
+            ]),
           ),
-        ]),
-      ),
-    );
-  }
-}
-
-class _StoryBar extends StatelessWidget {
-  const _StoryBar({required this.value});
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: Radii.pillAll,
-      child: Container(
-        height: 3.5,
-        color: Colors.white.withValues(alpha: 0.3),
-        alignment: Alignment.centerLeft,
-        child: FractionallySizedBox(
-          widthFactor: value.clamp(0.0, 1.0),
-          heightFactor: 1,
-          child: const ColoredBox(color: Colors.white),
         ),
-      ),
+      ]),
     );
   }
 }
 
-class _Blob extends StatelessWidget {
-  const _Blob({required this.size, required this.color});
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-        child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      );
-}
-
-/// Breakdown of the well-being score by factor.
+/// Breakdown of the well-being score by factor: a serif score numeral and
+/// thin factor bars.
 class WellbeingScreen extends StatelessWidget {
   const WellbeingScreen({super.key});
-
-  static const _color = BloomColors.pregnancy;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final wb = computeWellbeing(store);
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
-    final muted = BloomTokens.of(context).muted;
+    final p = BloomColors.of(context);
     final logged = wb.factors.where((f) => f.hasData).length;
 
     return Scaffold(
       body: BloomPage(
-        heroColor: _color,
-        eyebrow: 'TODAY',
-        title: 'Well-being score',
-        children: [
-          BloomCard(
-            padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xxl, Space.xxl, Space.xl),
-            child: Column(children: [
-              ProgressRing(
-                value: wb.score / 100,
-                size: 184,
-                stroke: 16,
-                gradient: _kindGradient(InsightKind.wellbeing),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('${wb.score}', style: t.displayLarge?.copyWith(height: 1)),
-                  Text('of 100', style: t.bodySmall),
+        eyebrow: 'Today · Well-being',
+        header: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: wb.score.toDouble()),
+              duration: Motion.slow,
+              curve: Motion.curve,
+              builder: (_, v, _) => Text('${v.round()}', style: Almanac.numeral(context, size: 96)),
+            ),
+            Gap.h8,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: Space.md),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const MonoLabel('of 100'),
+                  Gap.v4,
+                  Text('${wb.label}.', style: Almanac.italic(context, size: 24)),
                 ]),
               ),
-              Gap.v16,
-              PillChip(wb.label, icon: Icons.bolt_rounded, color: _color),
-              Gap.v12,
-              Text(
-                'A rough daily estimate of your energy from what you logged in the last few days. '
-                'Log sleep, energy, mood, symptoms, activity, and water to make it more personal.',
-                textAlign: TextAlign.center,
-                style: t.bodyMedium?.copyWith(color: muted),
-              ),
-            ]),
+            ),
+          ]),
+          Gap.v8,
+          Text('Well-being score', style: Almanac.serif(size: 20, weight: 380, color: p.ink)),
+        ]),
+        children: [
+          Text(
+            'A rough daily estimate of your energy from what you logged in the last few days. '
+            'Log sleep, energy, mood, symptoms, activity, and water to make it more personal.',
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: p.ink2),
           ),
-          SectionHeader('What goes into it', subtitle: '$logged of ${wb.factors.length} factors have recent logs'),
-          BloomCard(
-            padding: const EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.sm),
-            child: Column(children: [
-              for (var i = 0; i < wb.factors.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: BloomTokens.of(context).border),
-                _FactorRow(factor: wb.factors[i]),
-              ],
-            ]),
-          ),
-          const Disclaimer(text: 'This score is for reflection, not a medical measure.'),
+          SectionHeader('What goes into it', label: 'Ledger', subtitle: '$logged of ${wb.factors.length} factors have recent logs'),
+          Column(children: [
+            for (final f in wb.factors) ...[const Hairline(), _FactorRow(factor: f)],
+            const Hairline(),
+          ]),
+          const Footnote('This score is for reflection, not a medical measure.'),
         ],
       ),
     );
@@ -531,40 +392,24 @@ class _FactorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
+    final p = BloomColors.of(context);
     final f = factor;
     final ratio = f.max == 0 ? 0.0 : f.points / f.max;
-    final color = !f.hasData
-        ? BloomTokens.of(context).muted
-        : ratio >= .7
-            ? BloomColors.success
-            : ratio >= .4
-                ? BloomColors.pregnancy
-                : BloomColors.period;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Space.md + 2),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        IconBadge(emoji: f.emoji, color: f.hasData ? color : BloomColors.luteal, size: 40),
-        Gap.h12,
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(f.name, style: t.titleSmall)),
-              if (!f.hasData) ...[
-                const PillChip('No data', dense: true, color: BloomColors.luteal),
-                Gap.h8,
-              ],
-              Text.rich(TextSpan(children: [
-                TextSpan(text: '${f.points}', style: t.titleSmall),
-                TextSpan(text: '/${f.max}', style: t.bodySmall),
-              ])),
-            ]),
-            Gap.v8,
-            SoftProgressBar(value: ratio, color: color, height: 8),
-            Gap.v8,
-            Text(f.note, style: t.bodySmall),
-          ]),
-        ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+          Expanded(child: Text(f.name, style: Almanac.serif(size: 18, weight: 380, color: p.ink))),
+          if (!f.hasData) ...[const MonoLabel('No data', size: 9.5), Gap.h12],
+          Text.rich(TextSpan(children: [
+            TextSpan(text: '${f.points}', style: Almanac.data(context, color: p.ink, size: 13)),
+            TextSpan(text: ' / ${f.max}', style: Almanac.data(context, size: 13)),
+          ])),
+        ]),
+        Gap.v8,
+        Opacity(opacity: f.hasData ? 1 : 0.5, child: RuleProgress(value: ratio)),
+        Gap.v8,
+        Text(f.note, style: Theme.of(context).textTheme.bodySmall),
       ]),
     );
   }

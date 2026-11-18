@@ -1,4 +1,4 @@
-/// The "Me" tab: profile header and the menu for every setting and tool.
+/// The "You" tab: an ex libris bookplate, a few figures, and an editorial index of every setting and tool.
 library;
 
 import 'package:flutter/services.dart';
@@ -23,6 +23,7 @@ import '../settings/appearance_screen.dart';
 import '../settings/cycle_settings_screen.dart';
 import '../settings/my_data_screen.dart';
 import '../settings/notification_privacy_screen.dart';
+import '../settings/settings_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -73,63 +74,61 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final reminders = ReminderSettings.of(store).enabled.length;
     final bc = Contraception.of(store).method;
     final pregnant = p.goal == Goal.trackPregnancy;
+    var n = 0;
+    String no() => (++n).toString().padLeft(2, '0');
 
     return Scaffold(
       body: BloomPage(
-        title: 'Me',
-        heroColor: BloomColors.brand,
+        eyebrow: 'Your notebook',
+        title: 'You',
+        spacing: Space.xxl,
         actions: [
           IconButton(
             tooltip: 'About & privacy',
             onPressed: () => _push(const AboutPrivacyScreen()),
-            icon: const Icon(Icons.info_outline_rounded),
+            icon: Icon(Icons.info_outline, size: 20, color: BloomColors.of(context).ink2),
           ),
         ],
         children: [
-          _Header(onEdit: () => _editProfile(context, store), onGoal: () => _push(const GoalScreen())),
+          _Bookplate(onEdit: () => _editProfile(context, store), onGoal: () => _push(const GoalScreen())),
+          const _Stats(),
           MenuSection(
-            title: 'My health',
+            title: 'Contents · Your health',
             children: [
-              MenuTile(
-                icon: Icons.flag_rounded,
-                color: BloomColors.coral,
+              IndexEntry(
+                number: no(),
                 title: 'My goal',
                 subtitle: p.goal.label,
                 onTap: () => _push(const GoalScreen()),
               ),
-              MenuTile(
-                icon: Icons.insights_rounded,
-                color: BloomColors.info,
+              IndexEntry(
+                number: no(),
                 title: 'Graphs & reports',
                 subtitle: 'Trends across your cycles',
                 onTap: () => _push(const AnalysisScreen()),
               ),
-              MenuTile(
-                icon: Icons.description_rounded,
-                color: BloomColors.luteal,
+              IndexEntry(
+                number: no(),
                 title: 'Report for a doctor',
-                subtitle: pregnant ? 'Pregnancy summary' : 'PDF of your last 6 cycles',
+                subtitle: pregnant ? 'Pregnancy summary' : 'A PDF of your last 6 cycles',
                 onTap: () => _push(const DoctorReportScreen()),
               ),
-              MenuTile(
-                icon: Icons.notifications_rounded,
-                color: BloomColors.warning,
+              IndexEntry(
+                number: no(),
                 title: 'Reminders',
-                subtitle: reminders == 0 ? 'Off' : '$reminders on',
+                subtitle: reminders == 0 ? 'None set' : '$reminders on',
                 onTap: () => _push(const RemindersScreen()),
               ),
-              MenuTile(
-                icon: Icons.medication_rounded,
-                color: BloomColors.fertile,
+              IndexEntry(
+                number: no(),
                 title: 'Birth control',
                 subtitle: bc.label,
                 onTap: () => _push(const ContraceptionScreen()),
               ),
-              MenuTile(
-                icon: Icons.favorite_rounded,
-                color: BloomColors.period,
+              IndexEntry(
+                number: no(),
                 title: 'Partner sharing',
-                subtitle: 'Share a read-only snapshot',
+                subtitle: 'A read-only snapshot for someone close',
                 onTap: () => _push(const PartnerScreen()),
               ),
             ],
@@ -137,30 +136,26 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           MenuSection(
             title: 'Settings',
             children: [
-              MenuTile(
-                icon: Icons.autorenew_rounded,
-                color: BloomColors.brand,
+              IndexEntry(
+                number: no(),
                 title: 'Cycle & ovulation',
                 subtitle: '${p.cycleLength}-day cycle · ${p.periodLength}-day period',
                 onTap: () => _push(const CycleSettingsScreen()),
               ),
-              MenuTile(
-                icon: Icons.tune_rounded,
-                color: BloomColors.follicular,
+              IndexEntry(
+                number: no(),
                 title: 'Tracking categories',
                 subtitle: 'Choose what you log',
                 onTap: () => _trackingInfo(context),
               ),
-              MenuTile(
-                icon: Icons.lock_rounded,
-                color: BloomColors.luteal,
+              IndexEntry(
+                number: no(),
                 title: 'App lock',
                 value: p.pin == null ? 'Off' : 'On',
                 onTap: () => _push(const AppLockSettingsScreen()),
               ),
-              MenuTile(
-                icon: Icons.visibility_off_rounded,
-                color: BloomColors.info,
+              IndexEntry(
+                number: no(),
                 title: 'Notification privacy',
                 value: switch (p.notificationPrivacy) {
                   NotificationPrivacy.detailed => 'Detailed',
@@ -169,15 +164,14 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                 },
                 onTap: () => _push(const NotificationPrivacyScreen()),
               ),
-              MenuTile(
-                icon: Icons.palette_rounded,
-                color: BloomColors.coral,
+              IndexEntry(
+                number: no(),
                 title: 'Units & appearance',
                 subtitle:
                     '${p.tempUnit == TempUnit.celsius ? '°C' : '°F'} · ${p.weightUnit.name} · ${switch (p.themeMode) {
-                      'light' => 'Light',
-                      'dark' => 'Dark',
-                      _ => 'System theme',
+                      'light' => 'Paper',
+                      'dark' => 'Lamplight',
+                      _ => 'Follows the system',
                     }}',
                 onTap: () => _push(const AppearanceScreen()),
               ),
@@ -187,18 +181,16 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
             title: 'Data & privacy',
             footer: 'Bloom keeps everything on this device. No account, no server, no analytics.',
             children: [
-              MenuTile(
-                icon: Icons.folder_rounded,
-                color: BloomColors.success,
+              IndexEntry(
+                number: no(),
                 title: 'My data',
                 subtitle: 'Export, import, or delete',
                 onTap: () => _push(const MyDataScreen()),
               ),
-              MenuTile(
-                icon: Icons.local_florist_rounded,
-                color: BloomColors.brand,
+              IndexEntry(
+                number: no(),
                 title: 'About & privacy',
-                subtitle: 'Open source · offline · no analytics',
+                subtitle: 'Colophon · open source · offline',
                 onTap: () => _push(const AboutPrivacyScreen()),
               ),
             ],
@@ -211,21 +203,13 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
   void _trackingInfo(BuildContext context) => showAppBottomSheet<void>(
     context,
     builder: (c) => AppBottomSheet(
+      eyebrow: 'Settings',
       title: 'Tracking categories',
-      actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Got it'))],
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const IconBadge(icon: Icons.tune_rounded, color: BloomColors.follicular),
-          Gap.h16,
-          Expanded(
-            child: Text(
-              'Choose and reorder what you track from the daily log: open the log for any day and use its '
-              'customize option. Hiding a category keeps its past data.',
-              style: Theme.of(c).textTheme.bodyLarge,
-            ),
-          ),
-        ],
+      actions: [InkButton(label: 'Got it', onPressed: () => Navigator.pop(c))],
+      child: Text(
+        'Choose and reorder what you track from the daily log: open the log for any day and use its '
+        'customize option. Hiding a category keeps its past data.',
+        style: Theme.of(c).textTheme.bodyLarge,
       ),
     ),
   );
@@ -237,11 +221,12 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final saved = await showAppBottomSheet<bool>(
       context,
       builder: (c) => AppBottomSheet(
-        title: 'Edit profile',
+        eyebrow: 'Ex libris',
+        title: 'Your name on the plate',
         subtitle: 'Both are optional and stay on this device.',
         actions: [
-          OutlinedButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save')),
+          InkButton.outlined(label: 'Cancel', onPressed: () => Navigator.pop(c, false)),
+          InkButton(label: 'Save', onPressed: () => Navigator.pop(c, true)),
         ],
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -250,14 +235,14 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
               controller: name,
               autofocus: store.profile.name.isEmpty,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name', prefixIcon: Icon(Icons.person_outline_rounded)),
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
-            Gap.v12,
+            Gap.v16,
             TextField(
               controller: year,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
-              decoration: const InputDecoration(labelText: 'Year of birth', prefixIcon: Icon(Icons.cake_outlined)),
+              decoration: const InputDecoration(labelText: 'Year of birth'),
             ),
           ],
         ),
@@ -282,96 +267,109 @@ String initialsOf(String name) {
   return (first + last).toUpperCase();
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onEdit, required this.onGoal});
+/// The "ex libris" bookplate: a double hairline frame around the flower
+/// mark, the name in Fraunces, the goal in italic, and a mono colophon line.
+class _Bookplate extends StatelessWidget {
+  const _Bookplate({required this.onEdit, required this.onGoal});
   final VoidCallback onEdit;
   final VoidCallback onGoal;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final p = store.profile;
+    final prof = store.profile;
     final e = store.engine;
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final name = p.name.trim();
-    final initials = initialsOf(name);
-    final age = p.birthYear == null ? null : DateTime.now().year - p.birthYear!;
-    final logged = e.cycles.where((c) => c.length != null).length;
+    final p = BloomColors.of(context);
+    final name = prof.name.trim();
+    final cycles = e.cycles.where((c) => c.length != null).length;
     final keys = [...store.periodDays, ...store.logs.keys]..sort();
-    final tracked = keys.isEmpty ? 0 : daysBetween(parseDayKey(keys.first), today()) + 1;
+    final first = keys.isEmpty ? null : parseDayKey(keys.first);
+    final days = first == null ? 0 : daysBetween(first, today()) + 1;
+    final colophon = [
+      'Since ${(first ?? today()).year}',
+      '$cycles ${cycles == 1 ? 'cycle' : 'cycles'}',
+      '$days ${days == 1 ? 'day' : 'days'}',
+    ].join(' · ');
 
-    return BloomCard(
-      padding: EdgeInsets.zero,
-      child: Column(
+    return Semantics(
+      container: true,
+      label: 'Profile',
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(border: Border.all(color: p.hairline), borderRadius: Radii.smAll),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(Space.xl, Space.xl, Space.xl, Space.lg),
+          decoration: BoxDecoration(border: Border.all(color: p.hairline), borderRadius: Radii.xsAll),
+          child: Column(
+            children: [
+              const MonoLabel('Ex libris', size: 10),
+              Gap.v12,
+              const BloomLogo(size: 44),
+              Gap.v12,
+              Pressable(
+                onTap: onEdit,
+                tooltip: 'Edit profile',
+                child: Text(
+                  name.isEmpty ? 'Your name here' : name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: name.isEmpty
+                      ? Almanac.serif(size: 28, weight: 300, italic: true, color: p.ink2)
+                      : Almanac.serif(size: 30, weight: 360, color: p.ink, height: 1.1),
+                ),
+              ),
+              Gap.v4,
+              Pressable(
+                onTap: onGoal,
+                tooltip: 'Change goal',
+                child: Text(prof.goal.label, textAlign: TextAlign.center, style: Almanac.italic(context, size: 16, color: p.ink2)),
+              ),
+              Gap.v16,
+              const Hairline(indent: Space.huge, endIndent: Space.huge),
+              Gap.v12,
+              MonoLabel(colophon, textAlign: TextAlign.center),
+              Gap.v8,
+              InkLink(name.isEmpty ? 'Add your name' : 'Edit', onTap: onEdit, size: 13),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Three figures under the bookplate, set as serif numerals.
+class _Stats extends StatelessWidget {
+  const _Stats();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<AppStore>();
+    final e = store.engine;
+    final prof = store.profile;
+    final age = prof.birthYear == null ? null : DateTime.now().year - prof.birthYear!;
+    final p = BloomColors.of(context);
+    return IntrinsicHeight(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Space.xl, Space.xl, Space.sm, Space.lg),
-            child: Row(
-              children: [
-                Semantics(
-                  label: 'Profile picture',
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: BloomGradients.brand,
-                      boxShadow: theme.brightness == Brightness.light ? BloomShadows.glow(BloomColors.brand) : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: initials.isEmpty
-                        ? const Icon(Icons.local_florist_rounded, color: Colors.white, size: 34)
-                        : Text(
-                            initials,
-                            style: theme.textTheme.headlineSmall!.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                  ),
-                ),
-                Gap.h16,
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name.isEmpty ? 'Hello there' : name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.headlineSmall,
-                      ),
-                      Gap.v4,
-                      Text(
-                        age != null ? '$age years old' : 'Add your name and age',
-                        style: theme.textTheme.bodyMedium!.copyWith(color: tokens.muted),
-                      ),
-                      Gap.v8,
-                      InkWell(
-                        onTap: onGoal,
-                        borderRadius: Radii.pillAll,
-                        child: PillChip(p.goal.label, icon: Icons.flag_rounded, color: BloomColors.brand),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(tooltip: 'Edit profile', onPressed: onEdit, icon: const Icon(Icons.edit_rounded)),
-              ],
+          Expanded(child: _Figure(value: e.hasData ? '${e.avgCycleLength}' : '–', unit: 'days', label: 'Cycle')),
+          VerticalDivider(width: Space.xxl, thickness: 1, color: p.hairline),
+          Expanded(
+            child: _Figure(
+              value: e.hasData ? '${e.avgPeriodLength}' : '–',
+              unit: 'days',
+              label: 'Period',
+              color: BloomColors.period,
             ),
           ),
-          Divider(height: 1, color: tokens.border),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                _HeaderStat(value: e.hasData ? '${e.avgCycleLength}' : '–', label: 'Avg cycle'),
-                VerticalDivider(width: 1, color: tokens.border, indent: Space.md, endIndent: Space.md),
-                _HeaderStat(value: '$logged', label: logged == 1 ? 'Cycle logged' : 'Cycles logged'),
-                VerticalDivider(width: 1, color: tokens.border, indent: Space.md, endIndent: Space.md),
-                _HeaderStat(value: '$tracked', label: 'Days tracked'),
-              ],
-            ),
+          VerticalDivider(width: Space.xxl, thickness: 1, color: p.hairline),
+          Expanded(
+            child: age != null
+                ? _Figure(value: '$age', unit: 'years', label: 'Age')
+                : _Figure(value: '${store.logs.length}', unit: 'days', label: 'Logged'),
           ),
         ],
       ),
@@ -379,29 +377,50 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _HeaderStat extends StatelessWidget {
-  const _HeaderStat({required this.value, required this.label});
+class _Figure extends StatelessWidget {
+  const _Figure({required this.value, required this.unit, required this.label, this.color});
   final String value;
+  final String unit;
   final String label;
+
+  /// A meaning color for the small dot before the label.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.lg, horizontal: Space.xs),
-        child: Column(
-          children: [
-            Text(value, style: theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w700)),
-            Gap.v4,
-            Text(
-              label,
+    final p = BloomColors.of(context);
+    return Semantics(
+      label: '$label: $value $unit',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (color != null) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(color: BloomColors.resolve(context, color!), shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Flexible(child: MonoLabel(label, maxLines: 1, size: 10)),
+            ],
+          ),
+          Gap.v8,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: value, style: Almanac.numeral(context, size: 36, weight: 320)),
+                TextSpan(text: ' $unit', style: Almanac.italic(context, size: 14, color: p.ink2)),
+              ]),
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium!.copyWith(color: BloomTokens.of(context).muted),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -299,9 +299,12 @@ void main() {
       await tester.pump();
       expect(find.textContaining(RegExp('Correct|Not quite')), findsOneWidget);
       await pump(tester, s, CouplesQuizScreen(quiz: kQuizzes.firstWhere((q) => q.couples)));
+      await tester.scrollUntilVisible(find.text('Start'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(find.text('Start'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Start'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Pass the phone'), findsOneWidget);
+      expect(find.textContaining('Pass the phone to'), findsOneWidget);
     });
 
     testWidgets('assistant chat and checker', (tester) async {

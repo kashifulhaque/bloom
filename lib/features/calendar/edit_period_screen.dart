@@ -85,7 +85,7 @@ class _EditPeriodScreenState extends State<EditPeriodScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final firstDay = context.select<AppStore, int>((s) => s.profile.firstDayOfWeek);
     return PopScope(
       canPop: !_dirty,
@@ -103,82 +103,99 @@ class _EditPeriodScreenState extends State<EditPeriodScreen> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(Space.md, Space.sm, Space.gutter, 0),
-                    child: Row(
+                    child: IconButton(
+                      tooltip: 'Cancel',
+                      icon: Icon(Icons.close, size: 20, color: p.ink),
+                      onPressed: _cancel,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(tooltip: 'Cancel', icon: const Icon(Icons.close_rounded), onPressed: _cancel),
-                        Gap.h4,
-                        Expanded(
-                          child: Text('Edit period dates',
-                              overflow: TextOverflow.ellipsis, style: theme.textTheme.headlineSmall),
+                        const MonoLabel('Edit'),
+                        Gap.v8,
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'Period '),
+                              TextSpan(
+                                text: 'dates',
+                                style: Almanac.serif(size: 34, weight: 300, italic: true, color: p.period),
+                              ),
+                            ],
+                          ),
+                          style: theme.textTheme.headlineLarge,
+                        ),
+                        Gap.v8,
+                        Text(
+                          'Tap days to mark or clear them as period days.',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: p.ink2),
                         ),
                       ],
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.md),
-                    child: Text(
-                      'Tap days to mark or clear them as period days.',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: tokens.muted),
+                    padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xl, Space.gutter, 0),
+                    child: Column(
+                      children: [
+                        WeekdayHeader(firstDayOfWeek: firstDay),
+                        Gap.v8,
+                        const Hairline(),
+                      ],
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: tokens.border)),
-                    ),
-                    child: WeekdayHeader(firstDayOfWeek: firstDay),
                   ),
                   Expanded(
-                    child: LayoutBuilder(builder: (context, box) {
-                      final cell = math.min((box.maxWidth - Space.md * 2) / 7, 64.0);
-                      Widget month(DateTime m) => _EditableMonth(
-                            month: m,
-                            firstDayOfWeek: firstDay,
-                            cell: cell,
-                            now: _now,
-                            lastSelectable: _lastSelectable,
-                            selected: _selected,
-                            onToggle: _toggle,
-                          );
-                      // Opens on the current month: past months scroll up, future ones down.
-                      return CustomScrollView(
-                        center: _centerKey,
-                        slivers: [
-                          SliverPadding(
-                            padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                            sliver: SliverList.builder(
-                              itemCount: _monthsBack,
-                              itemBuilder: (context, i) => month(addMonths(monthOf(_now), -1 - i)),
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        final cell = math.min((box.maxWidth - Space.gutter * 2) / 7, 56.0);
+                        Widget month(DateTime m) => _EditableMonth(
+                          month: m,
+                          firstDayOfWeek: firstDay,
+                          cell: cell,
+                          now: _now,
+                          lastSelectable: _lastSelectable,
+                          selected: _selected,
+                          onToggle: _toggle,
+                        );
+                        // Opens on the current month: past months scroll up, future ones down.
+                        return CustomScrollView(
+                          center: _centerKey,
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+                              sliver: SliverList.builder(
+                                itemCount: _monthsBack,
+                                itemBuilder: (context, i) => month(addMonths(monthOf(_now), -1 - i)),
+                              ),
                             ),
-                          ),
-                          SliverPadding(
-                            key: _centerKey,
-                            padding: const EdgeInsets.fromLTRB(Space.md, 0, Space.md, Space.xxl),
-                            sliver: SliverList.builder(
-                              itemCount: _monthsAhead + 1,
-                              itemBuilder: (context, i) => month(addMonths(monthOf(_now), i)),
+                            SliverPadding(
+                              key: _centerKey,
+                              padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.xxl),
+                              sliver: SliverList.builder(
+                                itemCount: _monthsAhead + 1,
+                                itemBuilder: (context, i) => month(addMonths(monthOf(_now), i)),
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    }),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ),
-        bottomNavigationBar: _SaveBar(
-          marked: _selected.length,
-          changes: _changes,
-          onSave: _save,
-        ),
+        bottomNavigationBar: _SaveBar(marked: _selected.length, changes: _changes, onSave: _save),
       ),
     );
   }
 }
 
-/// The sticky bar at the bottom with a summary of changes and the Save button.
+/// The sticky bar at the bottom: a count of marked days, the unsaved
+/// changes, and the ink Save button.
 class _SaveBar extends StatelessWidget {
   const _SaveBar({required this.marked, required this.changes, required this.onSave});
   final int marked;
@@ -187,14 +204,11 @@ class _SaveBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final light = theme.brightness == Brightness.light;
-    return Container(
+    final p = BloomColors.of(context);
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: light ? Colors.white : theme.colorScheme.surfaceContainer,
-        border: Border(top: BorderSide(color: tokens.border)),
-        boxShadow: light ? tokens.raisedShadow : null,
+        color: p.paper,
+        border: Border(top: BorderSide(color: p.hairline)),
       ),
       child: SafeArea(
         top: false,
@@ -211,25 +225,35 @@ class _SaveBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          marked == 1 ? '1 period day' : '$marked period days',
-                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: '$marked', style: Almanac.numeral(context, size: 26, weight: 340)),
+                              TextSpan(
+                                text: marked == 1 ? ' period day' : ' period days',
+                                style: Almanac.italic(context, size: 16, color: p.ink2),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 2),
                         AnimatedSwitcher(
                           duration: Motion.fast,
-                          child: Text(
-                            changes == 0 ? 'No changes yet' : (changes == 1 ? '1 unsaved change' : '$changes unsaved changes'),
+                          child: MonoLabel(
+                            changes == 0
+                                ? 'No changes yet'
+                                : (changes == 1 ? '1 unsaved change' : '$changes unsaved changes'),
                             key: ValueKey(changes),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: changes == 0 ? tokens.muted : readableTint(BloomColors.period, theme.brightness),
-                            ),
+                            color: changes == 0 ? null : BloomColors.period,
                           ),
                         ),
                       ],
                     ),
                   ),
                   Gap.h12,
-                  GradientButton(label: 'Save', icon: Icons.check_rounded, onPressed: onSave),
+                  InkButton(label: 'Save', icon: Icons.check, onPressed: onSave),
                 ],
               ),
             ),
@@ -261,7 +285,7 @@ class _EditableMonth extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     final blanks = leadingBlanks(month, firstDayOfWeek);
     final days = daysInMonth(month);
     final rows = ((blanks + days) / 7).ceil();
@@ -275,16 +299,29 @@ class _EditableMonth extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.sm, Space.lg, Space.sm, Space.md),
+            padding: const EdgeInsets.fromLTRB(0, Space.xl, 0, Space.md),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
                 Expanded(
-                  child: Text(DateFormat.yMMMM().format(month), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: '${DateFormat.MMMM().format(month)} '),
+                        TextSpan(
+                          text: '${month.year}',
+                          style: Almanac.serif(size: 20, weight: 300, italic: true, color: p.ink2),
+                        ),
+                      ],
+                    ),
+                    style: Almanac.serif(size: 20, weight: 380, color: p.ink),
+                  ),
                 ),
                 AnimatedOpacity(
                   duration: Motion.fast,
                   opacity: count == 0 ? 0 : 1,
-                  child: PillChip(count == 1 ? '1 day' : '$count days', color: BloomColors.period, icon: Icons.water_drop_rounded, dense: true),
+                  child: MonoLabel(count == 1 ? '1 day' : '$count days', color: BloomColors.period),
                 ),
               ],
             ),
@@ -295,33 +332,41 @@ class _EditableMonth extends StatelessWidget {
               child: Row(
                 children: [
                   for (var col = 0; col < 7; col++)
-                    Expanded(child: Builder(builder: (context) {
-                      final n = row * 7 + col - blanks + 1;
-                      if (n < 1 || n > days) return const SizedBox.shrink();
-                      final d = DateTime(month.year, month.month, n);
-                      final on = selected.contains(dayKey(d));
-                      bool sel(int offset) {
-                        final m = n + offset;
-                        return m >= 1 && m <= days && selected.contains(dayKey(DateTime(month.year, month.month, m)));
-                      }
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final n = row * 7 + col - blanks + 1;
+                          if (n < 1 || n > days) return const SizedBox.shrink();
+                          final d = DateTime(month.year, month.month, n);
+                          final on = selected.contains(dayKey(d));
+                          bool sel(int offset) {
+                            final m = n + offset;
+                            return m >= 1 &&
+                                m <= days &&
+                                selected.contains(dayKey(DateTime(month.year, month.month, m)));
+                          }
 
-                      final enabled = !d.isAfter(lastSelectable);
-                      return _PeriodToggle(
-                        key: ValueKey('edit-${dayKey(d)}'),
-                        day: n,
-                        on: on,
-                        joinLeft: on && col > 0 && sel(-1),
-                        joinRight: on && col < 6 && sel(1),
-                        enabled: enabled,
-                        isToday: sameDay(d, now),
-                        size: cell * 0.72,
-                        onTap: () => onToggle(d),
-                        label: fmtLong(d),
-                      );
-                    })),
+                          final enabled = !d.isAfter(lastSelectable);
+                          return _PeriodToggle(
+                            key: ValueKey('edit-${dayKey(d)}'),
+                            day: n,
+                            on: on,
+                            joinLeft: on && col > 0 && sel(-1),
+                            joinRight: on && col < 6 && sel(1),
+                            enabled: enabled,
+                            isToday: sameDay(d, now),
+                            size: math.min(cell * 0.72, 38),
+                            onTap: () => onToggle(d),
+                            label: fmtLong(d),
+                          );
+                        },
+                      ),
+                    ),
                 ],
               ),
             ),
+          Gap.v8,
+          const Hairline(),
         ],
       ),
     );
@@ -346,7 +391,7 @@ class _PeriodToggle extends StatelessWidget {
   final bool on;
 
   /// The previous or next day in the same row is also selected; draws a
-  /// soft band that links the days into one period.
+  /// faint band that links the days into one period.
   final bool joinLeft;
   final bool joinRight;
   final bool enabled;
@@ -357,35 +402,42 @@ class _PeriodToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
-    final tokens = BloomTokens.of(context);
-    final band = BloomColors.period.withValues(alpha: dark ? 0.28 : 0.18);
+    final p = BloomColors.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final band = dark ? p.period.withValues(alpha: 0.22) : p.periodSoft;
     final textColor = on
-        ? Colors.white
+        ? BloomColors.onColor(p.period)
         : !enabled
-            ? tokens.muted.withValues(alpha: 0.5)
-            : isToday
-                ? scheme.primary
-                : scheme.onSurface;
+        ? p.ink2.withValues(alpha: 0.45)
+        : p.ink;
     return Semantics(
       checked: on,
       enabled: enabled,
-      label: label,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled ? onTap : null,
+      label: isToday ? '$label, today' : label,
+      excludeSemantics: true,
+      child: Pressable(
+        onTap: enabled
+            ? () {
+                Almanac.tick();
+                onTap();
+              }
+            : null,
+        pressedOpacity: 0.7,
         child: Stack(
           alignment: Alignment.center,
           children: [
+            const SizedBox.expand(),
             Positioned(
               left: 0,
               right: 0,
               child: Row(
                 children: [
-                  Expanded(child: Container(height: size, color: joinLeft ? band : null)),
-                  Expanded(child: Container(height: size, color: joinRight ? band : null)),
+                  Expanded(
+                    child: Container(height: size * 0.62, color: joinLeft ? band : null),
+                  ),
+                  Expanded(
+                    child: Container(height: size * 0.62, color: joinRight ? band : null),
+                  ),
                 ],
               ),
             ),
@@ -397,28 +449,26 @@ class _PeriodToggle extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: on ? BloomGradients.period : null,
-                color: on ? null : (enabled ? (dark ? scheme.surfaceContainer : Colors.white) : Colors.transparent),
-                border: on
-                    ? null
-                    : Border.all(
-                        color: isToday
-                            ? scheme.primary
-                            : enabled
-                                ? BloomColors.predicted.withValues(alpha: 0.7)
-                                : tokens.border,
-                        width: isToday ? 1.8 : 1.2,
-                      ),
+                color: on ? p.period : Colors.transparent,
+                // A faint ring marks the days that can be tapped.
+                border: Border.all(color: on || !enabled ? Colors.transparent : p.hairline),
               ),
               child: Text(
                 '$day',
-                style: theme.textTheme.labelLarge?.copyWith(
+                style: Almanac.serif(
+                  size: (size * 0.45).clamp(13.0, 17.0),
+                  weight: on || isToday ? 460 : 380,
                   color: textColor,
-                  fontWeight: on || isToday ? FontWeight.w800 : FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                  height: 1,
+                  tabular: true,
                 ),
               ),
             ),
+            if (isToday)
+              Positioned(
+                bottom: 1,
+                child: Container(width: size * 0.45, height: 1.5, color: p.ink),
+              ),
           ],
         ),
       ),

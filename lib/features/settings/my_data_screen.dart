@@ -84,142 +84,89 @@ class MyDataScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
+    final p = BloomColors.of(context);
     final theme = Theme.of(context);
-    final error = theme.colorScheme.error;
+    final muted = theme.textTheme.bodyMedium!.copyWith(color: p.ink2);
     return SettingsPage(
+      eyebrow: 'Data & privacy',
       title: 'My data',
       subtitle: 'Everything you log stays on this device.',
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                value: '${store.periodDays.length}',
-                label: 'Period days',
-                icon: Icons.water_drop_rounded,
-                color: BloomColors.period,
-              ),
-            ),
-            Gap.h12,
-            Expanded(
-              child: StatTile(
-                value: '${store.logs.length}',
-                label: 'Logged days',
-                icon: Icons.edit_calendar_rounded,
-                color: BloomColors.luteal,
-              ),
-            ),
-          ],
-        ),
-        const InfoBanner(
-          tone: BannerTone.brand,
-          icon: Icons.shield_rounded,
-          message:
-              'Bloom has no account and no server, so a backup file is the only way to move your data '
-              'or keep it safe.',
-        ),
-        _ActionCard(
-          icon: Icons.download_rounded,
-          color: BloomColors.success,
-          title: 'Export',
-          body: 'Save a copy of your data. Backup files aren\'t encrypted, so store them somewhere private.',
-          children: [
-            FilledButton.icon(
-              onPressed: () => _exportJson(context),
-              icon: const Icon(Icons.backup_rounded),
-              label: const Text('Export full backup (JSON)'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _exportCsv(context),
-              icon: const Icon(Icons.table_chart_rounded),
-              label: const Text('Export logs (CSV)'),
-            ),
-          ],
-        ),
-        _ActionCard(
-          icon: Icons.upload_rounded,
-          color: BloomColors.info,
-          title: 'Import',
-          body: 'Replace everything in Bloom with a backup file you exported earlier.',
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => _import(context),
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Import backup'),
-            ),
-          ],
-        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Space.xs, Space.lg, Space.xs, Space.sm),
-              child: Text(
-                'DANGER ZONE',
-                style: theme.textTheme.labelMedium!.copyWith(
-                  color: readableTint(error, theme.brightness),
-                  letterSpacing: 1,
-                ),
-              ),
+            const MonoLabel('What Bloom holds'),
+            Gap.v12,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _Count(value: store.periodDays.length, label: 'period days', color: p.period)),
+                Expanded(child: _Count(value: store.logs.length, label: 'logged days')),
+              ],
             ),
-            BloomCard.tinted(
-              color: error,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      IconBadge(icon: Icons.delete_forever_rounded, color: error),
-                      Gap.h16,
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Delete all data',
-                              style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            Gap.v4,
-                            Text(
-                              'Permanently erase everything Bloom stores on this device. This can\'t be undone.',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  Gap.v16,
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: readableTint(error, theme.brightness),
-                      side: BorderSide(color: error.withValues(alpha: 0.6)),
-                    ),
-                    onPressed: () => _delete(context),
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    label: const Text('Erase everything'),
-                  ),
-                ],
-              ),
+            Gap.v12,
+            Text(
+              'Bloom has no account and no server, so a backup file is the only way to move your data '
+              'to another device or keep it safe.',
+              style: muted,
             ),
           ],
+        ),
+        _Section(
+          label: 'Export',
+          title: 'Keep a copy',
+          body: 'Save a copy of your data. Backup files aren\'t encrypted, so keep them somewhere private.',
+          children: [
+            InkButton(label: 'Export full backup (JSON)', onPressed: () => _exportJson(context)),
+            InkButton.outlined(label: 'Export logs (CSV)', onPressed: () => _exportCsv(context)),
+          ],
+        ),
+        _Section(
+          label: 'Import',
+          title: 'Bring a backup back',
+          body: 'Replace everything in Bloom with a backup file you exported earlier.',
+          children: [InkButton.outlined(label: 'Import backup', onPressed: () => _import(context))],
+        ),
+        Gap.v8,
+        DangerSection(
+          title: 'Delete all data',
+          body: 'Permanently erase everything Bloom stores on this device: periods, logs, reminders, and '
+              'settings. This can\'t be undone.',
+          action: Align(
+            alignment: Alignment.centerLeft,
+            child: InkButton.outlined(
+              label: 'Erase everything',
+              color: BloomColors.error,
+              onPressed: () => _delete(context),
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.body,
-    required this.children,
-  });
-  final IconData icon;
-  final Color color;
+/// A serif count with an italic caption: "142 *period days*".
+class _Count extends StatelessWidget {
+  const _Count({required this.value, required this.label, this.color});
+  final int value;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(children: [
+      TextSpan(text: '$value', style: Almanac.numeral(context, size: 44, color: color)),
+      TextSpan(text: '  $label', style: Almanac.italic(context, size: 16, color: BloomColors.of(context).ink2)),
+    ]),
+  );
+}
+
+/// A ruled section: a mono label, a serif title, a plain-language note, and
+/// its buttons.
+class _Section extends StatelessWidget {
+  const _Section({required this.label, required this.title, required this.body, required this.children});
+  final String label;
   final String title;
   final String body;
   final List<Widget> children;
@@ -228,28 +175,17 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return BloomCard(
+      padding: const EdgeInsets.only(top: Space.lg),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              IconBadge(icon: icon, color: color),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700)),
-                    Gap.v4,
-                    Text(body, style: theme.textTheme.bodyMedium!.copyWith(color: BloomTokens.of(context).muted)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          MonoLabel(label),
+          Gap.v8,
+          Text(title, style: theme.textTheme.titleLarge),
+          Gap.v4,
+          Text(body, style: theme.textTheme.bodyMedium!.copyWith(color: BloomColors.of(context).ink2)),
           Gap.v16,
-          for (var i = 0; i < children.length; i++) ...[if (i > 0) Gap.v8, children[i]],
+          Wrap(spacing: Space.md, runSpacing: Space.md, children: children),
         ],
       ),
     );
@@ -275,7 +211,6 @@ class _DeleteDialogState extends State<_DeleteDialog> {
   @override
   Widget build(BuildContext context) {
     final ready = _controller.text.trim() == 'DELETE';
-    final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
       title: const Text('Delete all data?'),
       content: Column(
@@ -284,7 +219,7 @@ class _DeleteDialogState extends State<_DeleteDialog> {
         children: [
           const Text('This permanently erases your periods, logs, reminders, and settings. It can\'t be undone.'),
           Gap.v16,
-          const Text('Type DELETE to confirm.'),
+          Text('Type DELETE to confirm.', style: Almanac.label(context)),
           Gap.v8,
           TextField(
             controller: _controller,
@@ -296,10 +231,11 @@ class _DeleteDialogState extends State<_DeleteDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
+        InkButton(
+          label: 'Delete everything',
+          dense: true,
+          color: BloomColors.error,
           onPressed: ready ? () => Navigator.pop(context, true) : null,
-          child: const Text('Delete everything'),
         ),
       ],
     );

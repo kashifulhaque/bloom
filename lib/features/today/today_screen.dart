@@ -1,8 +1,11 @@
-/// The main screen: week strip, cycle ring hero, and daily shortcuts.
+/// The main screen, set like a page of an almanac: a serif headline for the
+/// day, the cycle dial, a ledger of the week, a note in the margin, and the
+/// day's journal below.
 library;
 
 import 'dart:math' as math;
 
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
@@ -17,7 +20,9 @@ import '../../widgets/widgets.dart';
 import '../analysis/analysis_screen.dart';
 import '../calendar/edit_period_screen.dart';
 import '../insights/daily_insights.dart';
+import '../log/almanac_rows.dart';
 import '../log/log_sheet.dart';
+import '../log/tracker_style.dart';
 import '../modes/perimenopause_home.dart';
 import '../modes/postpartum_home.dart';
 import '../modes/pregnancy_home.dart';
@@ -33,7 +38,10 @@ class TodayScreen extends StatefulWidget {
 class _TodayScreenState extends State<TodayScreen> {
   DateTime _selected = today();
 
-  void _select(DateTime d) => setState(() => _selected = dayOf(d));
+  void _select(DateTime d) {
+    Almanac.tick();
+    setState(() => _selected = dayOf(d));
+  }
 
   String _greeting(String name) {
     final h = DateTime.now().hour;
@@ -42,7 +50,7 @@ class _TodayScreenState extends State<TodayScreen> {
         : h < 18
             ? 'Good afternoon'
             : 'Good evening';
-    return name.isEmpty ? part : '$part, $name';
+    return name.isEmpty ? '$part.' : '$part, $name.';
   }
 
   Future<void> _pickDate() async {
@@ -61,249 +69,80 @@ class _TodayScreenState extends State<TodayScreen> {
     final profile = store.profile;
     final goal = profile.goal;
     final cycleGoal = goal != Goal.trackPregnancy && goal != Goal.postpartum;
-    final showLate = store.engine.isLate && (goal == Goal.trackCycle || goal == Goal.getPregnant);
+    final simplified = goal == Goal.perimenopause;
     final hasReminders = dueToday(store, DateTime.now()).isNotEmpty;
-    final phase = store.engine.info(_selected).phase;
+    final story = _DayStory.of(store.engine, _selected, simplified: simplified);
+    final date = DateFormat('EEEE, d MMM').format(_selected);
+    final p = BloomColors.of(context);
 
-    return Scaffold(
-      body: BloomPage(
-        eyebrow: fmtLong(today()),
-        title: _greeting(profile.name),
-        heroColor: !cycleGoal
-            ? (goal == Goal.trackPregnancy ? BloomColors.pregnancy : BloomColors.brand)
-            : phase == null
-                ? BloomColors.brand
-                : phaseColor(phase),
-        actions: [
-          IconButton(
+    final Widget title = cycleGoal
+        ? _Headline(story: story, greeting: _greeting(profile.name))
+        : PhaseTitle(
+            lead: _greeting(profile.name).replaceFirst(RegExp(r'[.,].*$'), ','),
+            italic: profile.name.isEmpty ? 'welcome back.' : '${profile.name}.',
+            color: goal == Goal.trackPregnancy ? BloomColors.pregnancy : null,
+          );
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: title),
+        Transform.translate(
+          offset: const Offset(Space.sm, -Space.sm),
+          child: IconButton(
             tooltip: 'Pick a date',
             onPressed: _pickDate,
-            icon: const Icon(Icons.calendar_month_rounded),
+            icon: Icon(Icons.calendar_today_outlined, size: 20, color: p.ink2),
           ),
-        ],
-        children: [
-          _WeekStrip(selected: _selected, onSelect: _select),
-          // Hero.
-          if (goal == Goal.trackPregnancy)
-            const PregnancyHome()
-          else if (goal == Goal.postpartum)
-            const PostpartumHome()
-          else ...[
-            if (goal == Goal.perimenopause) const PerimenopauseHome(),
-            _CycleHero(day: _selected, simplified: goal == Goal.perimenopause),
-          ],
-          if (showLate) const _LateCard(),
-          if (hasReminders) const DueRemindersBanner(),
-          const SectionHeader('Daily insights', subtitle: 'Short reads picked for this phase'),
-          const DailyInsightsStrip(),
-          _LogSummaryCard(day: _selected),
-          if (goal != Goal.trackPregnancy) const _MyCyclesSection(),
-          const SectionHeader('Quick tools'),
-          _WaterCard(day: _selected),
-          _NoteCard(day: _selected),
-        ],
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------------ week strip
-
-class _WeekStrip extends StatelessWidget {
-  const _WeekStrip({required this.selected, required this.onSelect});
-
-  final DateTime selected;
-  final ValueChanged<DateTime> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
-    final fdow = store.profile.firstDayOfWeek;
-    final start = addDays(selected, -((selected.weekday - fdow + 7) % 7));
-    final now = today();
-    final onToday = sameDay(selected, now);
-    final mid = addDays(start, 3);
-    final month = '${const [
-      'January', 'February', 'March', 'April', 'May', 'June', //
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ][mid.month - 1]} ${mid.year}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text(month, style: theme.textTheme.titleMedium)),
-            AnimatedSwitcher(
-              duration: Motion.medium,
-              child: onToday
-                  ? const SizedBox.shrink()
-                  : TextButton(
-                      key: const ValueKey('back-to-today'),
-                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                      onPressed: () => onSelect(now),
-                      child: const Text('Today'),
-                    ),
-            ),
-            IconButton(
-              tooltip: 'Previous week',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => onSelect(addDays(selected, -7)),
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            IconButton(
-              tooltip: 'Next week',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => onSelect(addDays(selected, 7)),
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-          ],
-        ),
-        Gap.v8,
-        Row(
-          children: [
-            for (var i = 0; i < 7; i++)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.xxs),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 60),
-                      child: _DayPill(
-                        day: addDays(start, i),
-                        selected: sameDay(addDays(start, i), selected),
-                        onTap: onSelect,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ],
     );
-  }
-}
 
-class _DayPill extends StatelessWidget {
-  const _DayPill({required this.day, required this.selected, required this.onTap});
-
-  final DateTime day;
-  final bool selected;
-  final ValueChanged<DateTime> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final tokens = BloomTokens.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final pregnant = store.profile.goal == Goal.trackPregnancy;
-    final info = store.engine.info(day);
-    final isToday = sameDay(day, today());
-    final hasLog = !(store.logs[dayKey(day)]?.isEmpty ?? true);
-
-    Color? fill;
-    var text = scheme.onSurface;
-    Border? border;
-    if (!pregnant) {
-      if (info.isPeriod) {
-        fill = BloomColors.period;
-        text = Colors.white;
-      } else if (info.isPredictedPeriod) {
-        fill = BloomColors.predicted.withValues(alpha: dark ? 0.22 : 0.18);
-        border = Border.all(color: BloomColors.predicted, width: 1.5);
-        text = readableTint(BloomColors.period, theme.brightness);
-      } else if (info.isFertile) {
-        fill = BloomColors.fertile.withValues(alpha: dark ? 0.24 : 0.16);
-        text = readableTint(BloomColors.ovulation, theme.brightness);
-      }
-      if (info.isOvulation) border = Border.all(color: BloomColors.ovulation, width: 2);
-    }
-
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final label = '${fmtLong(day)}'
-        '${info.isPeriod ? ', period' : ''}${info.isPredictedPeriod ? ', predicted period' : ''}'
-        '${info.isFertile ? ', fertile' : ''}${info.isOvulation ? ', ovulation' : ''}'
-        '${hasLog ? ', has log' : ''}';
-
-    final selectedBg = dark ? scheme.surfaceContainerHigh : Colors.white;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      child: AnimatedContainer(
-        duration: Motion.medium,
-        curve: Motion.curve,
-        decoration: BoxDecoration(
-          color: selected ? selectedBg : Colors.transparent,
-          borderRadius: Radii.pillAll,
-          border: Border.all(
-            color: selected ? scheme.primary.withValues(alpha: dark ? 0.7 : 0.45) : Colors.transparent,
-            width: 1.4,
-          ),
-          boxShadow: selected ? tokens.cardShadow : const [],
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: () => onTap(day),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: Space.sm),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isToday ? 'Today' : weekdays[day.weekday - 1],
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                    style: theme.textTheme.labelSmall!.copyWith(
-                      fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
-                      color: isToday ? scheme.primary : tokens.muted,
-                    ),
-                  ),
-                  Gap.v4,
-                  AnimatedContainer(
-                    duration: Motion.medium,
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: fill, border: border),
-                    child: Text(
-                      '${day.day}',
-                      style: theme.textTheme.labelLarge!.copyWith(
-                        color: text,
-                        fontWeight: isToday || selected ? FontWeight.w800 : FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Gap.v4,
-                  AnimatedContainer(
-                    duration: Motion.medium,
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: hasLog ? scheme.primary.withValues(alpha: 0.7) : Colors.transparent,
-                    ),
-                  ),
-                ],
-              ),
+    return Scaffold(
+      body: BloomPage(
+        eyebrow: cycleGoal && story.cycleNo != null ? 'Cycle ${story.cycleNo.toString().padLeft(2, '0')} · $date' : date,
+        header: header,
+        children: [
+          if (goal == Goal.trackPregnancy) ...[
+            const PregnancyHome(),
+            _WeekLedger(selected: _selected, onSelect: _select),
+          ] else if (goal == Goal.postpartum) ...[
+            const PostpartumHome(),
+            _WeekLedger(selected: _selected, onSelect: _select),
+          ] else ...[
+            if (goal == Goal.perimenopause) const PerimenopauseHome(),
+            _Dial(story: story),
+            _WeekLedger(selected: _selected, onSelect: _select),
+            const Hairline(),
+            _Margin(story: story, showLateActions: goal == Goal.trackCycle || goal == Goal.getPregnant),
+          ],
+          _Actions(day: _selected, cycleGoal: cycleGoal),
+          if (cycleGoal && !simplified && goal == Goal.trackCycle)
+            Text(
+              'Predictions are estimates. Don’t use Bloom as birth control.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ),
-        ),
+          if (hasReminders) ...[Gap.v8, const DueRemindersBanner()],
+          const SectionHeader('Daily insights', label: 'Reading', subtitle: 'Short reads picked for this phase'),
+          const DailyInsightsStrip(),
+          _LogSummary(day: _selected),
+          if (goal != Goal.trackPregnancy) const _MyCycles(),
+          const SectionHeader('Water and note', label: 'Daybook'),
+          _WaterRow(day: _selected),
+          const Hairline(),
+          _NoteRow(day: _selected),
+          const Hairline(),
+        ],
       ),
     );
   }
 }
 
-// ------------------------------------------------------------------ cycle hero
+// ------------------------------------------------------------------ day story
+
+/// What a day means, in the order the hero checks it.
+enum _State { noData, period, late, dueToday, predictedPeriod, ovulation, fertile, phase }
+
+String _days(int n) => n == 1 ? '1 day' : '$n days';
 
 /// Next period start strictly after [d], logged or predicted.
 DateTime? _nextPeriodAfter(CycleEngine e, DateTime d) {
@@ -327,240 +166,486 @@ DateTime? _nextOvulation(CycleEngine e, DateTime d) {
   return null;
 }
 
-String _days(int n) => n == 1 ? '1 day' : '$n days';
+/// Everything the hero says about one day, computed once so the headline,
+/// the dial, and the note always agree.
+class _DayStory {
+  _DayStory({
+    required this.day,
+    required this.state,
+    required this.info,
+    required this.isToday,
+    required this.simplified,
+    this.cycleNo,
+    this.cycleDay,
+    this.periodDay = 0,
+    this.lateBy = 0,
+    this.nextPeriod,
+    this.nextOvulation,
+    this.preferOvulation = false,
+    required this.ring,
+  });
 
-/// A [CycleRing] for the cycle that contains [day], with the marker on [day].
-CycleRing _ringFor(CycleEngine e, DateTime day, {required double size, required Widget child}) {
-  const stroke = 16.0;
-  if (!e.hasData) {
-    final len = e.avgCycleLength;
-    return CycleRing(
-      cycleLength: len,
-      periodLength: e.avgPeriodLength,
-      ovulationDay: len - 13,
-      size: size,
-      stroke: stroke,
-      child: child,
-    );
-  }
-  final c = e.cycleFor(day);
-  if (c != null) {
-    final end = c.nextStart ?? e.nextPeriodStart!;
-    final inCycle = day.isBefore(end) || (c.isCurrent && !day.isAfter(e.today));
-    if (inCycle) {
-      return CycleRing(
-        cycleLength: math.max(daysBetween(c.start, end), 1),
-        periodLength: c.period.length,
-        ovulationDay: daysBetween(c.start, c.ovulation) + 1,
-        today: daysBetween(c.start, day) + 1,
-        size: size,
-        stroke: stroke,
-        child: child,
-      );
+  factory _DayStory.of(CycleEngine e, DateTime day, {bool simplified = false}) {
+    final d = dayOf(day);
+    final now = e.today;
+    final info = e.info(d);
+    final isToday = sameDay(d, now);
+    final ring = _RingSpec.of(e, d);
+
+    // The cycle number for the eyebrow: logged cycles first, then predictions.
+    int? cycleNo;
+    final c = e.cycleFor(d);
+    if (c != null) {
+      cycleNo = e.cycles.indexOf(c) + 1;
+      if (c.isCurrent && d.isAfter(now)) {
+        cycleNo += e.futureCycles(14).where((f) => !d.isBefore(f.start) && f.start.isAfter(c.start)).length;
+      }
     }
-  }
-  final len = e.avgCycleLength;
-  for (final f in e.futureCycles(14)) {
-    if (!day.isBefore(f.start) && day.isBefore(addDays(f.start, len))) {
-      return CycleRing(
-        cycleLength: len,
-        periodLength: e.avgPeriodLength,
-        ovulationDay: daysBetween(f.start, f.ovulation) + 1,
-        today: daysBetween(f.start, day) + 1,
-        size: size,
-        stroke: stroke,
-        child: child,
-      );
+
+    _DayStory make(_State s, {int periodDay = 0, int lateBy = 0, DateTime? next, DateTime? ov, bool preferOv = false}) =>
+        _DayStory(
+          day: d,
+          state: s,
+          info: info,
+          isToday: isToday,
+          simplified: simplified,
+          cycleNo: cycleNo,
+          cycleDay: info.cycleDay,
+          periodDay: periodDay,
+          lateBy: lateBy,
+          nextPeriod: next,
+          nextOvulation: ov,
+          preferOvulation: preferOv,
+          ring: ring,
+        );
+
+    if (!e.hasData) return make(_State.noData);
+    if (e.isOnPeriod(d)) {
+      final p = e.periods.lastWhere((p) => p.contains(d), orElse: () => e.periods.last);
+      return make(_State.period, periodDay: daysBetween(p.start, d) + 1, next: _nextPeriodAfter(e, d));
     }
+
+    // In the current cycle, on or after the predicted start, and not in the
+    // future: the period is due or late. Never count down to the cycle after.
+    final expected = e.nextPeriodStart;
+    if (c != null && c.isCurrent && expected != null && !d.isAfter(now) && !d.isBefore(expected)) {
+      final lateBy = daysBetween(expected, d);
+      return make(lateBy > 0 ? _State.late : _State.dueToday, lateBy: lateBy);
+    }
+
+    if (info.isPredictedPeriod) return make(_State.predictedPeriod, next: _nextPeriodAfter(e, d));
+    final next = _nextPeriodAfter(e, d);
+    final ov = simplified ? null : _nextOvulation(e, d);
+    final ovAhead = ov != null && (next == null || ov.isBefore(next)) ? ov : null;
+    final preferOv = e.profile.goal == Goal.getPregnant && ovAhead != null;
+    if (!simplified && info.isOvulation) return make(_State.ovulation, next: next, ov: ovAhead, preferOv: preferOv);
+    if (!simplified && info.isFertile) return make(_State.fertile, next: next, ov: ovAhead, preferOv: preferOv);
+    return make(_State.phase, next: next, ov: ovAhead, preferOv: preferOv);
   }
-  // A day before the first logged period.
-  return CycleRing(
-    cycleLength: len,
-    periodLength: e.avgPeriodLength,
-    ovulationDay: len - 13,
-    size: size,
-    stroke: stroke,
-    child: child,
-  );
-}
-
-/// What the hero says about a day.
-class _HeroText {
-  const _HeroText(this.label, this.value, {this.unit, this.caption});
-  final String label;
-  final String value;
-  final String? unit;
-  final String? caption;
-}
-
-class _CycleHero extends StatelessWidget {
-  const _CycleHero({required this.day, this.simplified = false});
 
   final DateTime day;
+  final _State state;
+  final DayInfo info;
+  final bool isToday;
   final bool simplified;
+  final int? cycleNo;
+  final int? cycleDay;
+  final int periodDay;
 
-  _HeroText _text(AppStore store) {
-    final e = store.engine;
-    final info = e.info(day);
-    final isToday = sameDay(day, today());
-    if (!e.hasData) return const _HeroText('Welcome', 'Log your period', caption: 'to see predictions');
-    if (e.isOnPeriod(day)) {
-      final p = e.periods.lastWhere((p) => p.contains(day), orElse: () => e.periods.last);
-      return _HeroText('Period', 'Day ${daysBetween(p.start, day) + 1}');
+  /// Days past the predicted start, for [_State.late].
+  final int lateBy;
+  final DateTime? nextPeriod;
+
+  /// The next ovulation, only when it comes before [nextPeriod].
+  final DateTime? nextOvulation;
+  final bool preferOvulation;
+  final _RingSpec ring;
+
+  static String _spelledDays(int n) => n == 1 ? 'one day' : '${Almanac.spell(n)} days';
+
+  /// The italic phrase of the headline and its meaning color.
+  (String, Color?) get phrase => switch (state) {
+        _State.noData => ('begin with your period.', null),
+        _State.period => (periodDay == 1 ? 'your period begins.' : 'period, day ${Almanac.spell(periodDay)}.', BloomColors.period),
+        _State.late => ('late by ${_spelledDays(lateBy)}.', BloomColors.warning),
+        _State.dueToday => ('period due today.', BloomColors.period),
+        _State.predictedPeriod => ('period expected.', BloomColors.predicted),
+        _State.ovulation => ('ovulation likely.', BloomColors.ovulation),
+        _State.fertile => ('fertile window.', BloomColors.fertile),
+        _State.phase => switch (info.phase) {
+            Phase.menstrual => ('your period.', BloomColors.period),
+            Phase.follicular => ('the follicular phase.', BloomColors.follicular),
+            Phase.ovulation => (simplified ? 'mid-cycle.' : 'fertile window.', simplified ? null : BloomColors.fertile),
+            Phase.luteal => ('the luteal phase.', BloomColors.luteal),
+            null => ('a quiet day.', null),
+          },
+      };
+
+  /// The italic caption under the dial numeral.
+  String get caption => switch (state) {
+        _State.noData => 'to see predictions',
+        _State.late => 'late by ${_spelledDays(lateBy)}',
+        _State.dueToday => 'period due today',
+        _State.period => 'period, day ${Almanac.spell(periodDay)}',
+        _ => 'of ${Almanac.spell(ring.length)}',
+      };
+
+  /// The marginal note: an italic lead word and a short explanation.
+  (String, String) get note => switch (state) {
+        _State.noData => (
+            'Begin here.',
+            'Log the first day of your last period, and Bloom will start to learn your rhythm.',
+          ),
+        _State.period => ('Menstrual.', 'Rest counts. Warmth, water, and iron-rich food can ease these days.'),
+        _State.late => (
+            'Late.',
+            'Stress, illness, travel, and changes in weight or sleep can delay a period. If you’ve had sex since '
+                'your last period, a home pregnancy test is most reliable from the first day of a missed period.',
+          ),
+        _State.dueToday => (
+            'Due today.',
+            'Your period is expected today. Arriving a day or two early or late is common.',
+          ),
+        _State.predictedPeriod => ('Menstrual.', 'Bloom expects your period around now. Predictions are estimates.'),
+        _State.ovulation => ('Ovulatory.', 'Energy and confidence often peak now. This is the most fertile day of the cycle.'),
+        _State.fertile => ('Fertile.', 'Your fertile window is open: pregnancy is possible on these days.'),
+        _State.phase => switch (info.phase) {
+            Phase.menstrual => ('Menstrual.', 'Rest counts. Warmth, water, and iron-rich food can ease these days.'),
+            Phase.follicular => ('Follicular.', 'Estrogen is rising. Many people feel energy and focus return.'),
+            Phase.ovulation => simplified
+                ? ('Mid-cycle.', 'Cycles can vary more in perimenopause. Logging helps you see your own pattern.')
+                : ('Fertile.', 'Your fertile window is open: pregnancy is possible on these days.'),
+            Phase.luteal => (
+                'Luteal.',
+                'Progesterone rises after ovulation. Some people notice cravings, tender breasts, or a shorter fuse.',
+              ),
+            null => ('Before your log.', 'This day comes before your first logged period.'),
+          },
+      };
+
+  /// The plain countdown sentence. Null when there is nothing ahead to say.
+  String? get ahead {
+    switch (state) {
+      case _State.noData:
+        return null;
+      case _State.late:
+        return isToday ? 'Period is ${_days(lateBy)} late.' : 'Period was ${_days(lateBy)} late on this day.';
+      case _State.dueToday:
+        return isToday ? 'Period expected today.' : 'Period was expected on this day.';
+      case _:
+        break;
     }
-    if (isToday && e.isLate) {
-      return _HeroText('Period is', '${e.daysLate}',
-          unit: e.daysLate == 1 ? 'day late' : 'days late', caption: 'Consider taking a pregnancy test');
+    String around(DateTime d) => DateFormat('d MMMM').format(d);
+    final parts = <String>[];
+    final next = nextPeriod;
+    final ov = nextOvulation;
+    String periodIn(DateTime n) {
+      final k = daysBetween(day, n);
+      return 'Period in ${_days(k)}, around ${around(n)}.';
     }
-    if (info.isPredictedPeriod) return _HeroText('Expected period', 'Day ${info.cycleDay}');
-    if (!simplified && info.isOvulation) {
-      return _HeroText('Ovulation', isToday ? 'Today' : fmtShort(day), caption: 'High chance of getting pregnant');
+
+    String ovIn(DateTime o) {
+      final k = daysBetween(day, o);
+      return k == 0 ? 'Ovulation likely today.' : 'Ovulation in ${_days(k)}.';
     }
-    if (!simplified && info.isFertile) {
-      return _HeroText('Fertile window', info.chance == Chance.high ? 'High' : 'Medium',
-          unit: 'chance', caption: 'of getting pregnant');
+
+    if (preferOvulation && ov != null) {
+      parts.add(ovIn(ov));
+      if (next != null) parts.add(periodIn(next));
+    } else {
+      if (next != null) parts.add(periodIn(next));
+      if (ov != null && state != _State.ovulation) parts.add(ovIn(ov));
     }
-    final next = _nextPeriodAfter(e, day);
-    final ov = simplified ? null : _nextOvulation(e, day);
-    final preferOv = store.profile.goal == Goal.getPregnant && ov != null && (next == null || ov.isBefore(next));
-    if (preferOv) {
-      final n = daysBetween(day, ov);
-      return _HeroText('Ovulation in', '$n',
-          unit: n == 1 ? 'day' : 'days', caption: next == null ? null : 'Period in ${_days(daysBetween(day, next))}');
-    }
-    if (next != null) {
-      final n = daysBetween(day, next);
-      return _HeroText('Period in', '$n',
-          unit: n == 1 ? 'day' : 'days',
-          caption: ov != null && ov.isBefore(next) ? 'Ovulation in ${_days(daysBetween(day, ov))}' : null);
-    }
-    return _HeroText('Cycle day', '${info.cycleDay ?? '-'}');
+    return parts.isEmpty ? null : parts.join(' ');
   }
+}
+
+/// The dial's numbers for the cycle that contains a day.
+class _RingSpec {
+  const _RingSpec({required this.length, required this.periodLength, required this.ovulationDay, this.today});
+
+  factory _RingSpec.of(CycleEngine e, DateTime day) {
+    if (!e.hasData) {
+      final len = e.avgCycleLength;
+      return _RingSpec(length: len, periodLength: e.avgPeriodLength, ovulationDay: len - 13);
+    }
+    final c = e.cycleFor(day);
+    if (c != null) {
+      final end = c.nextStart ?? e.nextPeriodStart!;
+      final inCycle = day.isBefore(end) || (c.isCurrent && !day.isAfter(e.today));
+      if (inCycle) {
+        final index = daysBetween(c.start, day) + 1;
+        // On the predicted start itself the period is due, not late: stretch
+        // the dial by one day so the marker doesn't read as late.
+        final length = sameDay(day, end) ? index : daysBetween(c.start, end);
+        return _RingSpec(
+          length: math.max(length, 1),
+          periodLength: c.period.length,
+          ovulationDay: daysBetween(c.start, c.ovulation) + 1,
+          today: index,
+        );
+      }
+    }
+    final len = e.avgCycleLength;
+    for (final f in e.futureCycles(14)) {
+      if (!day.isBefore(f.start) && day.isBefore(addDays(f.start, len))) {
+        return _RingSpec(
+          length: len,
+          periodLength: e.avgPeriodLength,
+          ovulationDay: daysBetween(f.start, f.ovulation) + 1,
+          today: daysBetween(f.start, day) + 1,
+        );
+      }
+    }
+    // A day before the first logged period.
+    return _RingSpec(length: len, periodLength: e.avgPeriodLength, ovulationDay: len - 13);
+  }
+
+  final int length;
+  final int periodLength;
+  final int ovulationDay;
+  final int? today;
+}
+
+// ------------------------------------------------------------------ headline and dial
+
+class _Headline extends StatelessWidget {
+  const _Headline({required this.story, required this.greeting});
+
+  final _DayStory story;
+  final String greeting;
+
+  @override
+  Widget build(BuildContext context) {
+    final (italic, color) = story.phrase;
+    final day = story.cycleDay;
+    final lead = story.state == _State.noData || day == null ? 'Welcome,' : 'Day ${Almanac.spell(day)},';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedSwitcher(
+          duration: Motion.medium,
+          switchInCurve: Motion.curve,
+          layoutBuilder: (current, previous) =>
+              Stack(alignment: Alignment.topLeft, children: [...previous, ?current]),
+          child: PhaseTitle(key: ValueKey('$lead$italic'), lead: lead, italic: italic, color: color),
+        ),
+        Gap.v8,
+        Text(greeting, style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: BloomColors.of(context).ink2)),
+      ],
+    );
+  }
+}
+
+class _Dial extends StatelessWidget {
+  const _Dial({required this.story});
+
+  final _DayStory story;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final r = story.ring;
+    final noData = story.state == _State.noData;
+    final center = AnimatedSwitcher(
+      duration: Motion.medium,
+      child: Column(
+        key: ValueKey('${story.cycleDay}|${story.caption}'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (noData)
+            Text('Log your period',
+                textAlign: TextAlign.center, style: Almanac.serif(size: 24, weight: 340, color: p.ink, height: 1.1))
+          else
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('${story.cycleDay ?? '–'}', style: Almanac.numeral(context, size: 64)),
+            ),
+          Gap.v4,
+          Text(
+            story.caption,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: Almanac.italic(
+              context,
+              size: 15,
+              color: story.state == _State.late ? readableTint(BloomColors.warning, Theme.of(context).brightness) : p.ink2,
+            ),
+          ),
+        ],
+      ),
+    );
+    return LayoutBuilder(builder: (context, box) {
+      final size = math.min(260.0, box.maxWidth - Space.lg * 2);
+      return Center(
+        child: CycleRing(
+          key: ValueKey('${r.length}|${r.periodLength}|${r.ovulationDay}'),
+          cycleLength: r.length,
+          periodLength: r.periodLength,
+          ovulationDay: r.ovulationDay,
+          today: r.today,
+          size: size,
+          stroke: 16,
+          child: center,
+        ),
+      );
+    });
+  }
+}
+
+// ------------------------------------------------------------------ week ledger
+
+class _WeekLedger extends StatelessWidget {
+  const _WeekLedger({required this.selected, required this.onSelect});
+
+  final DateTime selected;
+  final ValueChanged<DateTime> onSelect;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final e = store.engine;
-    final info = e.info(day);
+    final pregnant = store.profile.goal == Goal.trackPregnancy;
+    final fdow = store.profile.firstDayOfWeek;
+    final start = addDays(selected, -((selected.weekday - fdow + 7) % 7));
     final now = today();
-    final isToday = sameDay(day, now);
-    final onPeriod = e.isOnPeriod(day);
+    final onToday = sameDay(selected, now);
+    final month = DateFormat('MMMM y').format(addDays(start, 3));
+
+    LedgerDay styleFor(DateTime d) {
+      final hasLog = !(store.logs[dayKey(d)]?.isEmpty ?? true);
+      final dot = hasLog ? BloomColors.ink2 : null;
+      if (pregnant) return LedgerDay(dot: dot, semanticLabel: hasLog ? 'has log' : null);
+      final info = e.info(d);
+      final tags = <String>[
+        if (info.isPeriod) 'period',
+        if (info.isPredictedPeriod) 'predicted period',
+        if (info.isOvulation) 'ovulation' else if (info.isFertile) 'fertile',
+        if (hasLog) 'has log',
+      ];
+      final label = tags.isEmpty ? null : tags.join(', ');
+      if (info.isPeriod) return LedgerDay(color: BloomColors.period, dot: dot, semanticLabel: label);
+      if (info.isPredictedPeriod) {
+        return LedgerDay(color: BloomColors.period, predicted: true, dot: dot, semanticLabel: label);
+      }
+      if (info.isOvulation || info.isFertile) {
+        return LedgerDay(
+          color: info.isOvulation ? BloomColors.ovulation : BloomColors.fertile,
+          predicted: info.isPredicted,
+          dot: dot,
+          semanticLabel: label,
+        );
+      }
+      return LedgerDay(dot: dot, semanticLabel: label);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: MonoLabel(month)),
+            AnimatedSwitcher(
+              duration: Motion.medium,
+              child: onToday
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      key: const ValueKey('back-to-today'),
+                      padding: const EdgeInsets.only(right: Space.xs),
+                      child: InkLink('Today', size: 13, onTap: () => onSelect(now)),
+                    ),
+            ),
+            ThinIconButton(
+              icon: Icons.chevron_left,
+              tooltip: 'Previous week',
+              boxed: false,
+              onTap: () => onSelect(addDays(selected, -7)),
+            ),
+            ThinIconButton(
+              icon: Icons.chevron_right,
+              tooltip: 'Next week',
+              boxed: false,
+              onTap: () => onSelect(addDays(selected, 7)),
+            ),
+          ],
+        ),
+        Ledger(
+          days: [for (var i = 0; i < 7; i++) addDays(start, i)],
+          today: now,
+          selected: onToday ? null : selected,
+          styleFor: styleFor,
+          onTap: onSelect,
+        ),
+      ],
+    );
+  }
+}
+
+// ------------------------------------------------------------------ margin notes
+
+class _Margin extends StatelessWidget {
+  const _Margin({required this.story, required this.showLateActions});
+
+  final _DayStory story;
+  final bool showLateActions;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final text = _text(store);
-    final late = isToday && e.isLate && !onPeriod;
-    final accent = late
-        ? BloomColors.warning
-        : info.phase == null
-            ? BloomColors.brand
-            : phaseColor(info.phase!);
-    final accentText = readableTint(accent, theme.brightness);
-
-    final canLogPast = !day.isAfter(now);
-    final (String actionLabel, IconData actionIcon, VoidCallback action) = onPeriod && canLogPast
-        ? ('Period ended?', Icons.check_rounded, () => _confirmEnd(context, store))
-        : canLogPast
-            ? ('Log period', Icons.water_drop_rounded, () => store.startPeriod(day))
-            : ('Edit period dates', Icons.edit_calendar_rounded, () => _editDates(context));
-
-    final numeric = text.value.length <= 6;
-    final valueStyle = numeric
-        ? theme.textTheme.displayLarge!.copyWith(fontWeight: FontWeight.w700, height: 1.05)
-        : theme.textTheme.headlineMedium!.copyWith(fontWeight: FontWeight.w700);
-
-    final center = AnimatedSwitcher(
+    final (lead, body) = story.note;
+    final (_, color) = story.phrase;
+    final ahead = story.ahead;
+    final late = story.state == _State.late && story.isToday;
+    final italicColor = color == null ? p.ink : readableTint(color, theme.brightness);
+    return AnimatedSize(
       duration: Motion.medium,
-      switchInCurve: Motion.emphasized,
-      transitionBuilder: (child, a) => FadeTransition(
-        opacity: a,
-        child: ScaleTransition(scale: Tween(begin: 0.94, end: 1.0).animate(a), child: child),
-      ),
+      curve: Motion.curve,
+      alignment: Alignment.topCenter,
       child: Column(
-        key: ValueKey('${text.label}|${text.value}|${text.unit}'),
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            text.label.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium!.copyWith(color: accentText, letterSpacing: 1.2),
+          Marginalia(
+            label: 'Note',
+            child: Text.rich(TextSpan(children: [
+              TextSpan(text: '$lead ', style: Almanac.italic(context, size: 17, color: italicColor)),
+              TextSpan(text: body, style: theme.textTheme.bodyMedium!.copyWith(height: 1.55)),
+            ])),
           ),
-          Gap.v4,
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(text.value, textAlign: TextAlign.center, style: valueStyle),
-          ),
-          if (text.unit != null)
-            Text(text.unit!, style: theme.textTheme.titleMedium!.copyWith(color: tokens.muted)),
-          if (text.caption != null) ...[
-            Gap.v8,
-            Text(
-              text.caption!,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
+          if (ahead != null) ...[
+            Gap.v12,
+            Marginalia(
+              label: late ? 'Late' : 'Ahead',
+              labelColor: late ? BloomColors.warning : null,
+              child: Text(ahead, style: theme.textTheme.bodyMedium!.copyWith(height: 1.55, color: p.ink)),
+            ),
+          ],
+          if (late && showLateActions) ...[
+            Gap.v4,
+            Padding(
+              padding: const EdgeInsets.only(left: Space.margin),
+              child: Wrap(
+                spacing: Space.lg,
+                children: [
+                  InkLink('Log a test', size: 13.5, onTap: () => showLogSheet(context, today())),
+                  InkLink('Ask the assistant', size: 13.5, onTap: () => HomeShell.goTo(context, 3)),
+                ],
+              ),
             ),
           ],
         ],
       ),
     );
-
-    return LayoutBuilder(builder: (context, box) {
-      final size = math.min(272.0, box.maxWidth - Space.xxl * 2);
-      return BloomCard(
-        padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xl, Space.xxl, Space.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: Space.sm,
-              runSpacing: Space.sm,
-              children: [
-                if (!isToday) PillChip(fmtLong(day), icon: Icons.event_rounded, color: theme.colorScheme.secondary),
-                if (e.hasData && info.cycleDay != null)
-                  PillChip(
-                    'Cycle day ${info.cycleDay}${info.phase == null ? '' : ' · ${info.phase!.label}'}',
-                    color: accent,
-                  ),
-                if (e.hasData && !simplified && store.profile.goal != Goal.postpartum && info.cycleDay != null)
-                  PillChip('${info.chance.label} chance', icon: Icons.favorite_rounded, color: _chanceColor(info.chance)),
-              ],
-            ),
-            Gap.v16,
-            Center(child: _ringFor(e, day, size: size, child: center)),
-            Gap.v20,
-            GradientButton(
-              label: actionLabel,
-              icon: actionIcon,
-              expanded: true,
-              gradient: canLogPast ? BloomGradients.period : BloomGradients.brand,
-              onPressed: action,
-            ),
-            Gap.v4,
-            Center(
-              child: TextButton.icon(
-                onPressed: () => _editDates(context),
-                icon: const Icon(Icons.edit_calendar_rounded, size: 18),
-                label: const Text('Edit period dates'),
-              ),
-            ),
-            if (!simplified && store.profile.goal == Goal.trackCycle)
-              Text(
-                'Predictions are estimates. Do not use Bloom as birth control.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
-              ),
-          ],
-        ),
-      );
-    });
   }
+}
 
-  static Color _chanceColor(Chance c) => switch (c) {
-        Chance.high => BloomColors.ovulation,
-        Chance.medium => BloomColors.fertile,
-        Chance.low => BloomColors.luteal,
-      };
+// ------------------------------------------------------------------ actions
+
+class _Actions extends StatelessWidget {
+  const _Actions({required this.day, required this.cycleGoal});
+
+  final DateTime day;
+  final bool cycleGoal;
 
   void _editDates(BuildContext context) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const EditPeriodScreen()));
@@ -590,53 +675,49 @@ class _CycleHero extends StatelessWidget {
     );
     if (choice != null) store.endPeriod(choice);
   }
-}
-
-// ------------------------------------------------------------------ late card
-
-class _LateCard extends StatelessWidget {
-  const _LateCard();
 
   @override
   Widget build(BuildContext context) {
-    final e = context.watch<AppStore>().engine;
-    final theme = Theme.of(context);
-    return BloomCard.tinted(
-      color: BloomColors.warning,
+    final store = context.watch<AppStore>();
+    final now = today();
+    final isToday = sameDay(day, now);
+    final canLogPast = !day.isAfter(now);
+    final onPeriod = store.engine.isOnPeriod(day);
+    final logLabel = isToday ? 'Log today' : 'Log ${fmtShort(day)}';
+    final Widget? periodAction = !cycleGoal
+        ? null
+        : onPeriod && canLogPast
+            ? InkButton.outlined(
+                label: 'Period ended?',
+                icon: Icons.check,
+                color: BloomColors.period,
+                onPressed: () => _confirmEnd(context, store),
+              )
+            : canLogPast
+                ? InkButton.outlined(
+                    label: 'Log period',
+                    icon: Icons.water_drop_outlined,
+                    color: BloomColors.period,
+                    onPressed: () => store.startPeriod(day),
+                  )
+                : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const IconBadge(icon: Icons.hourglass_bottom_rounded, color: BloomColors.warning),
-              Gap.h12,
-              Expanded(child: Text('Your period is ${_days(e.daysLate)} late', style: theme.textTheme.titleMedium)),
-            ],
-          ),
-          Gap.v12,
-          Text(
-            'Stress, illness, travel, and changes in weight or sleep can delay a period. '
-            'If you have had sex since your last period, a home pregnancy test can help. '
-            'Tests are most reliable from the first day of a missed period.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          Gap.v16,
           Wrap(
-            spacing: Space.sm,
-            runSpacing: Space.sm,
+            spacing: Space.md,
+            runSpacing: Space.md,
             children: [
-              FilledButton.tonalIcon(
-                onPressed: () => showLogSheet(context, today()),
-                icon: const Text('🧪'),
-                label: const Text('Log a test'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => HomeShell.goTo(context, 3),
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
-                label: const Text('Ask the assistant'),
-              ),
+              InkButton(label: logLabel, icon: Icons.add, onPressed: () => showLogSheet(context, day)),
+              ?periodAction,
             ],
           ),
+          if (cycleGoal) ...[
+            Gap.v4,
+            InkLink('Edit period dates', size: 13.5, arrow: true, onTap: () => _editDates(context)),
+          ],
         ],
       ),
     );
@@ -655,24 +736,22 @@ String _metricText(String id, double v, Profile p) => switch (id) {
       _ => '$v',
     };
 
-/// The catalog option for a logged selection. Falls back to the same option
+/// The catalog label for a logged selection. Falls back to the same option
 /// id in another category (for data logged under an older category), and
 /// finally to a readable version of the id.
-({String label, String emoji, Color color}) _optionDisplay(String categoryId, String optionId) {
-  final cat = categoryById(categoryId);
-  final own = cat?.option(optionId);
-  if (own != null) return (label: own.label, emoji: own.emoji, color: Color(cat!.colorHex));
+String _optionLabel(String categoryId, String optionId) {
+  final own = categoryById(categoryId)?.option(optionId);
+  if (own != null) return own.label;
   for (final c in kCategories) {
     final o = c.option(optionId);
-    if (o != null) return (label: o.label, emoji: o.emoji, color: Color(cat?.colorHex ?? c.colorHex));
+    if (o != null) return o.label;
   }
   final words = optionId.replaceAll('_', ' ');
-  final label = words.isEmpty ? optionId : words[0].toUpperCase() + words.substring(1);
-  return (label: label, emoji: cat?.emoji ?? '📌', color: Color(cat?.colorHex ?? 0xFF8C8FA3));
+  return words.isEmpty ? optionId : words[0].toUpperCase() + words.substring(1);
 }
 
-class _LogSummaryCard extends StatelessWidget {
-  const _LogSummaryCard({required this.day});
+class _LogSummary extends StatelessWidget {
+  const _LogSummary({required this.day});
 
   final DateTime day;
 
@@ -680,80 +759,53 @@ class _LogSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final log = store.logFor(day);
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final chips = <Widget>[
+    final p = BloomColors.of(context);
+    final tags = <Widget>[
       for (final e in log.selections.entries)
-        for (final o in e.value)
-          for (final d in [_optionDisplay(e.key, o)]) PillChip(d.label, emoji: d.emoji, color: d.color),
-      for (final m in log.metrics.entries)
-        PillChip(
-          _metricText(m.key, m.value, store.profile),
-          emoji: metricById(m.key)?.emoji,
-          color: BloomColors.info,
-        ),
+        for (final o in e.value) PillChip(_optionLabel(e.key, o), color: categoryColor(e.key)),
+      for (final m in log.metrics.entries) PillChip(_metricText(m.key, m.value, store.profile), color: metricColor(m.key)),
     ];
     final isToday = sameDay(day, today());
-    final count = chips.length;
-    return BloomCard(
-      onTap: () => showLogSheet(context, day),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const IconBadge(icon: Icons.edit_note_rounded),
-              Gap.h12,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(isToday ? 'Log your symptoms' : 'Logged on ${fmtShort(day)}',
-                        style: theme.textTheme.titleMedium),
-                    Text(
-                      count == 0 ? 'Nothing logged yet' : count == 1 ? '1 entry' : '$count entries',
-                      style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
-                    ),
-                  ],
-                ),
-              ),
-              Gap.h8,
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(44, 44),
-                  padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-                ),
-                onPressed: () => showLogSheet(context, day),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Log'),
-              ),
-            ],
-          ),
-          Gap.v16,
-          AnimatedSize(
-            duration: Motion.medium,
-            curve: Motion.curve,
-            alignment: Alignment.topCenter,
-            child: chips.isEmpty
-                ? Text(
-                    'Track symptoms, mood, discharge, sleep, and more. It takes a few seconds.',
-                    style: theme.textTheme.bodyMedium!.copyWith(color: tokens.muted),
-                  )
-                : SizedBox(
+    final count = tags.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          isToday ? 'Logged today' : 'Logged on ${fmtShort(day)}',
+          label: count == 0 ? 'Journal' : count == 1 ? 'Journal · 1 entry' : 'Journal · $count entries',
+          actionLabel: count == 0 ? 'Log' : 'Edit',
+          onAction: () => showLogSheet(context, day),
+        ),
+        Gap.v12,
+        AnimatedSize(
+          duration: Motion.medium,
+          curve: Motion.curve,
+          alignment: Alignment.topCenter,
+          child: tags.isEmpty
+              ? Pressable(
+                  onTap: () => showLogSheet(context, day),
+                  child: SizedBox(
                     width: double.infinity,
-                    child: Wrap(spacing: Space.sm, runSpacing: Space.sm, children: chips),
+                    child: Text(
+                      'Nothing written here yet. Symptoms, mood, sleep, and more take a few seconds.',
+                      style: Almanac.italic(context, size: 16, color: p.ink2),
+                    ),
                   ),
-          ),
-        ],
-      ),
+                )
+              : SizedBox(
+                  width: double.infinity,
+                  child: Wrap(spacing: Space.sm, runSpacing: Space.sm, children: tags),
+                ),
+        ),
+      ],
     );
   }
 }
 
 // ------------------------------------------------------------------ my cycles
 
-class _MyCyclesSection extends StatelessWidget {
-  const _MyCyclesSection();
+class _MyCycles extends StatelessWidget {
+  const _MyCycles();
 
   void _open(BuildContext context) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AnalysisScreen()));
@@ -761,47 +813,45 @@ class _MyCyclesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = context.watch<AppStore>().engine;
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
     final next = e.nextPeriodStart;
-
-    Widget stat(IconData icon, Color color, String value, String label) => Expanded(
-          child: Column(
-            children: [
-              IconBadge(icon: icon, color: color, size: 36),
-              Gap.v8,
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(value, style: theme.textTheme.titleLarge, maxLines: 1),
-              ),
-              Text(label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted)),
-            ],
-          ),
-        );
-
-    Widget divider() => Container(width: 1, height: 56, color: tokens.border);
-
+    final due = (e.daysUntilNextPeriod ?? 1) <= 0 && !e.isOnPeriod(e.today);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader('My cycles', actionLabel: 'Details', onAction: () => _open(context)),
-        Gap.v12,
-        BloomCard(
-          onTap: () => _open(context),
-          padding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: Space.xl),
-          child: Row(
-            children: [
-              stat(Icons.loop_rounded, BloomColors.luteal, _days(e.avgCycleLength), 'Average cycle'),
-              divider(),
-              stat(Icons.water_drop_rounded, BloomColors.period, _days(e.avgPeriodLength), 'Average period'),
-              divider(),
-              stat(Icons.event_rounded, BloomColors.fertile, next == null ? '-' : fmtShort(next), 'Next period'),
-            ],
-          ),
+        SectionHeader('My cycles', label: 'Ledger', actionLabel: 'Details', onAction: () => _open(context)),
+        Gap.v8,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: StatTile(
+                value: '${e.avgCycleLength}',
+                unit: 'days',
+                label: 'Average cycle',
+                onTap: () => _open(context),
+              ),
+            ),
+            Gap.h16,
+            Expanded(
+              child: StatTile(
+                value: '${e.avgPeriodLength}',
+                unit: 'days',
+                label: 'Average period',
+                color: BloomColors.period,
+                onTap: () => _open(context),
+              ),
+            ),
+            Gap.h16,
+            Expanded(
+              child: StatTile(
+                value: next == null ? '–' : (due ? 'Due' : '${next.day}'),
+                unit: next == null ? null : (due ? 'now' : DateFormat('MMM').format(next)),
+                label: 'Next period',
+                color: BloomColors.predicted,
+                onTap: () => _open(context),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -810,8 +860,8 @@ class _MyCyclesSection extends StatelessWidget {
 
 // ------------------------------------------------------------------ water and note
 
-class _WaterCard extends StatelessWidget {
-  const _WaterCard({required this.day});
+class _WaterRow extends StatelessWidget {
+  const _WaterRow({required this.day});
 
   final DateTime day;
 
@@ -821,86 +871,63 @@ class _WaterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final ml = store.logFor(day).metrics['water'] ?? 0;
     final glasses = (ml / _glass).round();
     final reached = glasses >= _goalGlasses;
-    return BloomCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Row(
+      children: [
+        const SizedBox(width: Space.margin, child: MonoLabel('Water')),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const IconBadge(emoji: '💧', color: BloomColors.info),
-              Gap.h12,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Water', style: theme.textTheme.titleMedium),
-                    Text(
-                      reached ? 'Daily goal reached' : '$glasses of $_goalGlasses glasses',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '$glasses', style: Almanac.numeral(context, size: 26, weight: 340)),
+                  TextSpan(
+                    text: reached ? ' glasses, goal reached' : ' of $_goalGlasses glasses',
+                    style: Almanac.italic(context, size: 15, color: p.ink2),
+                  ),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Gap.v8,
+              Row(
+                children: [
+                  for (var i = 0; i < _goalGlasses; i++) ...[
+                    if (i > 0) const SizedBox(width: 3),
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: Motion.medium,
+                        curve: Motion.curve,
+                        height: i < glasses ? 3 : 1,
+                        color: i < glasses ? p.ink : p.hairline,
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
-              IconButton(
-                tooltip: 'Remove a glass',
-                onPressed: ml <= 0 ? null : () => store.setMetric(day, 'water', ml - _glass <= 0 ? null : ml - _glass),
-                icon: const Icon(Icons.remove_circle_outline_rounded),
-              ),
-              FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(44, 44),
-                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                ),
-                onPressed: () => store.setMetric(day, 'water', ml + _glass),
-                child: const Text('+250 ml'),
-              ),
+              Gap.v4,
+              Text('${ml.round()} ml · goal ${(_goalGlasses * _glass).round()} ml', style: Almanac.data(context, size: 11.5)),
             ],
           ),
-          Gap.v16,
-          Row(
-            children: [
-              for (var i = 0; i < _goalGlasses; i++) ...[
-                if (i > 0) Gap.h4,
-                Expanded(
-                  child: AnimatedContainer(
-                    duration: Motion.medium,
-                    curve: Motion.curve,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      borderRadius: Radii.pillAll,
-                      color: i < glasses ? BloomColors.info : tokens.subtle,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          Gap.v8,
-          Row(
-            children: [
-              Expanded(
-                child: Text('${ml.round()} ml',
-                    style: theme.textTheme.labelMedium!.copyWith(color: readableTint(BloomColors.info, theme.brightness))),
-              ),
-              Text('Goal ${(_goalGlasses * _glass).round()} ml',
-                  style: theme.textTheme.labelMedium!.copyWith(color: tokens.muted)),
-            ],
-          ),
-        ],
-      ),
+        ),
+        Gap.h8,
+        ThinStepper(
+          minusTooltip: 'Remove a glass',
+          plusTooltip: 'Add a glass, 250 ml',
+          onMinus: ml <= 0 ? null : () => store.setMetric(day, 'water', ml - _glass <= 0 ? null : ml - _glass),
+          onPlus: () => store.setMetric(day, 'water', ml + _glass),
+        ),
+      ],
     );
   }
 }
 
-class _NoteCard extends StatelessWidget {
-  const _NoteCard({required this.day});
+class _NoteRow extends StatelessWidget {
+  const _NoteRow({required this.day});
 
   final DateTime day;
 
@@ -910,13 +937,9 @@ class _NoteCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Note for ${fmtShort(day)}'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          minLines: 3,
-          maxLines: 8,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'Write anything you want to remember'),
+        content: SizedBox(
+          width: 420,
+          child: LinedPaperField(controller: ctrl, autofocus: true, hintText: 'Write anything you want to remember'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -931,33 +954,33 @@ class _NoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final note = store.logFor(day).note;
-    return BloomCard(
+    return Pressable(
       onTap: () => _edit(context, store, note),
-      padding: Insets.cardCompact,
-      child: Row(
-        children: [
-          const IconBadge(emoji: '📝', color: BloomColors.pregnancy),
-          Gap.h12,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Note', style: theme.textTheme.titleMedium),
-                Text(
+      semanticLabel: note.isEmpty ? 'Add a note' : 'Edit note',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.xs),
+        child: Marginalia(
+          label: 'Note',
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
                   note.isEmpty ? 'Add a quick note' : note,
-                  maxLines: 3,
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium!.copyWith(color: note.isEmpty ? tokens.muted : null),
+                  style: note.isEmpty
+                      ? Almanac.italic(context, size: 16, color: p.ink2)
+                      : Almanac.serif(size: 16, weight: 330, color: p.ink, height: 1.5),
                 ),
-              ],
-            ),
+              ),
+              Gap.h8,
+              Icon(note.isEmpty ? Icons.add : Icons.edit_outlined, size: 18, color: p.ink2),
+            ],
           ),
-          Gap.h8,
-          Icon(note.isEmpty ? Icons.add_rounded : Icons.edit_rounded, color: tokens.muted),
-        ],
+        ),
       ),
     );
   }

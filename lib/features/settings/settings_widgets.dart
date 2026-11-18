@@ -1,5 +1,6 @@
-/// Small layout helpers shared by the profile, settings, reminders,
-/// reports, and partner screens.
+/// Almanac layout helpers shared by the profile, settings, reminders,
+/// reports, and partner screens: settings pages, editorial index rows,
+/// steppers, underlined text choices, and confirmation dialogs.
 library;
 
 import 'package:material_ui/material_ui.dart';
@@ -22,18 +23,62 @@ class MaxWidth extends StatelessWidget {
   );
 }
 
-/// A pushed settings page: a [BloomPage] with a back button, a large title,
-/// and [children] spaced on the 4-pt grid.
+/// A pushed settings page: a [BloomPage] with a back link, an optional mono
+/// [eyebrow], a serif title, and [children] in the editorial column.
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key, required this.title, this.subtitle, required this.children, this.actions = const []});
+  const SettingsPage({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.eyebrow,
+    required this.children,
+    this.actions = const [],
+    this.spacing = Space.xxl,
+    this.header,
+  });
   final String title;
   final String? subtitle;
+  final String? eyebrow;
+
+  /// Replaces the serif title, for example with a `PhaseTitle`. [title]
+  /// still names the page for screen readers.
+  final Widget? header;
   final List<Widget> children;
   final List<Widget> actions;
 
+  /// Vertical space between sections.
+  final double spacing;
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: BloomPage(title: title, subtitle: subtitle, actions: actions, children: children),
+    body: BloomPage(
+      title: title,
+      subtitle: subtitle,
+      eyebrow: eyebrow,
+      header: header == null
+          ? null
+          : Semantics(
+              header: true,
+              label: title,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ExcludeSemantics(child: header!),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: Space.sm),
+                      child: Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodyLarge!.copyWith(color: BloomColors.of(context).ink2),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+      actions: actions,
+      spacing: spacing,
+      children: children,
+    ),
   );
 }
 
@@ -62,7 +107,8 @@ class SettingsList extends StatelessWidget {
   );
 }
 
-/// A card that holds a group of rows, with inset hairline dividers.
+/// A group of rows ruled with hairlines (no box), like [MenuSection] without
+/// a label.
 class SettingsCard extends StatelessWidget {
   const SettingsCard({super.key, required this.children, this.padding, this.dividers = true});
   final List<Widget> children;
@@ -71,15 +117,13 @@ class SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = BloomTokens.of(context);
-    return BloomCard(
-      padding: padding ?? const EdgeInsets.symmetric(vertical: Space.xs),
+    return Padding(
+      padding: padding ?? EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < children.length; i++) ...[
-            if (i > 0 && dividers && padding == null)
-              Divider(height: 1, indent: Space.lg, endIndent: Space.lg, color: tokens.border),
+            if (i > 0 && dividers) const Hairline(),
             children[i],
           ],
         ],
@@ -90,21 +134,99 @@ class SettingsCard extends StatelessWidget {
 
 /// Muted explanatory text.
 class HelpText extends StatelessWidget {
-  const HelpText(this.text, {super.key, this.padding = const EdgeInsets.symmetric(horizontal: Space.xs)});
+  const HelpText(this.text, {super.key, this.padding = EdgeInsets.zero});
   final String text;
   final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: padding,
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.bodySmall!.copyWith(color: BloomTokens.of(context).muted, height: 1.45),
-    ),
+    child: Text(text, style: Theme.of(context).textTheme.bodySmall!.copyWith(height: 1.5)),
   );
 }
 
-/// A compact `-  value  +` pill. The value change animates.
+/// One entry in an editorial index: an optional mono [number] in the
+/// margin, a Fraunces [title], a muted [subtitle], and a mono [value] or a
+/// thin arrow. Put several in a [MenuSection] so hairlines separate them.
+class IndexEntry extends StatelessWidget {
+  const IndexEntry({
+    super.key,
+    required this.title,
+    this.number,
+    this.subtitle,
+    this.value,
+    this.trailing,
+    this.onTap,
+    this.color,
+  });
+
+  final String title;
+
+  /// Shown in the margin, for example "01".
+  final String? number;
+  final String? subtitle;
+
+  /// Short mono value before the arrow, for example "On".
+  final String? value;
+
+  /// Replaces [value] and the arrow.
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  /// Title color. Leave null for ink; pass a meaning color only (oxblood for
+  /// a destructive entry).
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = BloomColors.of(context);
+    final c = color == null ? p.ink : readableTint(color!, theme.brightness);
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 60),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.md),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (number != null)
+              SizedBox(
+                width: 40,
+                child: Text(number!, style: Almanac.label(context, size: 10.5), semanticsLabel: ''),
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: Almanac.serif(size: 19, weight: 380, color: c, height: 1.2)),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(subtitle!, style: theme.textTheme.bodySmall!.copyWith(fontSize: 13, height: 1.4)),
+                    ),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[Gap.h12, trailing!],
+            if (trailing == null && value != null) ...[
+              Gap.h12,
+              Text(value!.toUpperCase(), style: Almanac.label(context, size: 10.5)),
+            ],
+            if (trailing == null && onTap != null) ...[
+              Gap.h12,
+              Text('→', style: Almanac.sans(size: 15, color: p.ink2, height: 1)),
+            ],
+          ],
+        ),
+      ),
+    );
+    return onTap == null ? row : Pressable(onTap: onTap, child: row);
+  }
+}
+
+/// A quiet "−  28  +" stepper: thin glyph buttons around a serif numeral,
+/// with the unit set in italic.
 class BloomStepper extends StatelessWidget {
   const BloomStepper({
     super.key,
@@ -121,6 +243,8 @@ class BloomStepper extends StatelessWidget {
   final int max;
   final String suffix;
   final ValueChanged<int> onChanged;
+
+  /// Ignored in Almanac (steppers are ink); kept for older code.
   final Color? color;
 
   /// Formats the value. Overrides [suffix].
@@ -135,60 +259,63 @@ class BloomStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final c = color ?? theme.colorScheme.primary;
-    final fg = readableTint(c, theme.brightness);
-    Widget button(IconData icon, String tip, VoidCallback? onTap) => SizedBox(
-      width: 40,
-      height: 40,
-      child: IconButton(
-        tooltip: tip,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: onTap == null ? Colors.transparent : c.withValues(alpha: 0.14),
-          foregroundColor: fg,
-          disabledForegroundColor: tokens.muted.withValues(alpha: 0.4),
+    final p = BloomColors.of(context);
+    final text = display?.call(value) ?? format(value, suffix);
+    // Split "28 days" into a numeral and an italic unit.
+    final space = text.indexOf(' ');
+    final numeral = space < 0 ? text : text.substring(0, space);
+    final unit = space < 0 ? null : text.substring(space + 1);
+
+    Widget button(String glyph, String tip, VoidCallback? onTap) => Pressable(
+      onTap: onTap == null
+          ? null
+          : () {
+              Almanac.tick();
+              onTap();
+            },
+      tooltip: tip,
+      semanticLabel: tip,
+      borderRadius: Radii.smAll,
+      child: SizedBox(
+        width: 40,
+        height: 44,
+        child: Center(
+          child: Text(
+            glyph,
+            style: Almanac.sans(size: 22, weight: FontWeight.w400, color: onTap == null ? p.hairline : p.ink, height: 1),
+          ),
         ),
-        icon: Icon(icon, size: 20),
-        onPressed: onTap,
       ),
     );
-    return Container(
-      padding: const EdgeInsets.all(Space.xxs),
-      decoration: BoxDecoration(color: tokens.subtle, borderRadius: Radii.pillAll),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          button(Icons.remove_rounded, 'Decrease', value > min ? () => onChanged(value - 1) : null),
-          SizedBox(
-            width: 68,
-            child: AnimatedSwitcher(
-              duration: Motion.fast,
-              transitionBuilder: (child, a) => FadeTransition(
-                opacity: a,
-                child: ScaleTransition(scale: Tween(begin: 0.8, end: 1.0).animate(a), child: child),
-              ),
-              child: Text(
-                display?.call(value) ?? format(value, suffix),
-                key: ValueKey(value),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                style: theme.textTheme.titleSmall!.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button('−', 'Decrease', value > min ? () => onChanged(value - 1) : null),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 56),
+          child: AnimatedSwitcher(
+            duration: Motion.fast,
+            transitionBuilder: (child, a) => FadeTransition(opacity: a, child: child),
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: numeral, style: Almanac.numeral(context, size: 26, weight: 340)),
+                if (unit != null) TextSpan(text: ' $unit', style: Almanac.italic(context, size: 14, color: p.ink2)),
+              ]),
+              key: ValueKey(text),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              semanticsLabel: text,
             ),
           ),
-          button(Icons.add_rounded, 'Increase', value < max ? () => onChanged(value + 1) : null),
-        ],
-      ),
+        ),
+        button('+', 'Increase', value < max ? () => onChanged(value + 1) : null),
+      ],
     );
   }
 }
 
-/// A row with a label, optional subtitle and badge, and a [BloomStepper].
+/// A row with a label, an optional subtitle, and a [BloomStepper].
 class StepperTile extends StatelessWidget {
   const StepperTile({
     super.key,
@@ -210,93 +337,188 @@ class StepperTile extends StatelessWidget {
   final int max;
   final String suffix;
   final ValueChanged<int> onChanged;
+
+  /// Ignored in Almanac (no icon badges); kept for older code.
   final IconData? icon;
+
+  /// Ignored in Almanac; kept for older code.
   final Color? color;
   final String Function(int value)? display;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    return LayoutBuilder(
-      builder: (context, box) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md),
-        child: Row(
-          children: [
-            // On narrow phones the badge gives way to the label.
-            if (icon != null && box.maxWidth >= 340) ...[IconBadge(icon: icon, color: color, size: 40), Gap.h16],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title, style: theme.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w700)),
-                  if (subtitle != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: Space.xxs),
-                      child: Text(subtitle!, style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted)),
-                    ),
-                ],
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Space.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: theme.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w500, height: 1.35)),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle!, style: theme.textTheme.bodySmall),
+                  ),
+              ],
             ),
-            Gap.h8,
-            BloomStepper(
-              value: value,
-              min: min,
-              max: max,
-              suffix: suffix,
-              onChanged: onChanged,
-              color: color,
-              display: display,
-            ),
-          ],
-        ),
+          ),
+          Gap.h8,
+          BloomStepper(value: value, min: min, max: max, suffix: suffix, onChanged: onChanged, display: display),
+        ],
       ),
     );
   }
 }
 
-/// A labelled [SegmentedButton] for a settings card, stretched to full width.
+/// One option for [TextChoices].
+class TextChoice<T> {
+  const TextChoice(this.value, this.label, {this.semanticLabel});
+  final T value;
+  final String label;
+  final String? semanticLabel;
+}
+
+/// A row of text options in place of a segmented control: the selected one
+/// is ink with an ink underline, the others are ink2.
+class TextChoices<T> extends StatelessWidget {
+  const TextChoices({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+    this.serif = false,
+    this.spacing = Space.lg,
+  });
+  final List<TextChoice<T>> options;
+  final T selected;
+  final ValueChanged<T> onChanged;
+
+  /// Sets the options in Fraunces (for tabs) instead of Hanken Grotesk.
+  final bool serif;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return Wrap(
+      spacing: spacing,
+      runSpacing: 0,
+      children: [
+        for (final o in options)
+          Builder(builder: (context) {
+            final on = o.value == selected;
+            final style = serif
+                ? Almanac.serif(size: 19, weight: on ? 400 : 340, color: on ? p.ink : p.ink2, height: 1.2)
+                : Almanac.sans(size: 15, weight: on ? FontWeight.w600 : FontWeight.w500, color: on ? p.ink : p.ink2, height: 1.2);
+            return Semantics(
+              inMutuallyExclusiveGroup: true,
+              checked: on,
+              child: Pressable(
+                onTap: on
+                    ? null
+                    : () {
+                        Almanac.tick();
+                        onChanged(o.value);
+                      },
+                semanticLabel: o.semanticLabel,
+                borderRadius: Radii.smAll,
+                child: SizedBox(
+                  height: 44,
+                  child: Center(
+                    widthFactor: 1,
+                    child: AnimatedContainer(
+                      duration: Motion.medium,
+                      curve: Motion.curve,
+                      padding: const EdgeInsets.only(bottom: 4),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: on ? p.ink : Colors.transparent, width: 1.5)),
+                      ),
+                      child: Text(o.label, style: style),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+/// A labelled [TextChoices] row for a settings list: the label on the left
+/// and the options on the right (they wrap below on narrow screens).
 class SegmentedSetting<T> extends StatelessWidget {
   const SegmentedSetting({
     super.key,
     required this.label,
-    required this.segments,
+    required this.options,
     required this.selected,
     required this.onChanged,
-    this.icon,
-    this.color,
+    this.subtitle,
   });
   final String label;
-  final IconData? icon;
-  final Color? color;
-  final List<ButtonSegment<T>> segments;
+  final String? subtitle;
+  final List<TextChoice<T>> options;
   final T selected;
   final ValueChanged<T> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: theme.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w500, height: 1.35)),
+        if (subtitle != null) Text(subtitle!, style: theme.textTheme.bodySmall),
+      ],
+    );
+    final choices = TextChoices<T>(options: options, selected: selected, onChanged: onChanged);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.lg),
+      padding: const EdgeInsets.symmetric(vertical: Space.sm),
+      child: LayoutBuilder(
+        builder: (context, box) => box.maxWidth < 420
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [Padding(padding: const EdgeInsets.only(top: Space.xs), child: title), choices],
+              )
+            : Row(children: [Expanded(child: title), Gap.h16, choices]),
+      ),
+    );
+  }
+}
+
+/// A section ruled in oxblood with a mono "Danger" label, for destructive
+/// actions.
+class DangerSection extends StatelessWidget {
+  const DangerSection({super.key, required this.title, required this.body, required this.action, this.label = 'Danger'});
+  final String label;
+  final String title;
+  final String body;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final theme = Theme.of(context);
+    final c = readableTint(BloomColors.error, theme.brightness);
+    return Container(
+      padding: const EdgeInsets.only(top: Space.md),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: p.error, width: 1.5))),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (icon != null) ...[IconBadge(icon: icon, color: color, size: 32), Gap.h12],
-              Expanded(
-                child: Text(label, style: theme.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          Gap.v12,
-          SegmentedButton<T>(
-            showSelectedIcon: false,
-            segments: segments,
-            selected: {selected},
-            onSelectionChanged: (s) => onChanged(s.first),
-          ),
+          MonoLabel(label, color: c),
+          Gap.v8,
+          Text(title, style: theme.textTheme.titleLarge!.copyWith(color: c)),
+          Gap.v4,
+          Text(body, style: theme.textTheme.bodyMedium!.copyWith(color: p.ink2)),
+          Gap.v16,
+          action,
         ],
       ),
     );
@@ -324,15 +546,11 @@ Future<bool> confirmDialog(
       content: Text(message),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-        FilledButton(
-          style: destructive
-              ? FilledButton.styleFrom(
-                  backgroundColor: Theme.of(c).colorScheme.error,
-                  foregroundColor: Theme.of(c).colorScheme.onError,
-                )
-              : null,
+        InkButton(
+          label: confirm,
+          dense: true,
+          color: destructive ? BloomColors.error : null,
           onPressed: () => Navigator.pop(c, true),
-          child: Text(confirm),
         ),
       ],
     ),

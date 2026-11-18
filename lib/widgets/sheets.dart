@@ -5,8 +5,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_theme.dart';
 
-/// Shows a rounded modal bottom sheet with a drag handle, capped at 640 px
-/// wide on desktop, that grows with its content and avoids the keyboard.
+/// Shows a paper bottom sheet with a thin drag handle and a hairline top
+/// edge, capped at 640 px wide on desktop, that grows with its content and
+/// avoids the keyboard.
 ///
 /// Wrap the content in [AppBottomSheet] for the standard title and padding:
 ///
@@ -31,12 +32,17 @@ Future<T?> showAppBottomSheet<T>(
     isDismissible: isDismissible,
     useRootNavigator: useRootNavigator,
     showDragHandle: true,
-    sheetAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 320), reverseDuration: Motion.medium),
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 360),
+      reverseDuration: Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    ),
   );
 }
 
-/// Standard bottom sheet content: a title and subtitle, a scrollable body,
-/// and a row of actions pinned to the bottom.
+/// Standard bottom sheet content: an optional mono [eyebrow], a serif title
+/// and muted subtitle, a scrollable body, and a row of actions pinned to the
+/// bottom.
 class AppBottomSheet extends StatelessWidget {
   const AppBottomSheet({
     super.key,
@@ -45,7 +51,11 @@ class AppBottomSheet extends StatelessWidget {
     required this.child,
     this.actions = const [],
     this.padding = Insets.sheet,
+    this.eyebrow,
   });
+
+  /// Small mono label above the title. Uppercased.
+  final String? eyebrow;
 
   final String? title;
   final String? subtitle;
@@ -71,11 +81,16 @@ class AppBottomSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (eyebrow != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Space.sm),
+                  child: Text(eyebrow!.toUpperCase(), style: Almanac.label(context), semanticsLabel: eyebrow),
+                ),
               if (title != null) Text(title!, style: theme.textTheme.headlineSmall),
               if (subtitle != null)
                 Padding(
                   padding: const EdgeInsets.only(top: Space.xs),
-                  child: Text(subtitle!, style: theme.textTheme.bodyMedium!.copyWith(color: BloomTokens.of(context).muted)),
+                  child: Text(subtitle!, style: theme.textTheme.bodyMedium!.copyWith(color: BloomColors.of(context).ink2)),
                 ),
               if (title != null || subtitle != null) Gap.v20,
               Flexible(child: SingleChildScrollView(child: child)),

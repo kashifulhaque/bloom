@@ -1,4 +1,5 @@
 import 'package:bloom/core/catalog.dart';
+import 'package:bloom/core/dates.dart';
 import 'package:bloom/core/models.dart';
 import 'package:bloom/core/store.dart';
 import 'package:bloom/features/log/log_sheet.dart';
@@ -41,7 +42,7 @@ void main() {
     }
   });
 
-  testWidgets('Log summary shows catalog labels and emoji', (tester) async {
+  testWidgets('Log summary shows catalog labels as text tags', (tester) async {
     tester.view.physicalSize = const Size(400, 3000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -52,7 +53,8 @@ void main() {
     await tester.pumpWidget(_wrap(store, const TodayScreen()));
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('Everything is fine'), findsOneWidget);
-    expect(find.text('👍'), findsOneWidget);
+    // Almanac tags are text with a small dot; the option emoji isn't drawn.
+    expect(find.text('👍'), findsNothing);
     expect(find.text('Happy'), findsOneWidget);
     expect(find.text('fine'), findsNothing);
     expect(find.text('•'), findsNothing);
@@ -102,6 +104,61 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(store.engine.isLate, isTrue);
     expect(find.textContaining('late'), findsWidgets);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  /// Today is cycle day 31 of the current cycle, with a positive LH test on
+  /// cycle day 14 and three earlier cycles of [prevLength] days.
+  AppStore lateScenario(int prevLength) {
+    final store = AppStore.memory(profile: Profile()..onboarded = true);
+    final start = addDays(today(), -30);
+    for (var k = 3; k >= 0; k--) {
+      final s = addDays(start, -prevLength * k);
+      for (var i = 0; i < 5; i++) {
+        store.periodDays.add(dayKey(addDays(s, i)));
+      }
+    }
+    store.commit();
+    store.toggleOption(addDays(start, 13), 'ovulation_test', 'positive', single: true);
+    return store;
+  }
+
+  Future<void> pumpToday(WidgetTester tester, AppStore store) async {
+    tester.view.physicalSize = const Size(360, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_wrap(store, const TodayScreen()));
+    await tester.pump(const Duration(seconds: 2));
+    expect(tester.takeException(), isNull);
+  }
+
+  testWidgets('Today shows the late state, not a countdown, when the period is late', (tester) async {
+    final store = lateScenario(29);
+    expect(store.engine.info(today()).cycleDay, 31);
+    expect(store.engine.isLate, isTrue);
+    expect(store.engine.daysLate, 1);
+    await pumpToday(tester, store);
+    expect(find.textContaining('Period is 1 day late'), findsOneWidget);
+    expect(find.textContaining('late by one day'), findsWidgets);
+    expect(find.textContaining('Period in'), findsNothing);
+    expect(find.textContaining('in 30 days'), findsNothing);
+    expect(find.textContaining('in 29 days'), findsNothing);
+    expect(find.textContaining('Ovulation in'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('Today says the period is due, not "in 30 days", on the predicted day', (tester) async {
+    // The reported case: the predicted start is today, so the engine isn't
+    // late yet, and the hero used to skip to the cycle after.
+    final store = lateScenario(30);
+    expect(store.engine.info(today()).cycleDay, 31);
+    expect(store.engine.daysUntilNextPeriod, 0);
+    await pumpToday(tester, store);
+    expect(find.textContaining('Period expected today'), findsWidgets);
+    expect(find.textContaining('period due today'), findsWidgets);
+    expect(find.textContaining('in 30 days'), findsNothing);
+    expect(find.textContaining('Ovulation in'), findsNothing);
+
     await tester.pump(const Duration(seconds: 1));
   });
 

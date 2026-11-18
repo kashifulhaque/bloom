@@ -15,78 +15,47 @@ class AppLockSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final on = store.profile.pin != null;
-    final theme = Theme.of(context);
-    final c = on ? BloomColors.success : BloomColors.luteal;
     return SettingsPage(
+      eyebrow: 'Settings · App lock',
       title: 'App lock',
+      subtitle: on
+          ? 'Bloom asks for your PIN when it opens, and again after a minute in the background.'
+          : 'Ask for a 4-digit PIN whenever Bloom opens.',
+      header: AnimatedSwitcher(
+        duration: Motion.medium,
+        child: PhaseTitle(key: ValueKey(on), lead: 'The lock is', italic: on ? 'on.' : 'off.', breakLine: false),
+      ),
       children: [
-        BloomCard.tinted(
-          color: c,
-          child: Row(
-            children: [
-              AnimatedSwitcher(
-                duration: Motion.medium,
-                child: IconBadge(
-                  key: ValueKey(on),
-                  icon: on ? Icons.lock_rounded : Icons.lock_open_rounded,
-                  color: c,
-                  size: 56,
-                  filled: true,
-                ),
-              ),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(on ? 'PIN lock is on' : 'PIN lock is off', style: theme.textTheme.titleLarge),
-                    Gap.v4,
-                    Text(
-                      on
-                          ? 'Bloom asks for your PIN when it opens, and again after a minute in the background.'
-                          : 'Ask for a 4-digit PIN whenever Bloom opens.',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
         if (!on)
-          GradientButton(label: 'Set a PIN', icon: Icons.pin_rounded, onPressed: () => _push(context, PinSetupMode.set))
+          Align(
+            alignment: Alignment.centerLeft,
+            child: InkButton(label: 'Set a PIN', onPressed: () => _push(context, PinSetupMode.set)),
+          )
         else
           MenuSection(
             children: [
-              MenuTile(
-                icon: Icons.edit_rounded,
-                color: BloomColors.info,
-                title: 'Change PIN',
-                onTap: () => _push(context, PinSetupMode.change),
-              ),
-              MenuTile(
-                icon: Icons.lock_clock_rounded,
-                color: BloomColors.luteal,
+              IndexEntry(title: 'Change PIN', onTap: () => _push(context, PinSetupMode.change)),
+              IndexEntry(
                 title: 'Lock now',
-                showChevron: false,
+                subtitle: 'Close the notebook until you enter your PIN',
                 onTap: () {
                   Navigator.of(context).popUntil((r) => r.isFirst);
                   store.lock();
                 },
               ),
-              MenuTile(
-                icon: Icons.no_encryption_rounded,
+              IndexEntry(
                 title: 'Turn off PIN lock',
-                destructive: true,
+                color: BloomColors.error,
                 onTap: () => _push(context, PinSetupMode.remove),
               ),
             ],
           ),
-        const InfoBanner(
-          tone: BannerTone.info,
-          message:
-              'Your PIN is stored on this device as a salted hash, which hides it but isn\'t strong encryption. '
-              'If you forget it, the only way back in is to erase Bloom\'s data, so keep a backup from My data.',
+        const Marginalia(
+          label: 'Note',
+          child: Text(
+            'Your PIN is stored on this device as a salted hash, which hides it but isn\'t strong encryption. '
+            'If you forget it, the only way back in is to erase Bloom\'s data, so keep a backup from My data.',
+          ),
         ),
       ],
     );
@@ -164,7 +133,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     return Scaffold(
       body: BloomPage(
         children: [
-          Gap.v24,
+          Gap.v8,
           Center(
             child: PinPad(
               title: title,
@@ -172,31 +141,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               onCompleted: _onPin,
               header: Column(
                 children: [
-                  IconBadge(
-                    icon: _step == _Step.confirm ? Icons.verified_rounded : Icons.pin_rounded,
-                    color: BloomColors.brand,
-                    size: 64,
-                  ),
-                  if (steps.length > 1) ...[
-                    Gap.v16,
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < steps.length; i++)
-                          AnimatedContainer(
-                            duration: Motion.medium,
-                            curve: Motion.curve,
-                            margin: const EdgeInsets.symmetric(horizontal: Space.xs),
-                            width: i == index ? 24 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              borderRadius: Radii.pillAll,
-                              color: Theme.of(context).colorScheme.primary.withValues(alpha: i <= index ? 1 : 0.2),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
+                  const BloomLogo(size: 44),
+                  Gap.v16,
+                  MonoLabel(steps.length > 1 ? 'Step ${index + 1} of ${steps.length}' : 'App lock'),
                 ],
               ),
             ),

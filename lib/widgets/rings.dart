@@ -1,4 +1,4 @@
-/// Custom-painted rings: [ProgressRing] and [CycleRing].
+/// Custom-painted rings: [ProgressRing] and [CycleRing] (the Almanac dial).
 library;
 
 import 'dart:math' as math;
@@ -9,12 +9,11 @@ import '../core/dates.dart';
 import '../core/engine.dart';
 import '../theme/app_theme.dart';
 
-/// A circular progress ring with a gradient stroke, a rounded cap, and a
-/// center child. Changes to [value] animate.
+/// A thin progress ring: a hairline track with an ink arc and a center
+/// child. Changes to [value] animate.
 ///
 /// ```dart
-/// ProgressRing(value: 0.6, gradient: BloomGradients.fertile,
-///     child: Text('60%'))
+/// ProgressRing(value: 0.6, color: BloomColors.fertile, child: Text('60%'))
 /// ```
 class ProgressRing extends StatelessWidget {
   const ProgressRing({
@@ -31,24 +30,26 @@ class ProgressRing extends StatelessWidget {
   /// Progress from 0 to 1.
   final double value;
   final double size;
+
+  /// Scales the arc: the drawn width is about a quarter of this, 2 to 4 px.
   final double stroke;
 
-  /// Stroke gradient. Takes precedence over [color].
+  /// Kept for older code: its first color is used as [color].
   final Gradient? gradient;
 
-  /// Solid stroke color. Defaults to the primary color.
+  /// Arc color. Defaults to ink.
   final Color? color;
 
-  /// Track color. Defaults to the subtle token.
+  /// Track color. Defaults to the hairline color.
   final Color? trackColor;
 
   final Widget? child;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final c = color ?? theme.colorScheme.primary;
-    final colors = gradient?.colors ?? [c, c];
+    final p = BloomColors.of(context);
+    final raw = color ?? gradient?.colors.first;
+    final c = raw == null ? p.ink : BloomColors.resolve(context, raw);
     return SizedBox.square(
       dimension: size,
       child: TweenAnimationBuilder<double>(
@@ -58,9 +59,9 @@ class ProgressRing extends StatelessWidget {
         builder: (context, v, child) => CustomPaint(
           painter: _ProgressPainter(
             value: v,
-            stroke: stroke,
-            colors: colors,
-            track: trackColor ?? BloomTokens.of(context).subtle,
+            width: (stroke * 0.28).clamp(2.0, 4.0),
+            color: c,
+            track: trackColor ?? p.hairline,
           ),
           child: child,
         ),
@@ -71,54 +72,67 @@ class ProgressRing extends StatelessWidget {
 }
 
 class _ProgressPainter extends CustomPainter {
-  _ProgressPainter({required this.value, required this.stroke, required this.colors, required this.track});
+  _ProgressPainter({required this.value, required this.width, required this.color, required this.track});
 
   final double value;
-  final double stroke;
-  final List<Color> colors;
+  final double width;
+  final Color color;
   final Color track;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final arcRect = rect.deflate(stroke / 2);
-    final base = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(arcRect, 0, math.pi * 2, false, base..color = track);
+    final center = size.center(Offset.zero);
+    final r = size.shortestSide / 2 - width / 2 - 1;
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = track,
+    );
     if (value <= 0) return;
-    final sweep = math.pi * 2 * value;
-    // The shader supplies color, but the paint's alpha still applies, so reset
-    // it; otherwise a translucent track color would dim the progress arc too.
-    base.color = const Color(0xFFFFFFFF);
-    base.shader = SweepGradient(
-      startAngle: 0,
-      endAngle: math.max(sweep, 0.01),
-      colors: colors,
-      transform: const GradientRotation(-math.pi / 2),
-    ).createShader(rect);
-    canvas.drawArc(arcRect, -math.pi / 2, sweep, false, base);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: r),
+      -math.pi / 2,
+      math.pi * 2 * value,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..color = color,
+    );
   }
 
   @override
   bool shouldRepaint(_ProgressPainter old) =>
-      old.value != value || old.stroke != stroke || old.track != track || old.colors != colors;
+      old.value != value || old.width != width || old.track != track || old.color != color;
 }
 
-/// A full-cycle ring: colored segments for the period, follicular, fertile,
-/// ovulation, and luteal days, with a marker on today. It sweeps in when it
-/// first appears and animates when its inputs change.
+/// The Almanac dial: the whole cycle as a thin hairline circle with one
+/// tick per day (a longer tick and a tiny mono day number every 7 days).
 ///
-/// Build it from the engine:
+/// * The period is a thick oxblood ink arc on the circle.
+/// * The fertile window is a sage arc just inside it, with a dot on the
+///   ovulation day.
+/// * The luteal phase is a thin dotted plum arc.
+/// * Days after today are predictions, drawn dotted.
+/// * Today is a small filled ink dot.
+///
+/// The arcs draw in like ink on first build. Put a serif numeral and an
+/// italic caption in [child]:
 ///
 /// ```dart
-/// final ring = CycleRing.fromEngine(store.engine, size: 260,
-///     child: Column(mainAxisSize: MainAxisSize.min, children: [...]));
+/// CycleRing.fromEngine(store.engine, size: 260, child: Column(
+///   mainAxisSize: MainAxisSize.min,
+///   children: [
+///     Text('14', style: Almanac.numeral(context)),
+///     Text('of twenty-nine', style: Almanac.italic(context, size: 15,
+///         color: BloomColors.of(context).ink2)),
+///   ],
+/// ));
 /// ```
-///
-/// Days already passed are drawn at full strength and upcoming days are
-/// lighter, so the ring reads as "where you are" at a glance.
 class CycleRing extends StatelessWidget {
   const CycleRing({
     super.key,
@@ -133,7 +147,7 @@ class CycleRing extends StatelessWidget {
     this.lateColor,
   });
 
-  /// Builds a ring for the current cycle. Returns a ring without a today
+  /// Builds a dial for the current cycle. Returns a dial without a today
   /// marker when there is no data.
   factory CycleRing.fromEngine(
     CycleEngine engine, {
@@ -170,7 +184,7 @@ class CycleRing extends StatelessWidget {
     );
   }
 
-  /// Days in the cycle (the ring's full circle).
+  /// Days in the cycle (the dial's full circle).
   final int cycleLength;
 
   /// Days of bleeding, starting at day 1.
@@ -181,16 +195,18 @@ class CycleRing extends StatelessWidget {
   final int ovulationDay;
 
   /// 1-based cycle day for the marker. Null hides the marker. Values past
-  /// [cycleLength] (a late period) pin the marker to the end of the ring.
+  /// [cycleLength] (a late period) pin the marker to the end of the dial.
   final int? today;
 
   final double size;
+
+  /// Scales the period arc: it's drawn at about a quarter of this width.
   final double stroke;
 
-  /// Content in the middle of the ring.
+  /// Content in the middle of the dial.
   final Widget? child;
 
-  /// Draws days after [today] lighter.
+  /// Draws days after [today] dotted, as predictions.
   final bool dimFuture;
 
   /// Marker color when the period is late. Defaults to the warning color.
@@ -198,181 +214,213 @@ class CycleRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final segments = _segments();
+    final p = BloomColors.of(context);
+    final s = size / 250;
+    final r = 99 * s;
     return Semantics(
       label: today == null ? 'Cycle of $cycleLength days' : 'Cycle day $today of $cycleLength',
       child: SizedBox.square(
         dimension: size,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 1100),
-          curve: Motion.emphasized,
+          duration: Motion.ink,
+          curve: Curves.linear,
           builder: (context, t, child) => CustomPaint(
-            painter: _CyclePainter(
-              progress: t,
-              segments: segments,
-              length: cycleLength,
+            painter: _DialPainter(
+              t: t,
+              length: math.max(cycleLength, 1),
+              periodLength: periodLength,
+              ovulationDay: ovulationDay,
               today: today,
-              stroke: stroke,
-              dimFuture: dimFuture,
-              track: BloomTokens.of(context).subtle,
-              markerFill: theme.brightness == Brightness.dark ? theme.colorScheme.surfaceContainerHigh : Colors.white,
-              lateColor: lateColor ?? BloomColors.warning,
+              periodWidth: (stroke / 4.5).clamp(3.0, 6.0) * s.clamp(0.7, 1.3),
+              dotted: dimFuture,
+              palette: p,
+              lateColor: lateColor == null ? p.warning : BloomColors.resolve(context, lateColor!),
+              numberStyle: Almanac.mono(size: (9 * s).clamp(8.0, 11.0), color: p.ink2),
             ),
             child: child,
           ),
           child: Center(
-            child: Padding(padding: EdgeInsets.all(stroke * 2), child: child),
+            child: Padding(padding: EdgeInsets.all(size / 2 - (r - 16 * s)), child: child),
           ),
         ),
       ),
     );
   }
-
-  List<_Segment> _segments() {
-    final len = math.max(cycleLength, 1);
-    final ov = ovulationDay.clamp(1, len);
-    final fStart = (ov - 5).clamp(1, len);
-    final fEnd = (ov + 1).clamp(1, len);
-    final pEnd = periodLength.clamp(1, len);
-    final out = <_Segment>[];
-    void add(int from, int to, Color c) {
-      if (to >= from) out.add(_Segment(from, to, c));
-    }
-
-    add(1, pEnd, BloomColors.period);
-    add(pEnd + 1, fStart - 1, BloomColors.follicular);
-    add(math.max(fStart, pEnd + 1), ov - 1, BloomColors.fertile);
-    add(ov, ov, BloomColors.ovulation);
-    add(ov + 1, fEnd, BloomColors.fertile);
-    add(fEnd + 1, len, BloomColors.luteal);
-    return out;
-  }
 }
 
-class _Segment {
-  const _Segment(this.from, this.to, this.color);
-  final int from;
-  final int to;
-  final Color color;
-}
-
-class _CyclePainter extends CustomPainter {
-  _CyclePainter({
-    required this.progress,
-    required this.segments,
+class _DialPainter extends CustomPainter {
+  _DialPainter({
+    required this.t,
     required this.length,
+    required this.periodLength,
+    required this.ovulationDay,
     required this.today,
-    required this.stroke,
-    required this.dimFuture,
-    required this.track,
-    required this.markerFill,
+    required this.periodWidth,
+    required this.dotted,
+    required this.palette,
     required this.lateColor,
+    required this.numberStyle,
   });
 
-  final double progress;
-  final List<_Segment> segments;
+  final double t;
   final int length;
+  final int periodLength;
+  final int ovulationDay;
   final int? today;
-  final double stroke;
-  final bool dimFuture;
-  final Color track;
-  final Color markerFill;
+  final double periodWidth;
+  final bool dotted;
+  final BloomPalette palette;
   final Color lateColor;
+  final TextStyle numberStyle;
 
   static const _start = -math.pi / 2;
 
+  /// Progress of a stage that runs from [a] to [b] of the whole animation.
+  double _stage(double a, double b) => Curves.easeOutCubic.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2 - stroke / 2 - 4;
-    final arcRect = Rect.fromCircle(center: center, radius: radius);
-    final perDay = math.pi * 2 / length;
-    // A small gap between segments, in radians, sized to the stroke.
-    final gap = math.min(stroke / radius * 0.3, perDay * 0.6);
-    final sweepLimit = math.pi * 2 * progress;
+    final s = size.shortestSide / 250;
+    final c = size.center(Offset.zero);
+    final r = 99 * s;
+    final inner = r - 12 * s;
+    final per = math.pi * 2 / length;
+    double angle(num day) => _start + (day - 0.5) * per;
+    Offset at(double radius, double a) => c + Offset(math.cos(a), math.sin(a)) * radius;
 
+    // 1. The hairline circle, ticks, and day numbers fade in first.
+    final base = _stage(0, 0.25);
     canvas.drawCircle(
-      center,
-      radius,
+      c,
+      r,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..color = track.withValues(alpha: 0.6),
+        ..strokeWidth = 1
+        ..color = palette.hairline.withValues(alpha: palette.hairline.a * base),
     );
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round;
-
-    final todayIdx = today?.clamp(1, length);
-    for (final s in segments) {
-      final a0 = (s.from - 1) * perDay + gap / 2;
-      final a1 = s.to * perDay - gap / 2;
-      // Round caps extend past the arc by half the stroke; trim the sweep to
-      // compensate so gaps stay visible.
-      final capTrim = stroke / 2 / radius;
-      var from = a0 + capTrim;
-      var to = a1 - capTrim;
-      if (to < from) {
-        final mid = (a0 + a1) / 2;
-        from = mid;
-        to = mid + 0.0001;
-      }
-      if (from >= sweepLimit) continue;
-      to = math.min(to, sweepLimit);
-
-      if (dimFuture && todayIdx != null) {
-        final split = todayIdx * perDay;
-        if (split > from) {
-          _arc(canvas, arcRect, paint, from, math.min(to, split), s.color);
-        }
-        if (split < to) {
-          _arc(canvas, arcRect, paint, math.max(from, split), to, s.color.withValues(alpha: 0.38));
-        }
-      } else {
-        _arc(canvas, arcRect, paint, from, to, s.color);
+    final tick = Paint()..strokeCap = StrokeCap.butt;
+    for (var d = 1; d <= length; d++) {
+      final long = d % 7 == 1;
+      final a = angle(d);
+      final len = (long ? 8 : 4.5) * s;
+      tick
+        ..strokeWidth = long ? 1 : 0.7
+        ..color = palette.ink2.withValues(alpha: (long ? 0.85 : 0.55) * base);
+      canvas.drawLine(at(r - len, a), at(r + len, a), tick);
+      if (long && base > 0) {
+        final tp = TextPainter(
+          text: TextSpan(text: '$d', style: numberStyle.copyWith(color: numberStyle.color!.withValues(alpha: base))),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final pos = at(r + 18 * s, a);
+        tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
       }
     }
 
-    // Today marker.
-    if (todayIdx != null && progress > 0.6) {
-      final appear = ((progress - 0.6) / 0.4).clamp(0.0, 1.0);
+    final len = length;
+    final ov = ovulationDay.clamp(1, len);
+    final pEnd = periodLength.clamp(1, len);
+    final fStart = math.max((ov - 5).clamp(1, len), pEnd + 1);
+    final fEnd = (ov + 1).clamp(1, len);
+    final now = today?.clamp(1, len);
+
+    // 2. Period: a thick oxblood arc on the circle.
+    _arc(canvas, c, r, angle, 1, pEnd, palette.period, periodWidth, now, _stage(0.12, 0.45));
+
+    // 3. Fertile window: a sage arc just inside, with the ovulation day.
+    if (fStart <= fEnd) {
+      _arc(canvas, c, inner, angle, fStart, fEnd, palette.fertile, 2.4 * s, now, _stage(0.35, 0.7));
+    }
+    final ovIn = _stage(0.6, 0.8);
+    if (ovIn > 0) {
+      final future = dotted && now != null && ov > now;
+      final pos = at(inner, angle(ov));
+      final dot = Paint()..color = palette.ovulation.withValues(alpha: ovIn);
+      if (future) {
+        canvas.drawCircle(pos, 3.6 * s, Paint()..color = palette.paper.withValues(alpha: ovIn));
+        canvas.drawCircle(
+          pos,
+          3.6 * s,
+          dot
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2,
+        );
+      } else {
+        canvas.drawCircle(pos, 3.6 * s, dot);
+      }
+    }
+
+    // 4. Luteal: a thin plum arc, dotted while it's a prediction.
+    if (fEnd + 1 <= len) {
+      _arc(canvas, c, inner, angle, fEnd + 1, len, palette.luteal, 1.3 * s, now, _stage(0.55, 0.9), alwaysDotted: true);
+    }
+
+    // 5. Today: a small filled ink dot on the circle.
+    final dotIn = _stage(0.8, 1);
+    if (today != null && dotIn > 0) {
       final late = today! > length;
-      final angle = _start + (late ? length * perDay : (todayIdx - 0.5) * perDay);
-      final pos = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      final segColor = late
-          ? lateColor
-          : segments
-              .firstWhere((s) => todayIdx >= s.from && todayIdx <= s.to, orElse: () => segments.last)
-              .color;
-      final r = (stroke / 2 + 6) * Curves.easeOutBack.transform(appear);
-      canvas.drawCircle(
-        pos + const Offset(0, 2),
-        r + 1,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.18)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
-      canvas.drawCircle(pos, r, Paint()..color = markerFill);
-      canvas.drawCircle(pos, r * 0.55, Paint()..color = segColor);
+      final a = late ? _start + length * per : angle(now!);
+      final pos = at(r, a);
+      final rad = 5.5 * s * dotIn;
+      canvas.drawCircle(pos, rad + 2.2 * s, Paint()..color = palette.paper);
+      canvas.drawCircle(pos, rad, Paint()..color = late ? lateColor : palette.ink);
     }
   }
 
-  void _arc(Canvas canvas, Rect rect, Paint paint, double from, double to, Color color) {
-    if (to <= from) return;
-    canvas.drawArc(rect, _start + from, to - from, false, paint..color = color);
+  /// Draws days [from] to [to] (inclusive) as an arc through their tick
+  /// centers. The part after [now] is dotted when [dotted] is on. [reveal]
+  /// sweeps the arc in from its start.
+  void _arc(
+    Canvas canvas,
+    Offset c,
+    double radius,
+    double Function(num) angle,
+    int from,
+    int to,
+    Color color,
+    double width,
+    int? now,
+    double reveal, {
+    bool alwaysDotted = false,
+  }) {
+    if (reveal <= 0 || to < from) return;
+    final a0 = angle(from) - (from == to ? 0.02 : 0);
+    final a1 = angle(to) + (from == to ? 0.02 : 0);
+    final end = a0 + (a1 - a0) * reveal;
+    final rect = Rect.fromCircle(center: c, radius: radius);
+    final solid = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+
+    // Where predictions begin: just after today's tick.
+    // Without a today marker, only always-dotted arcs are dotted.
+    final double split = (!dotted || now == null) ? (alwaysDotted ? a0 : double.infinity) : angle(now) + 0.0001;
+    final solidEnd = math.min(end, split);
+    if (solidEnd > a0) canvas.drawArc(rect, a0, solidEnd - a0, false, solid);
+    if (end > split) _dots(canvas, c, radius, math.max(a0, split), end, width, color);
+  }
+
+  void _dots(Canvas canvas, Offset c, double radius, double a0, double a1, double width, Color color) {
+    final paint = Paint()..color = color;
+    final step = (width * 2.4 + 2) / radius;
+    final dotR = math.max(width * 0.5, 0.9);
+    for (var a = a0 + step / 2; a <= a1 + 1e-6; a += step) {
+      canvas.drawCircle(c + Offset(math.cos(a), math.sin(a)) * radius, dotR, paint);
+    }
   }
 
   @override
-  bool shouldRepaint(_CyclePainter old) =>
-      old.progress != progress ||
+  bool shouldRepaint(_DialPainter old) =>
+      old.t != t ||
       old.length != length ||
+      old.periodLength != periodLength ||
+      old.ovulationDay != ovulationDay ||
       old.today != today ||
-      old.track != track ||
-      old.markerFill != markerFill ||
-      old.segments.length != segments.length ||
-      old.stroke != stroke;
+      old.periodWidth != periodWidth ||
+      old.dotted != dotted ||
+      old.palette != palette ||
+      old.lateColor != lateColor;
 }

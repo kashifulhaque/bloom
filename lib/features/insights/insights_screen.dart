@@ -1,4 +1,5 @@
-/// Insights tab: recommended reading, library, bookmarks, quizzes, journal.
+/// The Library tab: a small literary magazine of essays, an index of
+/// topics, saved essays, a puzzles page, and a private journal.
 library;
 
 import 'package:material_ui/material_ui.dart';
@@ -22,7 +23,6 @@ class InsightsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
     final read = InsightsData.readIds(store).length;
 
     return DefaultTabController(
@@ -30,34 +30,30 @@ class InsightsScreen extends StatelessWidget {
       child: Scaffold(
         body: SafeArea(
           bottom: false,
-          child: Column(children: [
-            MaxWidth(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const SizedBox(width: double.infinity),
-                  Text(
-                    'LIBRARY · $read OF ${kArticles.length} READ',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      letterSpacing: 1.1,
-                      fontWeight: FontWeight.w800,
-                    ),
+          child: Column(
+            children: [
+              MaxWidth(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(width: double.infinity),
+                      MonoLabel('${kArticles.length} essays · $read read'),
+                      Gap.v8,
+                      Text('Library', style: Theme.of(context).textTheme.headlineLarge),
+                    ],
                   ),
-                  Gap.v4,
-                  Text('Insights', style: theme.textTheme.headlineLarge),
-                ]),
+                ),
               ),
-            ),
-            Gap.v8,
-            MaxWidth(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+              Gap.v8,
+              const MaxWidth(
                 child: TabBar(
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
+                  padding: EdgeInsets.symmetric(horizontal: Space.gutter - Space.md),
                   dividerColor: Colors.transparent,
-                  tabs: const [
+                  tabs: [
                     Tab(text: 'For you'),
                     Tab(text: 'Explore'),
                     Tab(text: 'Saved'),
@@ -66,26 +62,22 @@ class InsightsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-            ),
-            Divider(height: 1, thickness: 1, color: BloomTokens.of(context).border),
-            const Expanded(
-              child: TabBarView(children: [
-                _ForYouTab(),
-                _ExploreTab(),
-                _SavedTab(),
-                _QuizzesTab(),
-                JournalView(),
-              ]),
-            ),
-          ]),
+              const MaxWidth(
+                child: Padding(padding: Insets.pageH, child: Hairline()),
+              ),
+              const Expanded(
+                child: TabBarView(children: [_ForYouTab(), _ExploreTab(), _SavedTab(), _QuizzesTab(), JournalView()]),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Body padding for a tab: the page gutter, with a little room on top.
-const _tabPadding = EdgeInsets.fromLTRB(Space.gutter, Space.xl, Space.gutter, Space.xxl);
+/// Body padding for a tab: the page gutter, with room on top.
+const _tabPadding = EdgeInsets.fromLTRB(Space.gutter, Space.xxl, Space.gutter, Space.xxl);
 
 class _ForYouTab extends StatelessWidget {
   const _ForYouTab();
@@ -103,17 +95,32 @@ class _ForYouTab extends StatelessWidget {
       showBack: false,
       padding: _tabPadding,
       children: [
-        if (recs.isNotEmpty) _FeaturedCard(article: recs.first),
+        if (recs.isNotEmpty) _Lead(article: recs.first),
         SectionHeader(
           'Picked for you',
-          subtitle: showPhase ? 'Based on ${goal.label.toLowerCase()} · ${phase.label.toLowerCase()}' : 'Based on ${goal.label.toLowerCase()}',
+          label: 'Contents',
+          subtitle: showPhase
+              ? 'Chosen for your ${phase.label.toLowerCase()}'
+              : 'Chosen for you: ${goal.label.toLowerCase()}',
+          padding: const EdgeInsets.only(top: Space.xxl),
         ),
-        for (final a in recs.skip(1)) ArticleTile(article: a),
+        ArticleList(articles: recs.skip(1).toList(), start: 2),
         if (quiz != null) ...[
-          const SectionHeader('Test yourself'),
-          _QuizCard(quiz: quiz, color: _quizColor(kQuizzes.indexOf(quiz))),
+          const SectionHeader(
+            'A puzzle for today',
+            label: 'Pastimes',
+            padding: EdgeInsets.only(top: Space.xxl),
+          ),
+          Column(
+            children: [
+              const Hairline(),
+              _QuizRow(quiz: quiz, number: kQuizzes.indexOf(quiz) + 1),
+              const Hairline(),
+            ],
+          ),
         ],
-        const Disclaimer(text: 'Educational content, not medical advice. See a clinician about your own health.'),
+        Gap.v8,
+        const Footnote('Educational content, not medical advice. See a clinician about your own health.'),
       ],
     );
   }
@@ -127,80 +134,53 @@ class _ForYouTab extends StatelessWidget {
   }
 }
 
-/// The one gradient hero on the "For you" tab.
-class _FeaturedCard extends StatelessWidget {
-  const _FeaturedCard({required this.article});
+/// The featured essay, set as an editorial lead: mono category and read
+/// time, a large serif title, and an italic standfirst.
+class _Lead extends StatelessWidget {
+  const _Lead({required this.article});
   final Article article;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    const white = Colors.white;
-    return BloomCard.gradient(
-      gradient: categoryGradient(article.category),
-      padding: EdgeInsets.zero,
-      onTap: () => openArticle(context, article.id),
-      child: Stack(children: [
-        // Decorative emoji art in the top-right corner.
-        Positioned(
-          right: -28,
-          top: -28,
-          child: Container(
-            width: 168,
-            height: 168,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: white.withValues(alpha: 0.12)),
-          ),
-        ),
-        Positioned(
-          right: 36,
-          top: 96,
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: white.withValues(alpha: 0.10)),
-          ),
-        ),
-        Positioned(
-          right: Space.xxl,
-          top: Space.xxl,
-          child: Text(article.emoji, style: const TextStyle(fontSize: 64, height: 1)),
-        ),
-        Padding(
-          padding: Insets.all24,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const PillChip('Featured read', icon: Icons.auto_awesome_rounded, color: white, solid: true, dense: true),
-            const SizedBox(height: 72),
-            Text(
-              article.category.label.toUpperCase(),
-              style: t.labelMedium?.copyWith(color: white.withValues(alpha: 0.85), letterSpacing: 1.1),
-            ),
-            Gap.v4,
-            Text(article.title, style: t.headlineSmall?.copyWith(color: white, height: 1.2)),
-            Gap.v16,
-            Row(children: [
-              Icon(Icons.schedule_rounded, size: 16, color: white.withValues(alpha: 0.85)),
-              Gap.h4,
+    final p = BloomColors.of(context);
+    final a = article;
+    final read = InsightsData.isRead(context.watch<AppStore>(), a.id);
+    return Pressable(
+      semanticLabel: 'Lead essay: ${a.title}',
+      onTap: () => openArticle(context, a.id),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const MonoLabel('The lead'),
               Expanded(
-                child: Text('${article.minutes} min read',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.bodyMedium?.copyWith(color: white.withValues(alpha: 0.9))),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                  child: Hairline(color: p.ink2.withValues(alpha: 0.4)),
+                ),
               ),
-              Gap.h8,
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
-                decoration: BoxDecoration(color: white, borderRadius: Radii.pillAll),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Read now',
-                      style: t.labelLarge?.copyWith(color: categoryGradient(article.category).colors.first)),
-                  Gap.h4,
-                  Icon(Icons.arrow_forward_rounded, size: 18, color: categoryGradient(article.category).colors.first),
-                ]),
-              ),
-            ]),
-          ]),
-        ),
-      ]),
+              MonoLabel('No. ${tocNumber(1)}'),
+            ],
+          ),
+          Gap.v20,
+          Text(a.title, style: Almanac.serif(size: 32, weight: 340, color: p.ink, height: 1.1)),
+          Gap.v12,
+          Text(
+            shortStandfirst(a, max: 170),
+            style: Almanac.italic(context, size: 18, color: p.ink2).copyWith(height: 1.4),
+          ),
+          Gap.v16,
+          MonoLabel('${a.category.label} · ${a.minutes} min read${read ? ' · Read' : ''}'),
+          Gap.v8,
+          InkLink(
+            read ? 'Read again' : 'Begin reading',
+            arrow: true,
+            size: 14,
+            onTap: () => openArticle(context, a.id),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -223,12 +203,13 @@ class _ExploreTabState extends State<_ExploreTab> {
   }
 
   void _clear() => setState(() {
-        _ctrl.clear();
-        _query = '';
-      });
+    _ctrl.clear();
+    _query = '';
+  });
 
   @override
   Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
     final searching = _query.trim().isNotEmpty;
     final results = searchArticles(_query);
     return BloomPage(
@@ -239,17 +220,19 @@ class _ExploreTabState extends State<_ExploreTab> {
           controller: _ctrl,
           onChanged: (v) => setState(() => _query = v),
           textInputAction: TextInputAction.search,
+          style: Almanac.serif(size: 19, weight: 350, color: p.ink),
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search_rounded),
-            hintText: 'Search cramps, PCOS, sleep...',
-            border: const OutlineInputBorder(borderRadius: Radii.pillAll),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: Radii.pillAll,
-              borderSide: BorderSide(color: BloomTokens.of(context).border),
-            ),
+            prefixIcon: Icon(Icons.search, size: 20, color: p.ink2),
+            prefixIconConstraints: const BoxConstraints(minWidth: 32),
+            hintText: 'Search the library',
+            hintStyle: Almanac.italic(context, size: 19, color: p.ink2),
             suffixIcon: _query.isEmpty
                 ? null
-                : IconButton(tooltip: 'Clear', icon: const Icon(Icons.close_rounded), onPressed: _clear),
+                : IconButton(
+                    tooltip: 'Clear',
+                    icon: Icon(Icons.close, size: 18, color: p.ink2),
+                    onPressed: _clear,
+                  ),
           ),
         ),
         AnimatedSwitcher(
@@ -257,7 +240,7 @@ class _ExploreTabState extends State<_ExploreTab> {
           switchInCurve: Motion.curve,
           child: searching
               ? _SearchResults(key: const ValueKey('results'), query: _query, results: results, onClear: _clear)
-              : const _CategoryGrid(key: ValueKey('grid')),
+              : const _CategoryIndex(key: ValueKey('index')),
         ),
       ],
     );
@@ -274,62 +257,175 @@ class _SearchResults extends StatelessWidget {
   Widget build(BuildContext context) {
     if (results.isEmpty) {
       return EmptyState(
-        emoji: '🤔',
-        title: 'No matches',
-        body: 'Nothing matches "${query.trim()}". Try a simpler word, such as cramps or sleep.',
+        glyph: Botanical.seedHead,
+        title: 'Nothing on that page',
+        body: 'No essay mentions "${query.trim()}". Try a simpler word, such as cramps or sleep.',
         actionLabel: 'Clear search',
         onAction: onClear,
         compact: true,
       );
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('${results.length} result${results.length == 1 ? '' : 's'}', style: Theme.of(context).textTheme.labelLarge),
-      Gap.v12,
-      for (final a in results) ...[ArticleTile(article: a), Gap.v12],
-    ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Gap.v8,
+        MonoLabel('${results.length} essay${results.length == 1 ? '' : 's'} for “${query.trim()}”'),
+        Gap.v12,
+        ArticleList(articles: results),
+      ],
+    );
   }
 }
 
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({super.key});
+/// The topics as a back-of-book index: alphabetical, with the initial in
+/// the margin, a dotted leader, and the essay count.
+class _CategoryIndex extends StatelessWidget {
+  const _CategoryIndex({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SectionHeader('Browse topics', padding: EdgeInsets.only(bottom: Space.md)),
-      LayoutBuilder(builder: (context, c) {
-        final cols = c.maxWidth > 480 ? 3 : 2;
-        return GridView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cols,
-            mainAxisSpacing: Space.md,
-            crossAxisSpacing: Space.md,
-            mainAxisExtent: 136,
-          ),
-          children: [
-            for (final cat in ArticleCategory.values)
-              BloomCard.tinted(
-                color: categoryColor(cat),
-                padding: Insets.cardCompact,
-                onTap: () => Navigator.of(context)
-                    .push(MaterialPageRoute<void>(builder: (_) => _CategoryScreen(category: cat))),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  IconBadge(emoji: cat.emoji, color: categoryColor(cat), size: 44),
-                  const Spacer(),
-                  Text(cat.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.titleSmall?.copyWith(height: 1.2)),
-                  Gap.v4,
-                  Text('${articlesIn(cat).length} articles', style: t.bodySmall),
-                ]),
-              ),
-          ],
-        );
-      }),
-    ]);
+    final cats = [...ArticleCategory.values]..sort((a, b) => a.label.compareTo(b.label));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(
+          'Index of topics',
+          label: 'A to Z',
+          padding: EdgeInsets.only(top: Space.lg, bottom: Space.md),
+        ),
+        LayoutBuilder(
+          builder: (context, box) {
+            final rows = [
+              for (var i = 0; i < cats.length; i++)
+                _IndexRow(category: cats[i], showInitial: i == 0 || cats[i - 1].label[0] != cats[i].label[0]),
+            ];
+            if (box.maxWidth < 520) {
+              return Column(children: [const Hairline(), ...rows, const Hairline()]);
+            }
+            final half = (rows.length / 2).ceil();
+            return Column(
+              children: [
+                const Hairline(),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: Column(children: rows.sublist(0, half))),
+                      const Hairline(vertical: true, spacing: Space.lg),
+                      Expanded(child: Column(children: rows.sublist(half))),
+                    ],
+                  ),
+                ),
+                const Hairline(),
+              ],
+            );
+          },
+        ),
+      ],
+    );
   }
+}
+
+class _IndexRow extends StatelessWidget {
+  const _IndexRow({required this.category, required this.showInitial});
+  final ArticleCategory category;
+  final bool showInitial;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final n = articlesIn(category).length;
+    return Pressable(
+      semanticLabel: '${category.label}, $n essays',
+      onTap: () =>
+          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _CategoryScreen(category: category))),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: Space.sm),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 32,
+                child: showInitial
+                    ? Text(category.label[0], style: Almanac.italic(context, size: 22, color: p.ink2))
+                    : null,
+              ),
+              // The leader runs the full width behind the entry and the count,
+              // which sit on paper, as in a printed index.
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    const SizedBox(width: double.infinity),
+                    const Positioned.fill(child: _DottedLeader()),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 40),
+                      child: ColoredBox(
+                        color: p.paper,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: Space.sm),
+                          child: Text(
+                            category.label,
+                            style: Almanac.serif(size: 18, weight: 360, color: p.ink, height: 1.2),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      child: ColoredBox(
+                        color: p.paper,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: Space.sm),
+                          child: Text(n.toString(), style: Almanac.data(context)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A dotted leader line, as between an index entry and its page number.
+class _DottedLeader extends StatelessWidget {
+  const _DottedLeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = BloomColors.of(context).ink2.withValues(alpha: 0.45);
+    return Align(
+      alignment: const Alignment(0, 0.45),
+      child: SizedBox(
+        height: 2,
+        width: double.infinity,
+        child: CustomPaint(painter: _DotsPainter(c)),
+      ),
+    );
+  }
+}
+
+class _DotsPainter extends CustomPainter {
+  _DotsPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    for (var x = size.width - 1.0; x > 0; x -= 5) {
+      canvas.drawCircle(Offset(x, size.height / 2), 0.8, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DotsPainter old) => old.color != color;
 }
 
 class _CategoryScreen extends StatelessWidget {
@@ -339,14 +435,12 @@ class _CategoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final articles = articlesIn(category);
+    final minutes = articles.fold<int>(0, (a, x) => a + x.minutes);
     return Scaffold(
       body: BloomPage(
-        heroColor: categoryColor(category),
-        eyebrow: '${category.emoji}  TOPIC',
+        eyebrow: 'Index · ${articles.length} essays · $minutes min',
         title: category.label,
-        subtitle: '${articles.length} articles · about ${articles.fold<int>(0, (a, x) => a + x.minutes)} min in all',
-        spacing: Space.md,
-        children: [for (final a in articles) ArticleTile(article: a)],
+        children: [ArticleList(articles: articles)],
       ),
     );
   }
@@ -363,35 +457,23 @@ class _SavedTab extends StatelessWidget {
     return BloomPage(
       showBack: false,
       padding: _tabPadding,
-      spacing: Space.md,
       children: [
         if (saved.isEmpty)
           EmptyState(
-            emoji: '📚',
+            glyph: Botanical.sprig,
             title: 'Nothing saved yet',
-            body: 'Tap the bookmark icon on any article to keep it here for later.',
-            actionLabel: 'Browse articles',
+            body: 'Tap the bookmark beside any essay to keep it here, like a ribbon in a book.',
+            actionLabel: 'Browse the index',
             onAction: () => DefaultTabController.of(context).animateTo(1),
           )
         else ...[
-          Text('${saved.length} saved article${saved.length == 1 ? '' : 's'}',
-              style: Theme.of(context).textTheme.labelLarge),
-          for (final a in saved) ArticleTile(article: a),
+          MonoLabel('${saved.length} saved essay${saved.length == 1 ? '' : 's'}'),
+          ArticleList(articles: saved),
         ],
       ],
     );
   }
 }
-
-/// Accent color for a quiz card, cycling through a soft palette.
-Color _quizColor(int i) => const [
-      BloomColors.luteal,
-      BloomColors.fertile,
-      BloomColors.follicular,
-      BloomColors.info,
-      BloomColors.brand,
-      BloomColors.pregnancy,
-    ][i % 6];
 
 class _QuizzesTab extends StatelessWidget {
   const _QuizzesTab();
@@ -402,83 +484,129 @@ class _QuizzesTab extends StatelessWidget {
     final couples = kQuizzes.where((q) => q.couples).toList();
     final solo = kQuizzes.where((q) => !q.couples).toList();
     final done = kQuizzes.where((q) => InsightsData.quizResult(store, q.id) != null).length;
+    final p = BloomColors.of(context);
     return BloomPage(
       showBack: false,
       padding: _tabPadding,
-      spacing: Space.md,
       children: [
-        Row(children: [
-          Expanded(
-            child: Text('Quick, playful checks of what you know. $done of ${kQuizzes.length} played.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: BloomTokens.of(context).muted)),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: 'Puzzles & pastimes. ', style: Almanac.italic(context, size: 20)),
+              TextSpan(
+                text: 'Short, playful checks of what you know. $done of ${kQuizzes.length} played.',
+                style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: p.ink2),
+              ),
+            ],
           ),
-        ]),
+        ),
         if (couples.isNotEmpty) ...[
-          const SectionHeader('Play together'),
-          for (final q in couples) _QuizCard(quiz: q, color: BloomColors.coral),
+          const SectionHeader(
+            'Play together',
+            label: 'For two',
+            padding: EdgeInsets.only(top: Space.xl),
+          ),
+          _QuizList(quizzes: couples),
         ],
-        const SectionHeader('Solo quizzes'),
-        for (var i = 0; i < solo.length; i++) _QuizCard(quiz: solo[i], color: _quizColor(i)),
+        const SectionHeader(
+          'Solo puzzles',
+          label: 'For one',
+          padding: EdgeInsets.only(top: Space.xl),
+        ),
+        _QuizList(quizzes: solo),
       ],
     );
   }
 }
 
-class _QuizCard extends StatelessWidget {
-  const _QuizCard({required this.quiz, required this.color});
+class _QuizList extends StatelessWidget {
+  const _QuizList({required this.quizzes});
+  final List<Quiz> quizzes;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (var i = 0; i < quizzes.length; i++) ...[
+        const Hairline(),
+        _QuizRow(quiz: quizzes[i], number: kQuizzes.indexOf(quizzes[i]) + 1),
+      ],
+      const Hairline(),
+    ],
+  );
+}
+
+/// One puzzle: "No. 3" in mono, the serif title, a muted description, and
+/// mono metadata with the last score.
+class _QuizRow extends StatelessWidget {
+  const _QuizRow({required this.quiz, required this.number});
   final Quiz quiz;
-  final Color color;
+  final int number;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final theme = Theme.of(context);
-    final t = theme.textTheme;
+    final p = BloomColors.of(context);
+    final t = Theme.of(context).textTheme;
     final r = InsightsData.quizResult(store, quiz.id);
     final q = quiz;
-    final perfect = r != null && r['score'] == r['total'];
+    final meta = [
+      q.couples ? 'Pass the phone' : null,
+      '${q.questions.length} questions',
+      if (r != null) 'Last ${r['score']}/${r['total']}${q.couples ? ' matches' : ''}',
+    ].whereType<String>().join(' · ');
 
-    return BloomCard.tinted(
-      color: color,
-      padding: Insets.cardCompact,
+    return Pressable(
+      semanticLabel: '${q.title}. $meta',
       onTap: () => openQuiz(context, q.id),
-      child: Row(children: [
-        IconBadge(emoji: q.emoji, color: color, size: 56),
-        Gap.h16,
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(q.title, style: t.titleMedium),
-            Gap.v4,
-            Text(q.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodySmall),
-            Gap.v8,
-            Wrap(spacing: Space.xs + 2, runSpacing: Space.xs + 2, children: [
-              PillChip(
-                q.couples ? 'Pass the phone · ${q.questions.length} questions' : '${q.questions.length} questions',
-                color: color,
-                dense: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.lg),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 52,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Text('No. $number', style: Almanac.data(context, size: 11.5)),
               ),
-              if (r != null)
-                PillChip(
-                  'Last: ${r['score']}/${r['total']}${q.couples ? ' matches' : ''}',
-                  icon: perfect ? Icons.emoji_events_rounded : Icons.star_rounded,
-                  color: perfect ? BloomColors.pregnancy : BloomColors.success,
-                  dense: true,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(q.title, style: Almanac.serif(size: 19, weight: 380, color: p.ink, height: 1.25)),
+                  Gap.v4,
+                  Text(q.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodySmall),
+                  Gap.v8,
+                  MonoLabel(meta, size: 10, maxLines: 1),
+                ],
+              ),
+            ),
+            Gap.h12,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: r == null ? 'Play' : 'Again',
+                      style: Almanac.sans(
+                        size: 13.5,
+                        weight: FontWeight.w500,
+                        color: p.ink,
+                      ).copyWith(decoration: TextDecoration.underline, decorationColor: p.ink.withValues(alpha: 0.5)),
+                    ),
+                    TextSpan(
+                      text: ' →',
+                      style: Almanac.sans(size: 13.5, weight: FontWeight.w500, color: p.ink),
+                    ),
+                  ],
                 ),
-            ]),
-          ]),
+              ),
+            ),
+          ],
         ),
-        Gap.h8,
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: readableTint(color, Brightness.light),
-            shape: BoxShape.circle,
-            boxShadow: BloomShadows.glow(color),
-          ),
-          child: Icon(r == null ? Icons.play_arrow_rounded : Icons.replay_rounded, color: Colors.white, size: 22),
-        ),
-      ]),
+      ),
     );
   }
 }

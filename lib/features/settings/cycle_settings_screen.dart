@@ -14,49 +14,35 @@ class CycleSettingsScreen extends StatelessWidget {
     final store = context.watch<AppStore>();
     final p = store.profile;
     final e = store.engine;
-    final theme = Theme.of(context);
+    final palette = BloomColors.of(context);
     final logged = e.cycleLengths.length;
     return SettingsPage(
+      eyebrow: 'Settings',
       title: 'Cycle & ovulation',
-      subtitle: 'The lengths Bloom starts from',
+      subtitle: 'The lengths Bloom starts from.',
       children: [
-        BloomCard.tinted(
-          color: BloomColors.brand,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const IconBadge(icon: Icons.auto_graph_rounded, color: BloomColors.brand, filled: true),
-                  Gap.h12,
-                  Expanded(
-                    child: Text(
-                      'Used for predictions now',
-                      style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-              Gap.v16,
-              Row(
-                children: [
-                  Expanded(
-                    child: _Figure(value: '${e.avgCycleLength}', label: 'day cycle'),
-                  ),
-                  Expanded(
-                    child: _Figure(value: '${e.avgPeriodLength}', label: 'day period'),
-                  ),
-                ],
-              ),
-              Gap.v12,
-              Text(
-                logged == 0
-                    ? 'Based on your settings below until you log a full cycle.'
-                    : 'Based on $logged logged cycle${logged == 1 ? '' : 's'} blended with your settings.',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const MonoLabel('Used for predictions now'),
+            Gap.v12,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _Figure(value: '${e.avgCycleLength}', label: 'day cycle')),
+                Expanded(
+                  child: _Figure(value: '${e.avgPeriodLength}', label: 'day period', color: palette.period),
+                ),
+              ],
+            ),
+            Gap.v12,
+            Text(
+              logged == 0
+                  ? 'Based on your settings below until you log a full cycle.'
+                  : 'Based on $logged logged cycle${logged == 1 ? '' : 's'}, blended with your settings.',
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: palette.ink2),
+            ),
+          ],
         ),
         MenuSection(
           title: 'Your usual lengths',
@@ -65,8 +51,6 @@ class CycleSettingsScreen extends StatelessWidget {
               'from ovulation tests or basal temperature.',
           children: [
             StepperTile(
-              icon: Icons.autorenew_rounded,
-              color: BloomColors.brand,
               title: 'Cycle',
               subtitle: 'First day of one period to the next',
               value: p.cycleLength,
@@ -75,8 +59,6 @@ class CycleSettingsScreen extends StatelessWidget {
               onChanged: (v) => store.updateProfile((p) => p.cycleLength = v),
             ),
             StepperTile(
-              icon: Icons.water_drop_rounded,
-              color: BloomColors.period,
               title: 'Period',
               value: p.periodLength,
               min: 1,
@@ -84,8 +66,6 @@ class CycleSettingsScreen extends StatelessWidget {
               onChanged: (v) => store.updateProfile((p) => p.periodLength = v),
             ),
             StepperTile(
-              icon: Icons.nights_stay_rounded,
-              color: BloomColors.luteal,
               title: 'Luteal phase',
               subtitle: 'Ovulation to your next period',
               value: p.lutealLength,
@@ -99,8 +79,6 @@ class CycleSettingsScreen extends StatelessWidget {
           title: 'Regularity',
           children: [
             MenuTile.toggle(
-              icon: Icons.shuffle_rounded,
-              color: BloomColors.follicular,
               title: 'My cycles are irregular',
               subtitle: 'Predictions become rough estimates.',
               value: p.irregular,
@@ -118,28 +96,21 @@ class CycleSettingsScreen extends StatelessWidget {
   }
 }
 
+/// A large serif numeral with an italic caption: "28 *day cycle*".
 class _Figure extends StatelessWidget {
-  const _Figure({required this.value, required this.label});
+  const _Figure({required this.value, required this.label, this.color});
   final String value;
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     return Text.rich(
       TextSpan(
         children: [
-          TextSpan(
-            text: value,
-            style: theme.textTheme.displaySmall!.copyWith(fontWeight: FontWeight.w700),
-          ),
-          TextSpan(
-            text: ' $label',
-            style: theme.textTheme.bodyMedium!.copyWith(
-              color: BloomTokens.of(context).muted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          TextSpan(text: value, style: Almanac.numeral(context, size: 56, color: color)),
+          TextSpan(text: ' $label', style: Almanac.italic(context, size: 17, color: p.ink2)),
         ],
       ),
     );

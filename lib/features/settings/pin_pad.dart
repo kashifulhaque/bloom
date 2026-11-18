@@ -7,11 +7,9 @@ import '../../widgets/widgets.dart';
 
 const kPinLength = 4;
 
-/// A 4-digit PIN entry with dots, a number pad, keyboard input, and a shake
-/// animation when [onCompleted] rejects the PIN.
-///
-/// Set [onGradient] when the pad sits on a dark or colorful gradient: text
-/// and keys turn white.
+/// A 4-digit PIN entry: four hairline underscores that fill with ink dots,
+/// a keypad of serif numerals, keyboard input, and a gentle shake when
+/// [onCompleted] rejects the PIN.
 class PinPad extends StatefulWidget {
   const PinPad({
     super.key,
@@ -33,6 +31,9 @@ class PinPad extends StatefulWidget {
 
   /// Shown above the title, for example an icon or logo.
   final Widget? header;
+
+  /// Ignored in Almanac (the pad is always ink on paper); kept for older
+  /// code.
   final bool onGradient;
 
   @override
@@ -103,48 +104,39 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final g = widget.onGradient;
-    final fg = g ? Colors.white : theme.colorScheme.onSurface;
-    final muted = g ? Colors.white.withValues(alpha: 0.82) : tokens.muted;
-    final accent = g ? Colors.white : theme.colorScheme.primary;
-    final errorColor = g ? Colors.white : theme.colorScheme.error;
-    final keyBg = g
-        ? Colors.white.withValues(alpha: 0.16)
-        : (theme.brightness == Brightness.dark ? theme.colorScheme.surfaceContainerHigh : Colors.white);
-    final keyBorder = g ? Colors.white.withValues(alpha: 0.22) : tokens.border;
+    final p = BloomColors.of(context);
+    final errorColor = readableTint(BloomColors.error, theme.brightness);
 
-    Widget key(String k, double size) {
-      if (k.isEmpty) return SizedBox(width: size, height: size);
+    Widget key(String k, double w) {
+      if (k.isEmpty) return SizedBox(width: w, height: 64);
       if (k == '<') {
         return SizedBox(
-          width: size,
-          height: size,
-          child: IconButton(
+          width: w,
+          height: 64,
+          child: Pressable(
+            onTap: _pin.isEmpty ? null : _back,
             tooltip: 'Delete',
-            onPressed: _pin.isEmpty ? null : _back,
-            color: fg,
-            disabledColor: muted.withValues(alpha: 0.4),
-            icon: const Icon(Icons.backspace_rounded, size: 26),
+            semanticLabel: 'Delete',
+            borderRadius: Radii.mdAll,
+            child: Center(
+              child: Icon(
+                Icons.backspace_outlined,
+                size: 22,
+                color: _pin.isEmpty ? p.ink2.withValues(alpha: 0.35) : p.ink2,
+              ),
+            ),
           ),
         );
       }
       return SizedBox(
-        width: size,
-        height: size,
-        child: Material(
-          color: keyBg,
-          shape: CircleBorder(side: BorderSide(color: keyBorder)),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => _add(k),
-            splashColor: accent.withValues(alpha: 0.2),
-            child: Center(
-              child: Text(
-                k,
-                style: theme.textTheme.headlineMedium!.copyWith(color: fg, fontWeight: FontWeight.w600),
-              ),
-            ),
+        width: w,
+        height: 64,
+        child: Pressable(
+          onTap: () => _add(k),
+          pressedOpacity: 0.35,
+          borderRadius: Radii.mdAll,
+          child: Center(
+            child: Text(k, style: Almanac.numeral(context, size: 34, weight: 320)),
           ),
         ),
       );
@@ -158,23 +150,19 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.header != null) ...[widget.header!, Gap.v20],
+            if (widget.header != null) ...[widget.header!, Gap.v24],
             AnimatedSwitcher(
               duration: Motion.medium,
               child: Column(
                 key: ValueKey(widget.title),
                 children: [
-                  Text(
-                    widget.title,
-                    style: theme.textTheme.headlineSmall!.copyWith(color: fg),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(widget.title, style: theme.textTheme.headlineMedium, textAlign: TextAlign.center),
                   if (widget.subtitle != null) ...[
                     Gap.v8,
                     Text(
                       widget.subtitle!,
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium!.copyWith(color: muted),
+                      style: theme.textTheme.bodyMedium!.copyWith(color: p.ink2),
                     ),
                   ],
                 ],
@@ -184,7 +172,7 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
             AnimatedBuilder(
               animation: _shake,
               builder: (context, child) => Transform.translate(
-                offset: Offset(math.sin(_shake.value * math.pi * 6) * 12 * (1 - _shake.value), 0),
+                offset: Offset(math.sin(_shake.value * math.pi * 4) * 7 * (1 - _shake.value), 0),
                 child: child,
               ),
               child: Semantics(
@@ -193,25 +181,33 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     for (var i = 0; i < kPinLength; i++)
-                      SizedBox(
-                        width: 36,
-                        height: 20,
-                        child: Center(
-                          child: AnimatedContainer(
-                            duration: Motion.fast,
-                            curve: Motion.spring,
-                            width: i < _pin.length ? 18 : 14,
-                            height: i < _pin.length ? 18 : 14,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: i < _pin.length ? accent : Colors.transparent,
-                              border: Border.all(
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                        child: SizedBox(
+                          width: 32,
+                          height: 28,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              AnimatedScale(
+                                duration: Motion.fast,
+                                curve: Motion.curve,
+                                scale: i < _pin.length ? 1 : 0,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: p.ink),
+                                ),
+                              ),
+                              Gap.v8,
+                              AnimatedContainer(
+                                duration: Motion.medium,
+                                height: 1.5,
                                 color: _error != null
                                     ? errorColor
-                                    : (i < _pin.length ? accent : muted.withValues(alpha: 0.6)),
-                                width: 2,
+                                    : (i < _pin.length ? p.ink : p.ink2.withValues(alpha: 0.5)),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ),
@@ -220,30 +216,24 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
               ),
             ),
             SizedBox(
-              height: 44,
+              height: 48,
               child: Center(
                 child: AnimatedSwitcher(
                   duration: Motion.fast,
                   child: _error == null
                       ? const SizedBox.shrink()
-                      : Row(
+                      : Text(
+                          _error!,
                           key: ValueKey(_error),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_rounded, size: 18, color: errorColor),
-                            Gap.h8,
-                            Flexible(
-                              child: Text(_error!, style: theme.textTheme.labelLarge!.copyWith(color: errorColor)),
-                            ),
-                          ],
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium!.copyWith(color: errorColor),
                         ),
                 ),
               ),
             ),
             LayoutBuilder(
               builder: (context, box) {
-                // 76 px keys, shrinking on very narrow screens.
-                final size = ((box.maxWidth - Space.lg * 2) / 3).clamp(48.0, 76.0);
+                final w = ((box.maxWidth - Space.lg * 2) / 3).clamp(56.0, 88.0);
                 return Column(
                   children: [
                     for (final row in const [
@@ -252,18 +242,15 @@ class _PinPadState extends State<PinPad> with SingleTickerProviderStateMixin {
                       ['7', '8', '9'],
                       ['', '0', '<'],
                     ])
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: Space.sm),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [for (final k in row) key(k, size)],
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [for (final k in row) key(k, w)],
                       ),
                   ],
                 );
               },
             ),
-            if (widget.footer != null) ...[Gap.v12, widget.footer!],
+            if (widget.footer != null) ...[Gap.v16, widget.footer!],
           ],
         ),
       ),

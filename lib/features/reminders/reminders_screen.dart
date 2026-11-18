@@ -18,7 +18,8 @@ import 'notification_service.dart';
 import 'reminder_model.dart';
 import 'scheduler.dart';
 
-/// The badge color for a reminder category.
+/// The meaning color of a reminder: oxblood for period reminders, sage for
+/// fertility. Screens draw it only as a small dot beside cycle reminders.
 Color reminderColor(ReminderType t) => switch (t.kind) {
   ReminderKind.cycle => switch (t) {
     ReminderType.fertileStart || ReminderType.ovulation => BloomColors.fertile,
@@ -50,6 +51,39 @@ String reminderSchedule(Reminder r, {Contraception? contraception}) {
           : '${contraception.method.label} · ${fmtTimeOfDay(contraception.hour, contraception.minute)}',
   };
 }
+
+/// What the reminder follows, without the time: "2 days before your
+/// period", "every Friday". The schedule column shows the time.
+String reminderCadence(Reminder r, {Contraception? contraception}) {
+  String plural(int n, String unit) => '$n $unit${n == 1 ? '' : 's'}';
+  return switch (r.type.kind) {
+    ReminderKind.cycle => switch (r.type) {
+      ReminderType.periodComing => '${plural(r.days, 'day')} before your period',
+      ReminderType.periodLate => '${plural(r.days, 'day')} after the predicted start',
+      ReminderType.periodStart => 'on the predicted first day',
+      ReminderType.fertileStart => 'as the fertile window opens',
+      _ => 'on the predicted ovulation day',
+    },
+    ReminderKind.daily => 'every day',
+    ReminderKind.interval => 'every ${plural(r.intervalHours, 'hour')} until ${_hour(r.endHour)}',
+    ReminderKind.weekly => 'every ${DateFormat('EEEE').format(DateTime(2024, 1, r.weekday))}',
+    ReminderKind.monthly => 'on day ${r.dayOfMonth} of each month',
+    ReminderKind.contraception =>
+      contraception == null || contraception.method == BirthControlMethod.none
+          ? 'choose a method first'
+          : contraception.method.label.toLowerCase(),
+  };
+}
+
+/// The time shown in the schedule column for [r].
+String _scheduleTime(Reminder r, Contraception? contraception) => switch (r.type.kind) {
+  ReminderKind.interval => _hour(r.startHour),
+  ReminderKind.contraception =>
+    contraception == null || contraception.method == BirthControlMethod.none
+        ? '—'
+        : fmtTimeOfDay(contraception.hour, contraception.minute),
+  _ => fmtTimeOfDay(r.hour, r.minute),
+};
 
 class RemindersScreen extends StatelessWidget {
   const RemindersScreen({super.key});
@@ -94,24 +128,14 @@ class RemindersScreen extends StatelessWidget {
 
     return Scaffold(
       body: BloomPage(
+        eyebrow: on == 0 ? 'None set' : '$on on',
         title: 'Reminders',
         subtitle: kIsWeb
-            ? 'In the browser, due reminders appear on the Today screen. On Android, they arrive as notifications.'
+            ? 'In the browser, due reminders appear on the Today page. On Android, they arrive as notifications.'
             : 'Reminders arrive as notifications. Bloom schedules them on this device only.',
+        spacing: Space.xxl,
         children: [
           _UpNext(upcoming: upcoming, enabledCount: on),
-          MenuSection(
-            children: [
-              MenuTile(
-                icon: Icons.visibility_off_rounded,
-                color: BloomColors.brand,
-                title: 'Notification privacy',
-                value: _privacyLabel(store.profile.notificationPrivacy),
-                onTap: () =>
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationPrivacyScreen())),
-              ),
-            ],
-          ),
           MenuSection(
             title: 'Cycle',
             footer: pregnant
@@ -125,11 +149,10 @@ class RemindersScreen extends StatelessWidget {
             title: 'Birth control',
             children: [
               _ReminderTile(type: ReminderType.contraception, settings: settings, contraception: contraception),
-              MenuTile(
-                emoji: contraception.method.emoji,
-                color: BloomColors.luteal,
-                title: 'Method: ${contraception.method.label}',
+              IndexEntry(
+                title: 'Method',
                 subtitle: contraception.status(DateTime.now()),
+                value: contraception.method.label,
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContraceptionScreen())),
               ),
             ],
@@ -137,6 +160,18 @@ class RemindersScreen extends StatelessWidget {
           MenuSection(
             title: 'Wellness',
             children: [for (final t in _wellnessTypes) _ReminderTile(type: t, settings: settings)],
+          ),
+          MenuSection(
+            title: 'Privacy',
+            children: [
+              IndexEntry(
+                title: 'Notification privacy',
+                subtitle: 'What a notification shows on the lock screen',
+                value: _privacyLabel(store.profile.notificationPrivacy),
+                onTap: () =>
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationPrivacyScreen())),
+              ),
+            ],
           ),
         ],
       ),
@@ -150,7 +185,19 @@ class RemindersScreen extends StatelessWidget {
   };
 }
 
-/// The hero: the next few reminders, or an empty state.
+/// A small dot for reminders that follow the cycle (oxblood for the period,
+/// sage for fertility). Other reminders have none.
+Widget? _meaningDot(BuildContext context, ReminderType t) {
+  if (t.kind != ReminderKind.cycle) return null;
+  return Container(
+    width: 6,
+    height: 6,
+    margin: const EdgeInsets.only(right: Space.sm),
+    decoration: BoxDecoration(color: BloomColors.resolve(context, reminderColor(t)), shape: BoxShape.circle),
+  );
+}
+
+/// The hero: the week ahead as an almanac schedule, or an empty state.
 class _UpNext extends StatelessWidget {
   const _UpNext({required this.upcoming, required this.enabledCount});
   final List<ReminderOccurrence> upcoming;
@@ -158,12 +205,12 @@ class _UpNext extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     if (upcoming.isEmpty) {
       return BloomCard(
         child: EmptyState(
           compact: true,
-          icon: Icons.notifications_none_rounded,
+          glyph: Botanical.sprig,
           title: enabledCount == 0 ? 'No reminders yet' : 'Nothing in the next week',
           body: enabledCount == 0
               ? 'Turn on a reminder below for a gentle nudge before your period, for your pill, or to drink water.'
@@ -171,80 +218,74 @@ class _UpNext extends StatelessWidget {
         ),
       );
     }
-    final next = upcoming.first;
-    final white70 = Colors.white.withValues(alpha: 0.82);
-    String when(DateTime d) {
-      final day = dayOf(d);
+    String day(DateTime d) {
       final t = today();
-      final label = sameDay(day, t)
-          ? 'Today'
-          : sameDay(day, addDays(t, 1))
-          ? 'Tomorrow'
-          : DateFormat('EEE, MMM d').format(d);
-      return '$label · ${fmtTimeOfDay(d.hour, d.minute)}';
+      final dd = dayOf(d);
+      if (sameDay(dd, t)) return 'Today';
+      if (sameDay(dd, addDays(t, 1))) return 'Tomorrow';
+      return DateFormat('EEE d').format(d);
     }
 
-    return BloomCard.gradient(
-      gradient: BloomGradients.brand,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const PillChip('Up next', solid: true, icon: Icons.notifications_active_rounded, color: Colors.white),
-              const Spacer(),
-              Text('$enabledCount on', style: theme.textTheme.labelLarge!.copyWith(color: white70)),
-            ],
-          ),
-          Gap.v16,
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: Radii.mdAll),
-                child: Text(next.type.emoji, style: const TextStyle(fontSize: 26)),
-              ),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(next.title, style: theme.textTheme.titleLarge!.copyWith(color: Colors.white)),
-                    Gap.v4,
-                    Text(when(next.when), style: theme.textTheme.bodyMedium!.copyWith(color: white70)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (upcoming.length > 1) ...[
-            Gap.v16,
-            Divider(height: 1, color: Colors.white.withValues(alpha: 0.25)),
-            Gap.v8,
-            for (final o in upcoming.skip(1))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                child: Row(
-                  children: [
-                    SizedBox(width: 28, child: Text(o.type.emoji, style: const TextStyle(fontSize: 16))),
-                    Expanded(
-                      child: Text(
-                        o.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium!.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const MonoLabel('The week ahead'),
+        Gap.v8,
+        for (var i = 0; i < upcoming.length; i++) ...[
+          const Hairline(),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: i == 0 ? Space.lg : Space.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 84,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 6 : 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MonoLabel(day(upcoming[i].when), color: i == 0 ? p.ink : null),
+                        Gap.v4,
+                        Text(
+                          fmtTimeOfDay(upcoming[i].when.hour, upcoming[i].when.minute),
+                          style: Almanac.data(context, size: 12),
+                        ),
+                      ],
                     ),
-                    Gap.h8,
-                    Text(when(o.when), style: theme.textTheme.bodySmall!.copyWith(color: white70)),
-                  ],
+                  ),
                 ),
-              ),
-          ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          ?_meaningDot(context, upcoming[i].type),
+                          Flexible(
+                            child: Text(
+                              upcoming[i].title,
+                              style: Almanac.serif(size: i == 0 ? 26 : 18, weight: i == 0 ? 350 : 380, color: p.ink, height: 1.15),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Gap.v4,
+                      Text(
+                        upcoming[i].body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Almanac.italic(context, size: i == 0 ? 16 : 14.5, color: p.ink2),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
+        const Hairline(),
+      ],
     );
   }
 }
@@ -262,6 +303,8 @@ Future<void> saveReminders(BuildContext context, ReminderSettings settings, {boo
   await NotificationService.sync(store);
 }
 
+/// One line of the schedule: a mono time in the margin, the reminder name
+/// in Fraunces, an italic cadence, and a switch.
 class _ReminderTile extends StatelessWidget {
   const _ReminderTile({required this.type, required this.settings, this.contraception});
   final ReminderType type;
@@ -271,20 +314,65 @@ class _ReminderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = settings[type];
-    return MenuTile(
-      emoji: type.emoji,
-      color: reminderColor(type),
-      title: type.title,
-      subtitle: r.enabled ? reminderSchedule(r, contraception: contraception) : type.description,
+    final p = BloomColors.of(context);
+    final theme = Theme.of(context);
+    final on = r.enabled;
+    return Pressable(
       onTap: () => type.kind == ReminderKind.contraception
           ? Navigator.push(context, MaterialPageRoute(builder: (_) => const ContraceptionScreen()))
           : showReminderEditor(context, type),
-      trailing: Switch(
-        value: r.enabled,
-        onChanged: (v) {
-          r.enabled = v;
-          saveReminders(context, settings, askPermission: v);
-        },
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 64),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: Space.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 72,
+                child: AnimatedDefaultTextStyle(
+                  duration: Motion.medium,
+                  style: Almanac.data(context, size: 12, color: on ? p.ink : p.ink2.withValues(alpha: 0.55)),
+                  child: Text(_scheduleTime(r, contraception)),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        ?_meaningDot(context, type),
+                        Flexible(
+                          child: Text(type.title, style: Almanac.serif(size: 18, weight: 380, color: p.ink, height: 1.2)),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: on
+                          ? Text(
+                              reminderCadence(r, contraception: contraception),
+                              style: Almanac.italic(context, size: 14.5, color: p.ink2),
+                            )
+                          : Text(type.description, style: theme.textTheme.bodySmall!.copyWith(fontSize: 13)),
+                    ),
+                  ],
+                ),
+              ),
+              Gap.h8,
+              InkSwitch(
+                value: on,
+                semanticLabel: type.title,
+                onChanged: (v) {
+                  r.enabled = v;
+                  saveReminders(context, settings, askPermission: v);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -305,8 +393,6 @@ class ReminderEditorSheet extends StatelessWidget {
     final settings = ReminderSettings.of(store);
     final r = settings[type];
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final color = reminderColor(type);
 
     void update(void Function(Reminder r) change, {bool ask = false}) {
       change(r);
@@ -334,7 +420,6 @@ class ReminderEditorSheet extends StatelessWidget {
           min: 1,
           max: 6,
           display: (v) => '$v h',
-          color: color,
           onChanged: (v) => update((r) => r.intervalHours = v),
         ),
         StepperTile(
@@ -343,7 +428,6 @@ class ReminderEditorSheet extends StatelessWidget {
           min: 5,
           max: r.endHour,
           display: _hour,
-          color: color,
           onChanged: (v) => update((r) => r.startHour = v),
         ),
         StepperTile(
@@ -352,24 +436,16 @@ class ReminderEditorSheet extends StatelessWidget {
           min: r.startHour,
           max: 23,
           display: _hour,
-          color: color,
           onChanged: (v) => update((r) => r.endHour = v),
         ),
       ] else
-        MenuTile(
-          icon: Icons.schedule_rounded,
-          color: color,
-          title: 'Time',
-          value: fmtTimeOfDay(r.hour, r.minute),
-          onTap: pickTime,
-        ),
+        MenuTile(title: 'Time', value: fmtTimeOfDay(r.hour, r.minute), onTap: pickTime),
       if (type == ReminderType.periodComing || type == ReminderType.periodLate)
         StepperTile(
           title: type == ReminderType.periodComing ? 'Days before' : 'Days after predicted start',
           value: r.days,
           min: 1,
           max: type == ReminderType.periodComing ? 7 : 10,
-          color: color,
           onChanged: (v) => update((r) => r.days = v),
         ),
       if (type.kind == ReminderKind.monthly)
@@ -379,38 +455,51 @@ class ReminderEditorSheet extends StatelessWidget {
           min: 1,
           max: 28,
           suffix: '',
-          color: color,
           onChanged: (v) => update((r) => r.dayOfMonth = v),
+        ),
+      if (type.kind == ReminderKind.weekly)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: Space.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: Space.xs),
+                child: Text('Day', style: theme.textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w500)),
+              ),
+              TextChoices<int>(
+                spacing: Space.md,
+                options: [
+                  for (var d = 1; d <= 7; d++)
+                    TextChoice(
+                      d,
+                      DateFormat('EEE').format(DateTime(2024, 1, d)),
+                      semanticLabel: DateFormat('EEEE').format(DateTime(2024, 1, d)),
+                    ),
+                ],
+                selected: r.weekday,
+                onChanged: (d) => update((r) => r.weekday = d),
+              ),
+            ],
+          ),
         ),
     ];
 
     return AppBottomSheet(
-      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
+      eyebrow: switch (type.kind) {
+        ReminderKind.cycle => 'Cycle reminder',
+        ReminderKind.contraception => 'Birth control',
+        _ => 'Wellness reminder',
+      },
+      title: type.title,
+      subtitle: type.description,
+      actions: [InkButton(label: 'Done', onPressed: () => Navigator.pop(context))],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              IconBadge(emoji: type.emoji, color: color, size: 52),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(type.title, style: theme.textTheme.headlineSmall),
-                    Gap.v4,
-                    Text(type.description, style: theme.textTheme.bodyMedium!.copyWith(color: tokens.muted)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Gap.v20,
           MenuSection(
             children: [
               MenuTile.toggle(
-                icon: Icons.notifications_active_rounded,
-                color: color,
                 title: 'Remind me',
                 subtitle: r.enabled ? reminderSchedule(r) : 'Off',
                 value: r.enabled,
@@ -424,38 +513,8 @@ class ReminderEditorSheet extends StatelessWidget {
             alignment: Alignment.topCenter,
             child: r.enabled
                 ? Padding(
-                    padding: const EdgeInsets.only(top: Space.lg),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        MenuSection(title: 'Schedule', children: controls),
-                        if (type.kind == ReminderKind.weekly) ...[
-                          Gap.v16,
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: Space.xs),
-                            child: Text(
-                              'DAY',
-                              style: theme.textTheme.labelMedium!.copyWith(color: tokens.muted, letterSpacing: 1),
-                            ),
-                          ),
-                          Gap.v8,
-                          Wrap(
-                            spacing: Space.sm,
-                            runSpacing: Space.sm,
-                            children: [
-                              for (var d = 1; d <= 7; d++)
-                                SelectChip(
-                                  label: DateFormat('EEE').format(DateTime(2024, 1, d)),
-                                  selected: r.weekday == d,
-                                  color: color,
-                                  showCheck: false,
-                                  onSelected: (_) => update((r) => r.weekday = d),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
+                    padding: const EdgeInsets.only(top: Space.xxl),
+                    child: MenuSection(title: 'Schedule', children: controls),
                   )
                 : const SizedBox(width: double.infinity),
           ),

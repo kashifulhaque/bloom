@@ -82,9 +82,7 @@ class _DueRemindersBannerState extends State<DueRemindersBanner> {
     final store = context.watch<AppStore>();
     final now = DateTime.now();
     final groups = dueToday(store, now);
-    final theme = Theme.of(context);
-    const c = BloomColors.warning;
-    final fg = readableTint(c, theme.brightness);
+    final p = BloomColors.of(context);
 
     return AnimatedSize(
       duration: Motion.medium,
@@ -92,27 +90,23 @@ class _DueRemindersBannerState extends State<DueRemindersBanner> {
       alignment: Alignment.topCenter,
       child: groups.isEmpty
           ? const SizedBox(width: double.infinity)
-          : BloomCard.tinted(
-              color: c,
-              padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.xs, Space.md),
+          : Container(
+              // A note in the margin: a hairline rule on the left, no box.
+              padding: const EdgeInsets.only(left: Space.lg),
+              decoration: BoxDecoration(border: Border(left: BorderSide(color: p.ink2.withValues(alpha: 0.5)))),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.notifications_active_rounded, size: 20, color: fg),
-                      Gap.h8,
-                      Expanded(
-                        child: Text(
-                          'Today\'s reminders',
-                          style: theme.textTheme.titleSmall!.copyWith(color: fg, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      TextButton(
-                        style: TextButton.styleFrom(foregroundColor: fg, visualDensity: VisualDensity.compact),
-                        onPressed: () =>
+                      const Expanded(child: MonoLabel('Today\'s reminders')),
+                      InkLink(
+                        'Edit',
+                        size: 13,
+                        color: p.ink2,
+                        onTap: () =>
                             Navigator.push(context, MaterialPageRoute(builder: (_) => const RemindersScreen())),
-                        child: const Text('Edit'),
                       ),
                     ],
                   ),
@@ -125,57 +119,62 @@ class _DueRemindersBannerState extends State<DueRemindersBanner> {
 
   Widget _tile(BuildContext context, AppStore store, List<ReminderOccurrence> g, DateTime now) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final first = g.first;
     final upcoming = g.where((o) => o.when.isAfter(now)).toList();
     final times = g.length == 1
         ? fmtTimeOfDay(first.when.hour, first.when.minute)
         : upcoming.isEmpty
-        ? '${g.length}x today'
+        ? '${g.length}× today'
         : 'Next ${fmtTimeOfDay(upcoming.first.when.hour, upcoming.first.when.minute)}';
-    return Padding(
-      padding: const EdgeInsets.only(top: Space.sm),
-      child: Row(
-        children: [
-          IconBadge(emoji: first.type.emoji, color: reminderColor(first.type), size: 36),
-          Gap.h12,
-          Expanded(
+    final cycle = first.type.kind == ReminderKind.cycle;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Space.xs),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        first.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w800),
+                Text.rich(
+                  TextSpan(children: [
+                    if (cycle)
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(right: Space.sm),
+                          decoration: BoxDecoration(
+                            color: BloomColors.resolve(context, reminderColor(first.type)),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
                       ),
-                    ),
-                    Gap.h8,
-                    Text(times, style: theme.textTheme.labelSmall!.copyWith(color: tokens.muted)),
-                  ],
+                    TextSpan(text: first.title, style: Almanac.serif(size: 17, weight: 380, color: p.ink, height: 1.25)),
+                    TextSpan(text: '   $times', style: Almanac.data(context, size: 11.5)),
+                  ]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   first.body,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Dismiss for today',
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.close_rounded, size: 20, color: tokens.muted),
-            onPressed: () => dismissReminder(store, now, first.type),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          tooltip: 'Dismiss for today',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(Icons.close, size: 16, color: p.ink2),
+          onPressed: () => dismissReminder(store, now, first.type),
+        ),
+      ],
     );
   }
 }

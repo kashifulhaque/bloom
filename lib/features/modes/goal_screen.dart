@@ -17,28 +17,12 @@ import 'pregnancy_math.dart';
 class GoalScreen extends StatelessWidget {
   const GoalScreen({super.key});
 
-  static const _icons = {
-    Goal.trackCycle: Icons.water_drop_rounded,
-    Goal.getPregnant: Icons.favorite_rounded,
-    Goal.trackPregnancy: Icons.pregnant_woman_rounded,
-    Goal.postpartum: Icons.child_friendly_rounded,
-    Goal.perimenopause: Icons.spa_rounded,
-  };
-
   static const _subtitles = {
-    Goal.trackCycle: 'Predict periods and learn your patterns',
-    Goal.getPregnant: 'Focus on your fertile window and ovulation',
-    Goal.trackPregnancy: 'Follow your pregnancy week by week',
-    Goal.postpartum: 'Recovery, feeding, and your period returning',
-    Goal.perimenopause: 'Track symptoms and understand the transition',
-  };
-
-  static const _gradients = {
-    Goal.trackCycle: BloomGradients.period,
-    Goal.getPregnant: BloomGradients.fertile,
-    Goal.trackPregnancy: BloomGradients.pregnancy,
-    Goal.postpartum: BloomGradients.follicular,
-    Goal.perimenopause: BloomGradients.luteal,
+    Goal.trackCycle: 'Predict periods and learn your patterns.',
+    Goal.getPregnant: 'Follow your fertile window and ovulation.',
+    Goal.trackPregnancy: 'Follow your pregnancy week by week.',
+    Goal.postpartum: 'Recovery, feeding, and your period returning.',
+    Goal.perimenopause: 'Track symptoms and understand the transition.',
   };
 
   @override
@@ -46,56 +30,58 @@ class GoalScreen extends StatelessWidget {
     final store = context.watch<AppStore>();
     final current = store.profile.goal;
     final pregnancy = current == Goal.trackPregnancy ? readPregnancy(store) : null;
+    void push(Widget w) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => w));
 
     return ModePage(
+      eyebrow: 'Contents',
       title: 'My goal',
       subtitle: 'Bloom shapes your home screen, predictions, and tips around what matters to you now.',
       children: [
-        for (final g in Goal.values)
-          _GoalCard(
-            icon: _icons[g]!,
-            title: g.label,
-            subtitle: _subtitles[g]!,
-            gradient: _gradients[g]!,
-            selected: g == current,
-            onTap: g == current ? null : () => switchGoal(context, g),
-          ),
-        if (current == Goal.trackPregnancy) ...[
-          const SectionHeader('Your pregnancy'),
-          if (pregnancy == null)
-            BloomCard(
-              child: EmptyState(
-                compact: true,
-                emoji: '🤰',
-                color: BloomColors.pregnancy,
-                title: 'Let\'s set up your pregnancy',
-                body: 'Add your last period or due date to follow along week by week.',
-                actionLabel: 'Set up pregnancy',
-                onAction: () => startPregnancyActivation(context),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Hairline(),
+            for (var i = 0; i < Goal.values.length; i++) ...[
+              _GoalEntry(
+                number: i + 1,
+                title: Goal.values[i].label,
+                subtitle: _subtitles[Goal.values[i]]!,
+                selected: Goal.values[i] == current,
+                onTap: Goal.values[i] == current ? null : () => switchGoal(context, Goal.values[i]),
               ),
+              const Hairline(),
+            ],
+          ],
+        ),
+        if (current == Goal.trackPregnancy) ...[
+          const SectionHeader('Your pregnancy', label: 'Chapter'),
+          if (pregnancy == null)
+            EmptyState(
+              compact: true,
+              glyph: Botanical.sprout,
+              color: BloomColors.pregnancy,
+              title: 'Let\'s set up your pregnancy',
+              body: 'Add your last period or due date to follow along week by week.',
+              actionLabel: 'Set up pregnancy',
+              onAction: () => startPregnancyActivation(context),
             )
           else
             MenuSection(
               children: [
                 MenuTile(
-                  icon: Icons.tune_rounded,
-                  color: BloomColors.pregnancy,
+                  icon: Icons.tune,
                   title: 'Pregnancy settings',
-                  subtitle: 'Due ${fmtFull(pregnancy.dueDate)}',
-                  onTap: () =>
-                      Navigator.of(context)
-                          .push(MaterialPageRoute<void>(builder: (_) => const PregnancySettingsScreen())),
+                  value: 'Due ${fmtShort(pregnancy.dueDate)}',
+                  onTap: () => push(const PregnancySettingsScreen()),
                 ),
                 MenuTile(
-                  icon: Icons.celebration_rounded,
-                  color: BloomColors.coral,
+                  icon: Icons.child_friendly_outlined,
                   title: 'A baby is born!',
                   subtitle: 'Switch to after-birth mode',
                   onTap: () => startBirthFlow(context),
                 ),
                 MenuTile(
-                  icon: Icons.favorite_border_rounded,
-                  color: BloomColors.luteal,
+                  icon: Icons.spa_outlined,
                   title: 'End pregnancy',
                   subtitle: 'For a pregnancy loss',
                   onTap: () => startLossFlow(context),
@@ -104,11 +90,11 @@ class GoalScreen extends StatelessWidget {
             ),
         ],
         if (current == Goal.postpartum) ...[
-          const SectionHeader('After birth'),
+          const SectionHeader('After birth', label: 'Chapter'),
           MenuSection(
             children: [
               MenuTile(
-                icon: Icons.water_drop_rounded,
+                icon: Icons.water_drop_outlined,
                 color: BloomColors.period,
                 title: 'My period is back',
                 subtitle: 'Log it and return to cycle tracking',
@@ -122,97 +108,46 @@ class GoalScreen extends StatelessWidget {
   }
 }
 
-class _GoalCard extends StatelessWidget {
-  const _GoalCard({
-    required this.icon,
+/// One goal on the contents page: a mono number, a serif title, an italic
+/// description, and an ink check on the current goal.
+class _GoalEntry extends StatelessWidget {
+  const _GoalEntry({
+    required this.number,
     required this.title,
     required this.subtitle,
-    required this.gradient,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
+  final int number;
   final String title;
   final String subtitle;
-  final LinearGradient gradient;
   final bool selected;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final dark = t.brightness == Brightness.dark;
-    final c = gradient.colors.first;
-    final fg = readableTint(c, t.brightness);
-    final base = dark ? t.colorScheme.surfaceContainer : Colors.white;
-    return Semantics(
-      button: true,
+    final p = BloomColors.of(context);
+    return IndexEntry(
+      number: number,
+      title: title,
+      caption: subtitle,
       selected: selected,
-      child: AnimatedContainer(
+      titleSize: 23,
+      onTap: onTap,
+      trailing: AnimatedSwitcher(
         duration: Motion.medium,
-        curve: Motion.curve,
-        decoration: BoxDecoration(
-          color: selected ? Color.alphaBlend(c.withValues(alpha: dark ? 0.18 : 0.08), base) : base,
-          borderRadius: Radii.lgAll,
-          border: Border.all(
-            color: selected ? c.withValues(alpha: dark ? 0.85 : 0.75) : (dark ? tokens.border : base),
-            width: 2,
-          ),
-          boxShadow: tokens.cardShadow,
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          borderRadius: Radii.lgAll,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: Insets.cardCompact,
-              child: Row(
+        child: selected
+            ? Row(
+                key: const ValueKey(1),
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  AnimatedContainer(
-                    duration: Motion.medium,
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(Radii.md),
-                      gradient: selected ? gradient : null,
-                      color: selected ? null : c.withValues(alpha: dark ? 0.22 : 0.13),
-                    ),
-                    child: Icon(icon, size: 28, color: selected ? Colors.white : fg),
-                  ),
-                  Gap.h16,
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: t.textTheme.titleMedium),
-                        const SizedBox(height: Space.xxs),
-                        Text(subtitle, style: t.textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
+                  MonoLabel('Now', color: p.ink),
                   Gap.h8,
-                  AnimatedSwitcher(
-                    duration: Motion.medium,
-                    switchInCurve: Motion.spring,
-                    transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
-                    child: selected
-                        ? Icon(Icons.check_circle_rounded, key: const ValueKey(1), color: fg, size: 26)
-                        : Icon(
-                            Icons.radio_button_unchecked_rounded,
-                            key: const ValueKey(0),
-                            color: tokens.muted.withValues(alpha: 0.45),
-                            size: 26,
-                          ),
-                  ),
+                  Icon(Icons.check, size: 20, color: p.ink),
                 ],
-              ),
-            ),
-          ),
-        ),
+              )
+            : const SizedBox(key: ValueKey(0), width: 20, height: 20),
       ),
     );
   }
@@ -326,7 +261,7 @@ class _PregnancyActivationScreenState extends State<PregnancyActivationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
+    final p = BloomColors.of(context);
     final age = gestationalAge(_lmp, today());
     final valid = age.totalDays >= 0 && age.weeks <= 44;
     final size = babySizeForWeek(age.weeks);
@@ -336,48 +271,67 @@ class _PregnancyActivationScreenState extends State<PregnancyActivationScreen> {
       _DateBasis.conception => 'Conception date',
     };
     return ModePage(
+      eyebrow: 'Pregnancy',
       title: 'Track pregnancy',
-      subtitle: 'Congratulations! Let\'s set up a few details so Bloom can follow along with you.',
-      heroColor: BloomColors.pregnancy,
+      subtitle: 'Congratulations. A few details, and Bloom can follow along with you week by week.',
       children: [
-        const SectionHeader('What date do you know?'),
-        SegmentedButton<_DateBasis>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: _DateBasis.lmp, label: Text('Last period')),
-            ButtonSegment(value: _DateBasis.due, label: Text('Due date')),
-            ButtonSegment(value: _DateBasis.conception, label: Text('Conception')),
+        const SectionHeader('What date do you know?', label: 'No. 1'),
+        UnderlineTabs<_DateBasis>(
+          options: const [
+            (_DateBasis.lmp, 'Last period'),
+            (_DateBasis.due, 'Due date'),
+            (_DateBasis.conception, 'Conception'),
           ],
-          selected: {_basis},
-          onSelectionChanged: (s) => _setBasis(s.first),
+          selected: _basis,
+          onChanged: _setBasis,
         ),
-        DateField(label: label, date: _date, onTap: _pick, color: BloomColors.pregnancy),
-        const SectionHeader('How many babies?'),
+        DateField(label: label, date: _date, onTap: _pick),
+        const SectionHeader('How many babies?', label: 'No. 2'),
         BabiesSelector(value: _babies, onChanged: (v) => setState(() => _babies = v)),
-        Gap.v4,
+        Gap.v8,
         AnimatedSwitcher(
           duration: Motion.medium,
           child: valid
-              ? BloomCard.tinted(
+              ? Column(
                   key: const ValueKey('ok'),
-                  color: BloomColors.pregnancy,
-                  child: Row(
-                    children: [
-                      IconBadge(emoji: size?.emoji ?? '🌱', color: BloomColors.pregnancy, size: 56),
-                      Gap.h16,
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Week ${age.weeks} · Day ${age.days}', style: t.textTheme.titleLarge),
-                            Text(trimesterLabel(age.trimester), style: t.textTheme.bodyMedium),
-                            Gap.v4,
-                            Text('Estimated due date: ${fmtFull(dueFromLmp(_lmp))}', style: t.textTheme.bodySmall),
-                          ],
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Hairline(),
+                    Gap.v20,
+                    MonoLabel('Today · ${trimesterLabel(age.trimester)}'),
+                    Gap.v8,
+                    PhaseTitle(
+                      lead: 'Week ${Almanac.spell(age.weeks)},',
+                      italic: 'day ${Almanac.spell(age.days)}.',
+                      color: BloomColors.pregnancy,
+                      size: 32,
+                    ),
+                    Gap.v16,
+                    Marginalia(
+                      label: 'Due',
+                      child: Text(
+                        'Estimated ${fmtFull(dueFromLmp(_lmp))}',
+                        style: Almanac.serif(size: 17, weight: 360, color: p.ink),
+                      ),
+                    ),
+                    if (size != null) ...[
+                      Gap.v8,
+                      Marginalia(
+                        label: 'Size',
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'About the size of '),
+                              TextSpan(text: size.name, style: Almanac.italic(context, size: 16.5)),
+                              const TextSpan(text: '.'),
+                            ],
+                          ),
                         ),
                       ),
                     ],
-                  ),
+                    Gap.v20,
+                    const Hairline(),
+                  ],
                 )
               : const InfoBanner(
                   key: ValueKey('bad'),
@@ -385,14 +339,8 @@ class _PregnancyActivationScreenState extends State<PregnancyActivationScreen> {
                   message: 'That date gives a pregnancy length that is out of range. Please check it.',
                 ),
         ),
-        Gap.v4,
-        GradientButton(
-          label: 'Start pregnancy mode',
-          icon: Icons.favorite_rounded,
-          gradient: BloomGradients.pregnancy,
-          expanded: true,
-          onPressed: valid ? _confirm : null,
-        ),
+        Gap.v8,
+        InkButton(label: 'Start pregnancy mode', expanded: true, onPressed: valid ? _confirm : null),
         const EduNote(
           text:
               'Due dates are estimates. Your care provider may adjust yours after an ultrasound; '
@@ -410,15 +358,10 @@ class BabiesSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<int>(
-      showSelectedIcon: false,
-      segments: const [
-        ButtonSegment(value: 1, label: Text('One')),
-        ButtonSegment(value: 2, label: Text('Twins')),
-        ButtonSegment(value: 3, label: Text('Three+')),
-      ],
-      selected: {value.clamp(1, 3)},
-      onSelectionChanged: (s) => onChanged(s.first),
+    return UnderlineTabs<int>(
+      options: const [(1, 'One'), (2, 'Twins'), (3, 'Three or more')],
+      selected: value.clamp(1, 3),
+      onChanged: onChanged,
     );
   }
 }
@@ -433,10 +376,11 @@ class PregnancySettingsScreen extends StatelessWidget {
     final p = readPregnancy(store);
     if (p == null) {
       return ModePage(
+        eyebrow: 'Pregnancy',
         title: 'Pregnancy settings',
         children: [
           EmptyState(
-            emoji: '🤰',
+            glyph: Botanical.sprout,
             color: BloomColors.pregnancy,
             title: 'No active pregnancy',
             body: 'Set up your pregnancy to see your week-by-week progress.',
@@ -449,59 +393,54 @@ class PregnancySettingsScreen extends StatelessWidget {
     final age = p.ageOn(today());
     void save() => savePregnancy(store, p);
     return ModePage(
+      eyebrow: 'Pregnancy · Week ${age.weeks} · Day ${age.days}',
       title: 'Pregnancy settings',
       subtitle: 'Due ${fmtFull(p.dueDate)}',
       children: [
-        MenuSection(
-          title: 'Dates',
-          footer: 'Changing the last period date also moves the due date, and the other way around (280 days apart).',
-          children: [
-            MenuTile(
-              icon: Icons.water_drop_rounded,
-              color: BloomColors.period,
-              title: 'First day of last period',
-              subtitle: fmtFull(p.lmp),
-              trailing: const Icon(Icons.edit_calendar_rounded),
-              onTap: () async {
-                final d = await pickDay(
-                  context,
-                  initial: p.lmp,
-                  first: addDays(today(), -kPregnancyDays - 30),
-                  last: today(),
-                );
-                if (d == null) return;
-                p.lmp = d;
-                save();
-              },
-            ),
-            MenuTile(
-              icon: Icons.event_available_rounded,
-              color: BloomColors.pregnancy,
-              title: 'Due date',
-              subtitle: fmtFull(p.dueDate),
-              trailing: const Icon(Icons.edit_calendar_rounded),
-              onTap: () async {
-                final d = await pickDay(
-                  context,
-                  initial: p.dueDate,
-                  first: addDays(today(), -30),
-                  last: addDays(today(), kPregnancyDays),
-                );
-                if (d == null) return;
-                p.lmp = lmpFromDue(d);
-                save();
-              },
-            ),
-            MenuTile(
-              icon: Icons.timelapse_rounded,
-              color: BloomColors.luteal,
-              title: 'Gestational age today',
-              value: 'Week ${age.weeks} · Day ${age.days}',
-              showChevron: false,
-            ),
-          ],
+        const SectionHeader('Dates', label: 'No. 1'),
+        DateField(
+          label: 'First day of last period',
+          date: p.lmp,
+          onTap: () async {
+            final d = await pickDay(
+              context,
+              initial: p.lmp,
+              first: addDays(today(), -kPregnancyDays - 30),
+              last: today(),
+            );
+            if (d == null) return;
+            p.lmp = d;
+            save();
+          },
         ),
-        const SectionHeader('Number of babies'),
+        Gap.v4,
+        DateField(
+          label: 'Due date',
+          date: p.dueDate,
+          onTap: () async {
+            final d = await pickDay(
+              context,
+              initial: p.dueDate,
+              first: addDays(today(), -30),
+              last: addDays(today(), kPregnancyDays),
+            );
+            if (d == null) return;
+            p.lmp = lmpFromDue(d);
+            save();
+          },
+        ),
+        Text(
+          'Changing the last period date also moves the due date, and the other way around: they are 280 days apart.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        Marginalia(
+          label: 'Today',
+          child: Text(
+            'Week ${age.weeks} · Day ${age.days}',
+            style: Almanac.mono(size: 13.5, color: BloomColors.of(context).ink),
+          ),
+        ),
+        const SectionHeader('Number of babies', label: 'No. 2'),
         BabiesSelector(
           value: p.babies,
           onChanged: (v) {
@@ -565,76 +504,52 @@ class _PregnancyLossScreenState extends State<PregnancyLossScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    const calm = BloomColors.luteal;
-    Widget care(IconData icon, String text) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconBadge(icon: icon, color: calm, size: 32),
-          Gap.h12,
-          Expanded(child: Text(text, style: t.textTheme.bodyMedium)),
-        ],
-      ),
+    final p = BloomColors.of(context);
+    Widget care(String label, String text) => Marginalia(
+      label: label,
+      labelWidth: 80,
+      child: Text(text, style: t.textTheme.bodyLarge!.copyWith(color: p.ink, height: 1.6)),
     );
 
     return ModePage(
       title: 'End pregnancy',
-      heroColor: calm,
+      spacing: Space.xxl,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BotanicalGlyph(Botanical.sprig, size: 40, color: p.ink2),
+          Gap.v24,
+          Text('We\'re so sorry.', style: Almanac.italic(context, size: 34, color: p.ink)),
+          Gap.v20,
+          Text(
+            'Losing a pregnancy is painful, at any stage. Whatever you are feeling right now, grief, numbness, '
+            'relief, confusion, or all of these at once, is valid. You don\'t have to do anything else here today.',
+            style: t.textTheme.bodyLarge!.copyWith(color: p.ink2, height: 1.7),
+          ),
+        ],
+      ),
       children: [
-        BloomCard.tinted(
-          color: calm,
-          padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xxxl, Space.xxl, Space.xxl),
-          child: Column(
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: calm.withValues(alpha: t.brightness == Brightness.dark ? 0.26 : 0.16),
-                ),
-                child: Icon(Icons.favorite_rounded, size: 34, color: readableTint(calm, t.brightness)),
-              ),
-              Gap.v20,
-              Text('We\'re so sorry.', style: t.textTheme.headlineSmall, textAlign: TextAlign.center),
-              Gap.v12,
-              Text(
-                'Losing a pregnancy is painful, at any stage. Whatever you are feeling right now, grief, numbness, '
-                'relief, confusion, or all of these at once, is valid. You don\'t have to do anything else here today.',
-                style: t.textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+        const Hairline(),
+        Text('Taking care of yourself', style: Almanac.italic(context, size: 22, color: p.ink)),
+        care(
+          'Body',
+          'Bleeding and cramping can continue for a while. Contact a care provider or emergency services if '
+              'you soak through a pad an hour for two hours, pass large clots, have a fever, or feel faint.',
         ),
-        const SectionHeader('Taking care of yourself'),
-        BloomCard(
-          child: Column(
-            children: [
-              care(
-                Icons.water_drop_rounded,
-                'Bleeding and cramping can continue for a while. Contact a care provider or emergency services if '
-                'you soak through a pad an hour for two hours, pass large clots, have a fever, or feel faint.',
-              ),
-              care(
-                Icons.spa_rounded,
-                'Your body may take a few weeks to recover, and your period usually returns within 4 to 8 weeks.',
-              ),
-              care(Icons.people_alt_rounded, 'Lean on people you trust. Partners grieve too, sometimes differently.'),
-              care(
-                Icons.support_agent_rounded,
-                'Pregnancy loss support groups, a counselor, or your care provider can help. If you feel hopeless '
-                'or think about harming yourself, contact a local crisis line or emergency services right away.',
-              ),
-            ],
-          ),
+        care(
+          'Recovery',
+          'Your body may take a few weeks to recover, and your period usually returns within 4 to 8 weeks.',
         ),
-        const SectionHeader('When it happened'),
+        care('People', 'Lean on people you trust. Partners grieve too, sometimes differently.'),
+        care(
+          'Help',
+          'Pregnancy loss support groups, a counselor, or your care provider can help. If you feel hopeless '
+              'or think about harming yourself, contact a local crisis line or emergency services right away.',
+        ),
+        const Hairline(),
         DateField(
-          label: 'Date',
+          label: 'When it happened',
           date: _date,
-          color: calm,
           onTap: () async {
             final d = await pickDay(context, initial: _date, first: addDays(today(), -365), last: today());
             if (d != null) setState(() => _date = d);
@@ -643,14 +558,15 @@ class _PregnancyLossScreenState extends State<PregnancyLossScreen> {
         Text(
           'When you continue, your pregnancy is saved privately in your history and the app returns to cycle '
           'tracking. You can change your goal again at any time.',
-          style: t.textTheme.bodyMedium!.copyWith(color: BloomTokens.of(context).muted),
+          style: t.textTheme.bodyMedium!.copyWith(color: p.ink2, height: 1.6),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        Wrap(
+          spacing: Space.xl,
+          runSpacing: Space.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            FilledButton(onPressed: _confirm, child: const Text('Continue')),
-            Gap.v8,
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Not now')),
+            InkButton.outlined(label: 'Continue', onPressed: _confirm),
+            InkLink('Not now', onTap: () => Navigator.of(context).pop()),
           ],
         ),
       ],

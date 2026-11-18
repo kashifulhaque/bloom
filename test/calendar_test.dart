@@ -5,6 +5,7 @@ import 'package:bloom/features/analysis/analysis_screen.dart';
 import 'package:bloom/features/calendar/calendar_screen.dart';
 import 'package:bloom/features/calendar/edit_period_screen.dart';
 import 'package:bloom/theme/app_theme.dart';
+import 'package:bloom/widgets/bloom_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
@@ -157,12 +158,14 @@ void main() {
       await tester.pumpWidget(wrap(store, const AnalysisScreen()));
       await tester.pumpAndSettle();
       expect(find.text('Regularity'), findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Cycle history'), 300, scrollable: find.byType(Scrollable).at(1));
+      await tester.scrollUntilVisible(find.text('Cycle history'), 300, scrollable: find.descendant(of: find.byType(BloomPage), matching: find.byType(Scrollable)).first);
       expect(find.text('Cycle history'), findsOneWidget);
 
       await tester.tap(find.text('Charts'));
       await tester.pumpAndSettle();
       expect(find.text('Cycle length'), findsWidgets);
+      await tester.scrollUntilVisible(find.text('Basal body temperature'), 300,
+          scrollable: find.descendant(of: find.byType(BloomPage), matching: find.byType(Scrollable)).first);
       expect(find.text('Basal body temperature'), findsOneWidget);
 
       await tester.tap(find.text('Symptoms'));

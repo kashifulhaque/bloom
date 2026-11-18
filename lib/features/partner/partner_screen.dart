@@ -31,17 +31,25 @@ class _PartnerScreenState extends State<PartnerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: BloomPage(
+        eyebrow: 'You · Partner sharing',
         title: 'Partner sharing',
-        heroColor: BloomColors.brand,
+        spacing: Space.xxl,
         children: [
-          SegmentedButton<int>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: 0, label: Text('Share'), icon: Icon(Icons.ios_share_rounded)),
-              ButtonSegment(value: 1, label: Text('I\'m a partner'), icon: Icon(Icons.favorite_rounded)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextChoices<int>(
+                serif: true,
+                spacing: Space.xl,
+                options: const [
+                  TextChoice(0, 'Share'),
+                  TextChoice(1, 'I\'m a partner'),
+                ],
+                selected: _tab,
+                onChanged: (v) => setState(() => _tab = v),
+              ),
+              const Hairline(),
             ],
-            selected: {_tab},
-            onSelectionChanged: (s) => setState(() => _tab = s.first),
           ),
           AnimatedSwitcher(
             duration: Motion.medium,
@@ -56,7 +64,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
   }
 }
 
-/// Stacks [children] 16 px apart, like [BloomPage] does.
+/// Stacks [children] with section spacing, like [BloomPage] does.
 class _Stack extends StatelessWidget {
   const _Stack(this.children);
   final List<Widget> children;
@@ -65,7 +73,7 @@ class _Stack extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      for (var i = 0; i < children.length; i++) ...[if (i > 0) Gap.v16, children[i]],
+      for (var i = 0; i < children.length; i++) ...[if (i > 0) Gap.v24, children[i]],
     ],
   );
 }
@@ -78,6 +86,7 @@ class _ShareTab extends StatelessWidget {
     final store = context.watch<AppStore>();
     final state = PartnerState.of(store);
     final o = state.options;
+    final p = BloomColors.of(context);
     final theme = Theme.of(context);
 
     void setOption(void Function(ShareOptions o) change) {
@@ -113,41 +122,22 @@ class _ShareTab extends StatelessWidget {
       AnimatedSwitcher(
         duration: Motion.medium,
         child: state.code == null
-            ? BloomCard.gradient(
+            ? Column(
                 key: const ValueKey('intro'),
-                gradient: BloomGradients.dusk,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: Radii.mdAll),
-                      child: const Icon(Icons.qr_code_2_rounded, size: 30),
-                    ),
-                    Gap.v16,
-                    Text('Share your cycle', style: theme.textTheme.headlineSmall!.copyWith(color: Colors.white)),
-                    Gap.v8,
-                    Text(
-                      'Give a partner a read-only snapshot. Nothing is uploaded: the code itself holds the data, '
-                      'so share a new one each cycle.',
-                      style: theme.textTheme.bodyMedium!.copyWith(color: Colors.white.withValues(alpha: 0.88)),
-                    ),
-                    Gap.v20,
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: BloomColors.brandDeep,
-                        ),
-                        onPressed: generate,
-                        icon: const Icon(Icons.qr_code_2_rounded),
-                        label: const Text('Create a partner code'),
-                      ),
-                    ),
-                  ],
-                ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const MonoLabel('A letter'),
+                  Gap.v12,
+                  Text('Dear partner,', style: Almanac.italic(context, size: 26)),
+                  Gap.v12,
+                  Text(
+                    'Give someone close a read-only snapshot of your cycle. Nothing is uploaded: the code itself '
+                    'holds the data, so share a new one each cycle.',
+                    style: theme.textTheme.bodyLarge!.copyWith(color: p.ink2),
+                  ),
+                  Gap.v20,
+                  InkButton(label: 'Create a partner code', icon: Icons.qr_code_2, onPressed: generate),
+                ],
               )
             : _CodeCard(key: const ValueKey('code'), code: state.code!, onRegenerate: generate, onStop: stop),
       ),
@@ -157,54 +147,36 @@ class _ShareTab extends StatelessWidget {
             ? null
             : 'Changes update your code right away. Share it again so your partner sees them.',
         children: [
+          MenuTile.toggle(title: 'My name', value: o.name, onChanged: (v) => setOption((o) => o.name = v)),
           MenuTile.toggle(
-            icon: Icons.badge_rounded,
-            color: BloomColors.info,
-            title: 'My name',
-            value: o.name,
-            onChanged: (v) => setOption((o) => o.name = v),
-          ),
-          MenuTile.toggle(
-            icon: Icons.water_drop_rounded,
-            color: BloomColors.period,
             title: 'Period predictions',
             subtitle: 'Current cycle start and the next 3 predicted periods',
             value: o.predictions,
             onChanged: (v) => setOption((o) => o.predictions = v),
           ),
           MenuTile.toggle(
-            icon: Icons.spa_rounded,
-            color: BloomColors.fertile,
             title: 'Fertile window and ovulation',
             value: o.fertility,
             onChanged: (v) => setOption((o) => o.fertility = v),
           ),
           MenuTile.toggle(
-            icon: Icons.lightbulb_rounded,
-            color: BloomColors.luteal,
             title: 'Current phase and tips',
             value: o.phase,
             onChanged: (v) => setOption((o) => o.phase = v),
           ),
           MenuTile.toggle(
-            icon: Icons.child_friendly_rounded,
-            color: BloomColors.pregnancy,
             title: 'Pregnancy progress',
             subtitle: 'Week and due date, in pregnancy mode',
             value: o.pregnancy,
             onChanged: (v) => setOption((o) => o.pregnancy = v),
           ),
           MenuTile.toggle(
-            icon: Icons.mood_rounded,
-            color: BloomColors.coral,
             title: 'Recent moods',
             subtitle: 'From the last 3 days. Never shared in pregnancy mode.',
             value: o.moods,
             onChanged: (v) => setOption((o) => o.moods = v),
           ),
           MenuTile.toggle(
-            icon: Icons.healing_rounded,
-            color: BloomColors.follicular,
             title: 'Recent symptoms',
             subtitle: 'From the last 3 days. Never shared in pregnancy mode.',
             value: o.symptoms,
@@ -216,6 +188,8 @@ class _ShareTab extends StatelessWidget {
   }
 }
 
+/// The share card, set as a short letter: a salutation, how to open it, the
+/// QR code framed by hairlines, and a signature.
 class _CodeCard extends StatelessWidget {
   const _CodeCard({super.key, required this.code, required this.onRegenerate, required this.onStop});
   final String code;
@@ -226,129 +200,104 @@ class _CodeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final snap = PartnerSnapshot.decode(code);
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final age = daysBetween(snap.generated, today());
-    return BloomCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const IconBadge(icon: Icons.qr_code_2_rounded, color: BloomColors.brand),
-              Gap.h12,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your partner code',
-                      style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      age <= 0 ? 'Snapshot from today' : 'Snapshot from ${fmtFull(snap.generated)}',
-                      style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
-                    ),
-                  ],
-                ),
-              ),
-              const PillChip('Sharing', dense: true, icon: Icons.check_circle_rounded, color: BloomColors.success),
-            ],
-          ),
-          Gap.v20,
-          Center(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: MonoLabel('To my partner')),
+            MonoLabel(age <= 0 ? 'Snapshot of today' : 'Snapshot of ${fmtShort(snap.generated)}'),
+          ],
+        ),
+        Gap.v12,
+        Text('Dear partner,', style: Almanac.italic(context, size: 26)),
+        Gap.v8,
+        Text(
+          'Here is where I am in my cycle. Open Bloom, go to You, then Partner sharing, then I\'m a partner, '
+          'and scan or paste this code.',
+          style: theme.textTheme.bodyLarge,
+        ),
+        Gap.v20,
+        // The QR, framed by hairlines above and below like a printed plate.
+        const Hairline(),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: Space.xl),
+          child: Center(
             child: Container(
-              padding: Insets.all16,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: Radii.lgAll,
-                border: Border.all(color: tokens.border),
-                boxShadow: tokens.cardShadow,
-              ),
+              padding: Insets.all12,
+              // Scanners need dark modules on a light ground, in both themes.
+              color: BloomColors.paper,
               child: QrImageView(
                 data: code,
-                size: 200,
+                size: 196,
                 padding: EdgeInsets.zero,
-                backgroundColor: Colors.white,
-                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: BloomColors.brandDeep),
-                dataModuleStyle: QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.circle,
-                  color: BloomColors.onColor(Colors.white),
+                backgroundColor: BloomColors.paper,
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: BloomColors.ink),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: BloomColors.ink,
                 ),
                 semanticsLabel: 'QR code for your partner snapshot',
               ),
             ),
           ),
-          Gap.v16,
-          Text(
-            'Your partner opens Bloom, goes to Me, Partner sharing, I\'m a partner, and scans or pastes this code.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted),
-          ),
-          Gap.v12,
-          Material(
-            color: tokens.subtle,
-            borderRadius: Radii.mdAll,
-            child: InkWell(
-              borderRadius: Radii.mdAll,
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: code));
-                if (context.mounted) showSnack(context, 'Code copied');
-              },
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(Space.md, Space.sm, Space.sm, Space.sm),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        code,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall!.copyWith(color: tokens.muted, letterSpacing: 0.5),
-                      ),
-                    ),
-                    Gap.h8,
-                    Icon(Icons.copy_rounded, size: 18, color: theme.colorScheme.primary),
-                  ],
+        ),
+        const Hairline(),
+        Gap.v8,
+        Pressable(
+          tooltip: 'Copy code',
+          onTap: () async {
+            await Clipboard.setData(ClipboardData(text: code));
+            if (context.mounted) showSnack(context, 'Code copied');
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Space.sm),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(code, maxLines: 1, overflow: TextOverflow.ellipsis, style: Almanac.data(context, size: 11.5)),
                 ),
-              ),
+                Gap.h12,
+                const MonoLabel('Copy'),
+              ],
             ),
           ),
-          Gap.v16,
-          FilledButton.icon(
+        ),
+        Gap.v12,
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            snap.name == null || snap.name!.isEmpty ? 'With love' : '— ${snap.name}',
+            style: Almanac.italic(context, size: 18, color: p.ink2),
+          ),
+        ),
+        Gap.v20,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InkButton(
+            label: 'Share code',
+            icon: Icons.ios_share,
             onPressed: () => SharePlus.instance.share(
               ShareParams(
                 text:
-                    'Here\'s my Bloom partner code. Open Bloom, go to Me > Partner sharing > I\'m a partner, '
+                    'Here\'s my Bloom partner code. Open Bloom, go to You > Partner sharing > I\'m a partner, '
                     'and paste it:\n\n$code',
                 subject: 'Bloom partner code',
               ),
             ),
-            icon: const Icon(Icons.ios_share_rounded),
-            label: const Text('Share code'),
           ),
-          Gap.v8,
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onRegenerate,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Update'),
-                ),
-              ),
-              Gap.h8,
-              Expanded(
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(foregroundColor: readableTint(theme.colorScheme.error, theme.brightness)),
-                  onPressed: onStop,
-                  icon: const Icon(Icons.block_rounded),
-                  label: const Text('Stop sharing'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        Gap.v8,
+        Wrap(
+          spacing: Space.xl,
+          children: [
+            InkLink('Update snapshot', onTap: onRegenerate),
+            InkLink('Stop sharing', color: BloomColors.error, onTap: onStop),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -396,64 +345,62 @@ class _PartnerTabState extends State<_PartnerTab> {
       }
     }
 
-    final input = BloomCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (snap == null) ...[
-            const EmptyState(
-              compact: true,
-              icon: Icons.favorite_rounded,
-              color: BloomColors.brand,
-              title: 'See your partner\'s cycle',
-              body:
-                  'Paste the code your partner shared from their Bloom app to see their cycle summary and tips on '
-                  'how to support them.',
-            ),
-            Gap.v20,
-          ] else ...[
-            Text('Open a newer code', style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700)),
-            Gap.v12,
-          ],
-          TextField(
-            controller: _controller,
-            minLines: 2,
-            maxLines: 4,
-            decoration: InputDecoration(
-              labelText: 'Partner code',
-              hintText: 'BLOOM1....',
-              errorText: _error,
-              prefixIcon: const Icon(Icons.key_rounded),
-            ),
+    final input = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (snap == null) ...[
+          const EmptyState(
+            compact: true,
+            glyph: Botanical.flower,
+            title: 'See your partner\'s cycle',
+            body:
+                'Paste the code your partner shared from their Bloom app to see their cycle summary and how to '
+                'support them.',
           ),
-          Gap.v12,
-          FilledButton.icon(
-            onPressed: () => _open(store),
-            icon: const Icon(Icons.visibility_rounded),
-            label: const Text('View snapshot'),
-          ),
+          Gap.v8,
+        ] else ...[
+          const MonoLabel('A newer letter'),
+          Gap.v4,
+          Text('Open a newer code', style: theme.textTheme.titleLarge),
+          Gap.v8,
         ],
-      ),
+        TextField(
+          controller: _controller,
+          minLines: 2,
+          maxLines: 4,
+          style: Almanac.data(context, size: 13, color: BloomColors.of(context).ink),
+          decoration: InputDecoration(labelText: 'Partner code', hintText: 'BLOOM1....', errorText: _error),
+        ),
+        Gap.v16,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InkButton(label: 'View snapshot', onPressed: () => _open(store)),
+        ),
+      ],
     );
 
     return _Stack([
       if (snap != null) ...[
         PartnerView(snapshot: snap),
-        OutlinedButton.icon(
-          onPressed: () {
-            state.viewed = null;
-            state.save(store);
-          },
-          icon: const Icon(Icons.close_rounded),
-          label: const Text('Remove this snapshot'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InkLink(
+            'Remove this snapshot',
+            color: BloomColors.of(context).ink2,
+            onTap: () {
+              state.viewed = null;
+              state.save(store);
+            },
+          ),
         ),
+        const Hairline(),
       ],
       input,
     ]);
   }
 }
 
-/// Read-only partner view of a snapshot.
+/// Read-only partner view of a snapshot, as a calm editorial page.
 class PartnerView extends StatelessWidget {
   const PartnerView({super.key, required this.snapshot});
   final PartnerSnapshot snapshot;
@@ -463,13 +410,13 @@ class PartnerView extends StatelessWidget {
     final s = snapshot;
     final now = today();
     final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     final who = s.name ?? 'Your partner';
     final age = daysBetween(s.generated, now);
     final phase = s.phaseOn(now);
     final next = s.nextPeriodAfter(now);
     final nextOv = s.ovulations.where((o) => !o.isBefore(addDays(now, -1))).firstOrNull;
     final shared = age <= 0 ? 'Shared today' : 'Shared ${fmtShort(s.generated)} · $age day${age == 1 ? '' : 's'} ago';
-    final white = Colors.white.withValues(alpha: 0.88);
     final pregnant = s.pregnant && s.dueDate != null;
 
     Widget hero;
@@ -479,45 +426,41 @@ class PartnerView extends StatelessWidget {
       final d = daysBetween(lmp, now).clamp(0, 300);
       final weeks = d ~/ 7;
       tips = partnerPregnancyTips(weeks);
-      hero = BloomCard.gradient(
-        gradient: BloomGradients.pregnancy,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            PillChip(shared, solid: true, dense: true, color: Colors.white),
-            Gap.v12,
-            Text('$who\'s pregnancy', style: theme.textTheme.titleMedium!.copyWith(color: white)),
-            Gap.v4,
-            Text('Week $weeks, day ${d % 7}', style: theme.textTheme.headlineMedium!.copyWith(color: Colors.white)),
-            Gap.v4,
-            Text(
-              'Due around ${fmtFull(s.dueDate!)} · ${daysBetween(now, s.dueDate!)} days to go',
-              style: theme.textTheme.bodyMedium!.copyWith(color: white),
-            ),
-          ],
-        ),
+      hero = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoLabel(shared),
+          Gap.v8,
+          PhaseTitle(lead: '$who\'s pregnancy,', italic: 'week $weeks, day ${d % 7}.', color: BloomColors.pregnancy),
+          Gap.v8,
+          Text(
+            'Due around ${fmtFull(s.dueDate!)} · ${daysBetween(now, s.dueDate!)} days to go',
+            style: theme.textTheme.bodyLarge!.copyWith(color: p.ink2),
+          ),
+        ],
       );
     } else {
       tips = phase == null ? const [] : partnerPhaseTips(phase);
-      hero = BloomCard.gradient(
-        gradient: phase == null ? BloomGradients.dusk : phaseGradient(phase),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            PillChip(shared, solid: true, dense: true, color: Colors.white),
-            Gap.v12,
-            Text('$who\'s cycle', style: theme.textTheme.titleMedium!.copyWith(color: white)),
-            Gap.v4,
-            Text(
-              phase == null ? 'No phase shared' : phase.label,
-              style: theme.textTheme.headlineMedium!.copyWith(color: Colors.white),
-            ),
-            if (phase != null) ...[
-              Gap.v8,
-              Text(partnerPhaseSummary(phase), style: theme.textTheme.bodyMedium!.copyWith(color: white)),
+      hero = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: MonoLabel(shared)),
+              if (phase != null) BotanicalGlyph.phase(phase, size: 26),
             ],
+          ),
+          Gap.v8,
+          PhaseTitle(
+            lead: '$who\'s cycle,',
+            italic: phase == null ? 'no phase shared.' : '${phase.label.toLowerCase()}.',
+            color: phase == null ? null : phaseColor(phase),
+          ),
+          if (phase != null) ...[
+            Gap.v12,
+            Text(partnerPhaseSummary(phase), style: theme.textTheme.bodyLarge!.copyWith(color: p.ink2)),
           ],
-        ),
+        ],
       );
     }
 
@@ -530,11 +473,11 @@ class PartnerView extends StatelessWidget {
         ),
       if (!pregnant && (next != null || nextOv != null))
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (next != null)
               Expanded(
                 child: StatTile(
-                  icon: Icons.water_drop_rounded,
                   color: BloomColors.period,
                   value: '${daysBetween(now, next)}',
                   unit: daysBetween(now, next) == 1 ? 'day' : 'days',
@@ -542,11 +485,10 @@ class PartnerView extends StatelessWidget {
                   caption: fmtShort(next),
                 ),
               ),
-            if (next != null && nextOv != null) Gap.h12,
+            if (next != null && nextOv != null) Gap.h16,
             if (nextOv != null)
               Expanded(
                 child: StatTile(
-                  icon: Icons.spa_rounded,
                   color: BloomColors.fertile,
                   value: fmtShort(addDays(nextOv, -5)),
                   label: 'Fertile window',
@@ -556,47 +498,37 @@ class PartnerView extends StatelessWidget {
           ],
         ),
       if (tips.isNotEmpty)
-        BloomCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const IconBadge(icon: Icons.volunteer_activism_rounded, color: BloomColors.brand),
-                  Gap.h12,
-                  Text('How to support', style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w700)),
-                ],
-              ),
-              Gap.v12,
-              for (final tip in tips)
-                Padding(
-                  padding: const EdgeInsets.only(top: Space.sm),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Icon(Icons.favorite_rounded, size: 14, color: theme.colorScheme.primary),
-                      ),
-                      Gap.h12,
-                      Expanded(child: Text(tip, style: theme.textTheme.bodyMedium)),
-                    ],
-                  ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeader('How to support', label: 'Notes', padding: EdgeInsets.zero),
+            Gap.v12,
+            for (var i = 0; i < tips.length; i++) ...[
+              const Hairline(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: Space.md),
+                child: Marginalia(
+                  label: (i + 1).toString().padLeft(2, '0'),
+                  labelWidth: 40,
+                  child: Text(tips[i], style: theme.textTheme.bodyMedium),
                 ),
+              ),
             ],
-          ),
+            const Hairline(),
+          ],
         ),
       if (s.moods.isNotEmpty || s.symptoms.isNotEmpty)
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader('Recently logged'),
+            const MonoLabel('Recently logged'),
+            Gap.v12,
             Wrap(
               spacing: Space.sm,
               runSpacing: Space.sm,
               children: [
-                for (final m in s.moods) PillChip(m, icon: Icons.mood_rounded, color: BloomColors.coral),
-                for (final m in s.symptoms) PillChip(m, icon: Icons.healing_rounded, color: BloomColors.luteal),
+                for (final m in s.moods) PillChip(m),
+                for (final m in s.symptoms) PillChip(m, color: BloomColors.luteal),
               ],
             ),
           ],
@@ -605,7 +537,8 @@ class PartnerView extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SectionHeader('Next 5 weeks'),
+            const SectionHeader('The next five weeks', label: 'Almanac', padding: EdgeInsets.zero),
+            Gap.v16,
             _MiniCalendar(snapshot: s, from: now),
           ],
         ),
@@ -614,6 +547,8 @@ class PartnerView extends StatelessWidget {
   }
 }
 
+/// Five weeks as a printed almanac grid: serif numerals colored by meaning,
+/// today underlined in ink.
 class _MiniCalendar extends StatelessWidget {
   const _MiniCalendar({required this.snapshot, required this.from});
   final PartnerSnapshot snapshot;
@@ -621,95 +556,101 @@ class _MiniCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = BloomColors.of(context);
     final firstDow = context.read<AppStore>().profile.firstDayOfWeek;
     final start = addDays(from, -((from.weekday - firstDow + 7) % 7));
-    return BloomCard(
-      padding: Insets.cardCompact,
-      child: Column(
-        children: [
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < 7; i++)
+              Expanded(
+                child: Center(child: MonoLabel(DateFormat('E').format(addDays(start, i)).substring(0, 1), size: 10)),
+              ),
+          ],
+        ),
+        Gap.v8,
+        const Hairline(),
+        for (var w = 0; w < 5; w++)
           Row(
             children: [
               for (var i = 0; i < 7; i++)
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      DateFormat('E').format(addDays(start, i)).substring(0, 1),
-                      style: Theme.of(context).textTheme.labelSmall!.copyWith(color: BloomTokens.of(context).muted),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final d = addDays(start, w * 7 + i);
+                      final period = snapshot.isPeriodDay(d);
+                      final ov = snapshot.isOvulation(d);
+                      final fertile = snapshot.isFertile(d);
+                      final isToday = sameDay(d, from);
+                      final color = period
+                          ? p.period
+                          : ov
+                          ? p.ovulation
+                          : fertile
+                          ? p.fertile
+                          : d.isBefore(from)
+                          ? p.ink2.withValues(alpha: 0.5)
+                          : p.ink;
+                      return SizedBox(
+                        height: 44,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${d.day}',
+                              // Fertile days are italic as well as sage, so
+                              // the meaning doesn't rest on color alone.
+                              style: Almanac.serif(
+                                size: 18,
+                                weight: ov ? 450 : 340,
+                                italic: fertile || ov,
+                                color: color,
+                                height: 1,
+                                tabular: true,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (isToday)
+                              Container(width: 14, height: 1.5, color: p.ink)
+                            else if (ov)
+                              Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(color: p.ovulation, shape: BoxShape.circle),
+                              )
+                            else
+                              const SizedBox(height: 1.5),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
             ],
           ),
-          Gap.v4,
-          for (var w = 0; w < 5; w++)
-            Row(
-              children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Builder(
-                      builder: (context) {
-                        final d = addDays(start, w * 7 + i);
-                        final period = snapshot.isPeriodDay(d);
-                        final ov = snapshot.isOvulation(d);
-                        final fertile = snapshot.isFertile(d);
-                        final bg = period
-                            ? BloomColors.period
-                            : ov
-                            ? BloomColors.ovulation
-                            : fertile
-                            ? BloomColors.fertile.withValues(alpha: 0.35)
-                            : Colors.transparent;
-                        return Container(
-                          margin: const EdgeInsets.all(2),
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: bg,
-                            shape: BoxShape.circle,
-                            border: sameDay(d, from) ? Border.all(color: scheme.primary, width: 2) : null,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${d.day}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: period || ov
-                                    ? Colors.white
-                                    : (d.isBefore(from) ? BloomTokens.of(context).muted.withValues(alpha: 0.6) : null),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          Gap.v8,
-          Wrap(
-            spacing: Space.md,
-            children: [
-              _dot(context, BloomColors.period, 'Period'),
-              _dot(context, BloomColors.fertile.withValues(alpha: 0.5), 'Fertile'),
-              _dot(context, BloomColors.ovulation, 'Ovulation'),
-            ],
-          ),
-        ],
-      ),
+        const Hairline(),
+        Gap.v12,
+        Wrap(
+          spacing: Space.lg,
+          runSpacing: Space.xs,
+          children: [
+            _dot(context, p.period, 'Period'),
+            _dot(context, p.fertile, 'Fertile, italic'),
+            _dot(context, p.ovulation, 'Ovulation, dotted'),
+            _dot(context, p.ink, 'Today, underlined'),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _dot(BuildContext context, Color c, String label) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-      ),
-      Gap.h4,
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
+      Container(width: 6, height: 6, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      MonoLabel(label, size: 10),
     ],
   );
 }

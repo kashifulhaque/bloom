@@ -1,5 +1,6 @@
-/// Chart widgets for the analysis screen, built on fl_chart and themed to
-/// the design system.
+/// Chart widgets for the analysis screen, built on fl_chart and drawn like
+/// figures in a printed almanac: thin ink lines, dotted hairline grids, mono
+/// axis labels, and no gradient fills.
 library;
 
 import 'dart:math' as math;
@@ -11,25 +12,37 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/dates.dart';
 import '../../widgets/widgets.dart';
 
-/// Shared chart styling: muted gridlines, readable axis labels, and tooltips.
+/// Shared Almanac chart styling: dotted hairline gridlines, mono axis
+/// labels, and paper tooltips with a hairline border.
 class _ChartStyle {
-  _ChartStyle(BuildContext context)
-      : theme = Theme.of(context),
-        tokens = BloomTokens.of(context);
+  _ChartStyle(BuildContext context) : theme = Theme.of(context), p = BloomColors.of(context);
 
   final ThemeData theme;
-  final BloomTokens tokens;
+  final BloomPalette p;
 
   bool get dark => theme.brightness == Brightness.dark;
 
-  TextStyle get axis => theme.textTheme.labelSmall!.copyWith(color: tokens.muted, fontWeight: FontWeight.w600);
+  TextStyle get axis => Almanac.mono(size: 10, color: p.ink2, letterSpacing: 0.3);
 
-  FlLine grid(double _) => FlLine(color: tokens.border, strokeWidth: 1, dashArray: const [4, 4]);
+  /// A dotted hairline, like the faint rules of a printed graph.
+  FlLine grid(double _) => FlLine(
+    color: p.ink2.withValues(alpha: dark ? 0.4 : 0.35),
+    strokeWidth: 0.8,
+    dashArray: const [1, 3],
+  );
 
-  Color tooltipColor(Object _) => dark ? theme.colorScheme.surfaceContainerHighest : const Color(0xFF2A1F2D);
+  Color tooltipColor(Object _) => p.raised;
 
-  TextStyle get tooltipText =>
-      theme.textTheme.labelMedium!.copyWith(color: Colors.white, fontWeight: FontWeight.w700, height: 1.35);
+  BorderSide get tooltipBorder => BorderSide(color: p.hairline);
+
+  /// The small mono heading line of a tooltip (a date or a label).
+  TextStyle get tooltipHead => Almanac.mono(size: 10.5, color: p.ink2, letterSpacing: 0.4);
+
+  /// The value line of a tooltip.
+  TextStyle get tooltipText => Almanac.serif(size: 15, weight: 400, color: p.ink, height: 1.4, tabular: true);
+
+  /// Resolves a light-mode constant for the current brightness.
+  Color resolve(Color c) => BloomColors.adapt(c, theme.brightness);
 
   static const tooltipRadius = BorderRadius.all(Radius.circular(Radii.sm));
   static const tooltipPadding = EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm);
@@ -73,11 +86,7 @@ class SimpleBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = _ChartStyle(context);
-    final maxV = [
-      ...items.map((e) => e.value),
-      ?average,
-      ?bandMax,
-    ].fold<double>(1, math.max);
+    final maxV = [...items.map((e) => e.value), ?average, ?bandMax].fold<double>(1, math.max);
     final top = (maxV * 1.15).ceilToDouble();
     final step = math.max(1, (items.length / 6).ceil());
     final interval = _niceInterval(top);
@@ -90,43 +99,38 @@ class SimpleBarChart extends StatelessWidget {
           alignment: BarChartAlignment.spaceAround,
           borderData: FlBorderData(show: false),
           gridData: FlGridData(drawVerticalLine: false, horizontalInterval: interval, getDrawingHorizontalLine: s.grid),
-          rangeAnnotations: RangeAnnotations(horizontalRangeAnnotations: [
-            if (bandMin != null && bandMax != null)
-              HorizontalRangeAnnotation(
-                y1: bandMin!,
-                y2: bandMax!,
-                color: BloomColors.fertile.withValues(alpha: s.dark ? 0.12 : 0.08),
-              ),
-          ]),
+          rangeAnnotations: RangeAnnotations(
+            horizontalRangeAnnotations: [
+              if (bandMin != null && bandMax != null)
+                HorizontalRangeAnnotation(y1: bandMin!, y2: bandMax!, color: _bandColor(s)),
+            ],
+          ),
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
               getTooltipColor: s.tooltipColor,
+              tooltipBorder: s.tooltipBorder,
               tooltipBorderRadius: _ChartStyle.tooltipRadius,
               tooltipPadding: _ChartStyle.tooltipPadding,
               tooltipMargin: Space.sm,
               getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-                '${items[group.x].label}\n',
-                s.tooltipText.copyWith(fontWeight: FontWeight.w600, color: Colors.white70),
+                '${items[group.x].label.toUpperCase()}\n',
+                s.tooltipHead,
                 children: [TextSpan(text: '${_fmt(rod.toY)}$unit', style: s.tooltipText)],
               ),
             ),
           ),
-          extraLinesData: ExtraLinesData(horizontalLines: [
-            if (average != null)
-              HorizontalLine(
-                y: average!,
-                color: s.theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                strokeWidth: 1.4,
-                dashArray: [6, 4],
-                label: HorizontalLineLabel(
-                  show: true,
-                  alignment: Alignment.topRight,
-                  padding: const EdgeInsets.only(bottom: 2),
-                  style: s.axis.copyWith(color: s.theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800),
-                  labelResolver: (l) => 'avg ${_fmt(l.y)}',
+          extraLinesData: ExtraLinesData(
+            horizontalLines: [
+              if (average != null)
+                HorizontalLine(
+                  y: average!,
+                  color: s.p.ink.withValues(alpha: 0.75),
+                  strokeWidth: 1,
+                  dashArray: [5, 3],
+                  // The value is given in the ChartLegend under the chart, so it never collides with a bar.
                 ),
-              ),
-          ]),
+            ],
+          ),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(),
             rightTitles: const AxisTitles(),
@@ -147,29 +151,27 @@ class SimpleBarChart extends StatelessWidget {
                   if (i < 0 || i >= items.length || (items.length - 1 - i) % step != 0) {
                     return const SizedBox.shrink();
                   }
-                  return Padding(padding: const EdgeInsets.only(top: 6), child: Text(items[i].label, style: s.axis));
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(items[i].label.toUpperCase(), style: s.axis),
+                  );
                 },
               ),
             ),
           ),
           barGroups: [
             for (var i = 0; i < items.length; i++)
-              BarChartGroupData(x: i, barRods: [
-                () {
-                  final c = (items[i].color ?? color).withValues(alpha: items[i].muted ? 0.3 : 1);
-                  final w = math.min(24.0, 220 / math.max(1, items.length));
-                  return BarChartRodData(
-                    toY: items[i].value,
-                    width: w,
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [c.withValues(alpha: c.a * 0.75), c],
-                    ),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(w / 2.5), bottom: const Radius.circular(3)),
-                  );
-                }(),
-              ]),
+              BarChartGroupData(
+                x: i,
+                barRods: [
+                  () {
+                    final c = s.resolve(items[i].color ?? color).withValues(alpha: items[i].muted ? 0.25 : 1);
+                    // Thin printed rules rather than fat bars.
+                    final w = math.min(7.0, 140 / math.max(1, items.length));
+                    return BarChartRodData(toY: items[i].value, width: w, color: c, borderRadius: BorderRadius.zero);
+                  }(),
+                ],
+              ),
           ],
         ),
         duration: Motion.slow,
@@ -188,34 +190,28 @@ class ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = _ChartStyle(context);
-    final style = s.theme.textTheme.labelMedium?.copyWith(color: s.tokens.muted);
+    final style = Almanac.data(context, size: 11.5);
     return Wrap(
       spacing: Space.lg,
       runSpacing: Space.xs,
-      alignment: WrapAlignment.center,
       children: [
         if (band != null)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 16,
-              height: 10,
-              decoration: BoxDecoration(
-                color: BloomColors.fertile.withValues(alpha: s.dark ? 0.25 : 0.18),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            Gap.h8,
-            Flexible(child: Text(band!, style: style)),
-          ]),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(
-            width: 16,
-            height: 10,
-            child: CustomPaint(painter: _DashPainter(s.theme.colorScheme.onSurfaceVariant)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 16, height: 10, color: _bandColor(s)),
+              Gap.h8,
+              Flexible(child: Text(band!, style: style)),
+            ],
           ),
-          Gap.h8,
-          Flexible(child: Text(average, style: style)),
-        ]),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: 16, height: 10, child: CustomPaint(painter: _DashPainter(s.p.ink.withValues(alpha: 0.75)))),
+            Gap.h8,
+            Flexible(child: Text(average, style: style)),
+          ],
+        ),
       ],
     );
   }
@@ -229,17 +225,17 @@ class _DashPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = Paint()
       ..color = color
-      ..strokeWidth = 1.6;
+      ..strokeWidth = 1;
     final y = size.height / 2;
-    canvas.drawLine(Offset(0, y), Offset(6, y), p);
-    canvas.drawLine(Offset(10, y), Offset(size.width, y), p);
+    canvas.drawLine(Offset(0, y), Offset(5, y), p);
+    canvas.drawLine(Offset(8, y), Offset(size.width, y), p);
   }
 
   @override
   bool shouldRepaint(_DashPainter old) => old.color != color;
 }
 
-/// A dated series of values, shown as a smooth line with a gradient fill.
+/// A dated series of values, drawn as a thin ink line with no fill.
 class TrendLineChart extends StatelessWidget {
   const TrendLineChart({
     super.key,
@@ -273,7 +269,8 @@ class TrendLineChart extends StatelessWidget {
     lo = zeroBased ? 0 : lo - pad;
     hi = hi + pad;
     final span = daysBetween(from, to).toDouble();
-    final dotFill = s.dark ? s.theme.colorScheme.surfaceContainer : Colors.white;
+    final dotFill = s.p.paper;
+    final c = s.resolve(color);
     return SizedBox(
       height: height,
       child: LineChart(
@@ -288,15 +285,16 @@ class TrendLineChart extends StatelessWidget {
             getTouchedSpotIndicator: (bar, idx) => [
               for (final _ in idx)
                 TouchedSpotIndicatorData(
-                  FlLine(color: color.withValues(alpha: 0.4), strokeWidth: 1.5, dashArray: const [3, 3]),
+                  FlLine(color: s.p.ink2.withValues(alpha: 0.6), strokeWidth: 1, dashArray: const [1, 3]),
                   FlDotData(
                     getDotPainter: (_, _, _, _) =>
-                        FlDotCirclePainter(radius: 5, color: color, strokeColor: dotFill, strokeWidth: 2.5),
+                        FlDotCirclePainter(radius: 3.5, color: c, strokeColor: dotFill, strokeWidth: 1.5),
                   ),
                 ),
             ],
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: s.tooltipColor,
+              tooltipBorder: s.tooltipBorder,
               tooltipBorderRadius: _ChartStyle.tooltipRadius,
               tooltipPadding: _ChartStyle.tooltipPadding,
               fitInsideHorizontally: true,
@@ -304,8 +302,8 @@ class TrendLineChart extends StatelessWidget {
               getTooltipItems: (spots) => [
                 for (final sp in spots)
                   LineTooltipItem(
-                    '${fmtShort(addDays(from, sp.x.round()))}\n',
-                    s.tooltipText.copyWith(fontWeight: FontWeight.w600, color: Colors.white70),
+                    '${fmtShort(addDays(from, sp.x.round())).toUpperCase()}\n',
+                    s.tooltipHead,
                     children: [TextSpan(text: '${sp.y.toStringAsFixed(decimals)}$unit', style: s.tooltipText)],
                   ),
               ],
@@ -328,11 +326,13 @@ class TrendLineChart extends StatelessWidget {
                 showTitles: true,
                 reservedSize: 24,
                 interval: math.max(1, span / 3).floorToDouble(),
-                getTitlesWidget: (v, meta) => v > span
+                // fl_chart adds a label at the axis end; skip it when it would crowd the last tick.
+                getTitlesWidget: (v, meta) =>
+                    v > span || (v == meta.max && v % math.max(1, span / 3).floorToDouble() != 0)
                     ? const SizedBox.shrink()
                     : Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Text(DateFormat('MMM d').format(addDays(from, v.round())), style: s.axis),
+                        child: Text(DateFormat('MMM d').format(addDays(from, v.round())).toUpperCase(), style: s.axis),
                       ),
               ),
             ),
@@ -340,24 +340,16 @@ class TrendLineChart extends StatelessWidget {
           lineBarsData: [
             LineChartBarData(
               spots: spots,
-              color: color,
-              barWidth: 2.5,
+              color: c,
+              barWidth: 1.4,
               isCurved: spots.length > 2,
-              curveSmoothness: 0.25,
+              curveSmoothness: 0.2,
               preventCurveOverShooting: true,
               isStrokeCapRound: true,
               dotData: FlDotData(
                 show: spots.length <= 31,
                 getDotPainter: (_, _, _, _) =>
-                    FlDotCirclePainter(radius: 3, color: color, strokeColor: dotFill, strokeWidth: 1.5),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [color.withValues(alpha: s.dark ? 0.32 : 0.24), color.withValues(alpha: 0)],
-                ),
+                    FlDotCirclePainter(radius: 2.4, color: dotFill, strokeColor: c, strokeWidth: 1.2),
               ),
             ),
           ],
@@ -399,7 +391,7 @@ class BbtChart extends StatelessWidget {
     final values = [...entries.map((e) => e.value), ?coverLine];
     final lo = values.reduce(math.min), hi = values.reduce(math.max);
     final pad = math.max(0.15, (hi - lo) * 0.2);
-    final dotFill = s.dark ? s.theme.colorScheme.surfaceContainer : Colors.white;
+    final dotFill = s.p.paper;
     final lutealLabel = readableTint(BloomColors.luteal, s.theme.brightness);
     final ovulationLabel = readableTint(BloomColors.ovulation, s.theme.brightness);
     return SizedBox(
@@ -415,6 +407,7 @@ class BbtChart extends StatelessWidget {
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: s.tooltipColor,
+              tooltipBorder: s.tooltipBorder,
               tooltipBorderRadius: _ChartStyle.tooltipRadius,
               tooltipPadding: _ChartStyle.tooltipPadding,
               fitInsideHorizontally: true,
@@ -422,8 +415,8 @@ class BbtChart extends StatelessWidget {
               getTooltipItems: (spots) => [
                 for (final sp in spots)
                   LineTooltipItem(
-                    'Day ${sp.x.round()}\n',
-                    s.tooltipText.copyWith(fontWeight: FontWeight.w600, color: Colors.white70),
+                    'DAY ${sp.x.round()}\n',
+                    s.tooltipHead,
                     children: [TextSpan(text: '${sp.y.toStringAsFixed(2)} $unit', style: s.tooltipText)],
                   ),
               ],
@@ -434,14 +427,14 @@ class BbtChart extends StatelessWidget {
               if (coverLine != null)
                 HorizontalLine(
                   y: coverLine!,
-                  color: BloomColors.luteal,
-                  strokeWidth: 1.5,
-                  dashArray: [6, 4],
+                  color: s.p.luteal,
+                  strokeWidth: 1,
+                  dashArray: [5, 3],
                   label: HorizontalLineLabel(
                     show: true,
                     alignment: Alignment.topLeft,
-                    style: s.axis.copyWith(color: lutealLabel, fontWeight: FontWeight.w800),
-                    labelResolver: (l) => 'Cover line ${l.y.toStringAsFixed(2)}',
+                    style: s.axis.copyWith(color: lutealLabel, fontWeight: FontWeight.w500),
+                    labelResolver: (l) => 'COVER LINE ${l.y.toStringAsFixed(2)}',
                   ),
                 ),
             ],
@@ -449,14 +442,14 @@ class BbtChart extends StatelessWidget {
               if (ovulationDay != null)
                 VerticalLine(
                   x: ovulationDay!.toDouble(),
-                  color: BloomColors.ovulation.withValues(alpha: 0.8),
-                  strokeWidth: 1.5,
-                  dashArray: [3, 3],
+                  color: s.p.ovulation,
+                  strokeWidth: 1,
+                  dashArray: [1, 3],
                   label: VerticalLineLabel(
                     show: true,
                     alignment: Alignment.topRight,
-                    style: s.axis.copyWith(color: ovulationLabel, fontWeight: FontWeight.w800),
-                    labelResolver: (_) => 'Ovulation',
+                    style: s.axis.copyWith(color: ovulationLabel, fontWeight: FontWeight.w500),
+                    labelResolver: (_) => 'OVULATION',
                   ),
                 ),
             ],
@@ -474,7 +467,7 @@ class BbtChart extends StatelessWidget {
               ),
             ),
             bottomTitles: AxisTitles(
-              axisNameWidget: Text('Cycle day', style: s.axis),
+              axisNameWidget: Text('CYCLE DAY', style: s.axis),
               axisNameSize: 18,
               sideTitles: SideTitles(
                 showTitles: true,
@@ -493,24 +486,19 @@ class BbtChart extends StatelessWidget {
           lineBarsData: [
             LineChartBarData(
               spots: [for (final e in entries) FlSpot(e.key.toDouble(), e.value)],
-              color: BloomColors.brand,
-              barWidth: 2,
+              color: s.p.ink,
+              barWidth: 1.2,
               isStrokeCapRound: true,
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [BloomColors.brand.withValues(alpha: s.dark ? 0.22 : 0.14), BloomColors.brand.withValues(alpha: 0)],
-                ),
-              ),
               dotData: FlDotData(
-                getDotPainter: (sp, _, _, _) => FlDotCirclePainter(
-                  radius: 3.5,
-                  color: periodDays.contains(sp.x.round()) ? BloomColors.period : dotFill,
-                  strokeColor: BloomColors.brand,
-                  strokeWidth: 2,
-                ),
+                getDotPainter: (sp, _, _, _) {
+                  final period = periodDays.contains(sp.x.round());
+                  return FlDotCirclePainter(
+                    radius: period ? 3.2 : 2.6,
+                    color: period ? s.p.period : dotFill,
+                    strokeColor: period ? s.p.period : s.p.ink,
+                    strokeWidth: 1.1,
+                  );
+                },
               ),
             ),
           ],
@@ -519,6 +507,10 @@ class BbtChart extends StatelessWidget {
     );
   }
 }
+
+/// The faint wash of a typical-range band: ink, not a phase color, since a
+/// range isn't a phase.
+Color _bandColor(_ChartStyle s) => s.p.ink.withValues(alpha: s.dark ? 0.07 : 0.05);
 
 /// A round step for gridlines and axis labels so about four lines show.
 double _niceInterval(double top) {

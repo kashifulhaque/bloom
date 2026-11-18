@@ -18,6 +18,9 @@ String optionRefLabel(OptionRef r) {
   return '${emoji == null ? '' : '$emoji '}${optionLabel(r.category, r.option)}';
 }
 
+/// The option's name alone, without its emoji, for tables and tallies.
+String optionRefText(OptionRef r) => optionLabel(r.category, r.option);
+
 /// Categories counted in symptom and mood statistics.
 const statCategories = ['symptoms', 'mood', 'digestion', 'discharge', 'other'];
 
@@ -52,15 +55,18 @@ List<MapEntry<OptionRef, int>> optionCounts(Iterable<DayLog> logs, {Iterable<Str
 const tablePhases = [Phase.menstrual, Phase.follicular, Phase.ovulation, Phase.luteal];
 
 String phaseShort(Phase p) => switch (p) {
-      Phase.menstrual => 'Period',
-      Phase.follicular => 'Follicular',
-      Phase.ovulation => 'Fertile',
-      Phase.luteal => 'Luteal',
-    };
+  Phase.menstrual => 'Period',
+  Phase.follicular => 'Follicular',
+  Phase.ovulation => 'Fertile',
+  Phase.luteal => 'Luteal',
+};
 
 /// Option → phase → number of days logged in that phase.
-Map<OptionRef, Map<Phase, int>> phaseFrequency(CycleEngine engine, Iterable<DayLog> logs,
-    {Iterable<String> categories = statCategories}) {
+Map<OptionRef, Map<Phase, int>> phaseFrequency(
+  CycleEngine engine,
+  Iterable<DayLog> logs, {
+  Iterable<String> categories = statCategories,
+}) {
   final out = <OptionRef, Map<Phase, int>>{};
   for (final log in logs) {
     final phase = engine.info(log.date).phase;
@@ -79,8 +85,7 @@ Map<OptionRef, Map<Phase, int>> phaseFrequency(CycleEngine engine, Iterable<DayL
 /// The BBT cover line for a cycle: the highest of the six temperatures
 /// logged on or before [ovulation]. Null with fewer than three readings.
 double? coverLine(Map<DateTime, double> temps, DateTime ovulation) {
-  final before = temps.entries.where((e) => !e.key.isAfter(ovulation)).toList()
-    ..sort((a, b) => a.key.compareTo(b.key));
+  final before = temps.entries.where((e) => !e.key.isAfter(ovulation)).toList()..sort((a, b) => a.key.compareTo(b.key));
   if (before.length < 3) return null;
   return before.reversed.take(6).map((e) => e.value).reduce(math.max);
 }
@@ -139,12 +144,14 @@ List<PatternInsight> detectPatterns(CycleEngine engine, Map<String, DayLog> logs
     final strong = hits.entries.where((e) => e.value >= 3 || e.value == recent.length).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final e in strong.take(3)) {
-      out.add(PatternInsight(
-        '${optionLabel(e.key.category, e.key.option)} before your period',
-        '${optionLabel(e.key.category, e.key.option)} was logged in the 5 days before your period '
-            'in ${e.value} of the last ${recent.length} cycles. Knowing this can help you plan ahead.',
-        icon: categoryById(e.key.category)?.option(e.key.option)?.emoji ?? '🔁',
-      ));
+      out.add(
+        PatternInsight(
+          '${optionLabel(e.key.category, e.key.option)} before your period',
+          '${optionLabel(e.key.category, e.key.option)} was logged in the 5 days before your period '
+              'in ${e.value} of the last ${recent.length} cycles. Knowing this can help you plan ahead.',
+          icon: categoryById(e.key.category)?.option(e.key.option)?.emoji ?? '🔁',
+        ),
+      );
     }
   }
 
@@ -155,51 +162,65 @@ List<PatternInsight> detectPatterns(CycleEngine engine, Map<String, DayLog> logs
     final prev = lens.sublist(lens.length - 6, lens.length - 3);
     final a = prev.reduce((x, y) => x + y) / 3, b = last.reduce((x, y) => x + y) / 3;
     if (b - a >= 3) {
-      out.add(PatternInsight('Your cycles have become longer',
+      out.add(
+        PatternInsight(
+          'Your cycles have become longer',
           'Your last 3 cycles averaged ${b.round()} days, up from ${a.round()} days before.',
-          icon: '📈'));
+          icon: '📈',
+        ),
+      );
     } else if (a - b >= 3) {
-      out.add(PatternInsight('Your cycles have become shorter',
+      out.add(
+        PatternInsight(
+          'Your cycles have become shorter',
           'Your last 3 cycles averaged ${b.round()} days, down from ${a.round()} days before.',
-          icon: '📉'));
+          icon: '📉',
+        ),
+      );
     }
   }
 
   // Cycle length outside the typical range.
   final outOfRange = lens.reversed.take(6).where((l) => l < 21 || l > 35).toList();
   if (outOfRange.isNotEmpty) {
-    out.add(PatternInsight(
-      'Cycle length outside the typical range',
-      '${outOfRange.length} of your recent cycles lasted fewer than 21 or more than 35 days '
-          '(${outOfRange.join(', ')} days). If this keeps happening, consider talking to a clinician.',
-      tone: PatternTone.attention,
-      icon: '⚠️',
-    ));
+    out.add(
+      PatternInsight(
+        'Cycle length outside the typical range',
+        '${outOfRange.length} of your recent cycles lasted fewer than 21 or more than 35 days '
+            '(${outOfRange.join(', ')} days). If this keeps happening, consider talking to a clinician.',
+        tone: PatternTone.attention,
+        icon: '⚠️',
+      ),
+    );
   }
 
   // Long periods.
   final longPeriods = engine.periods.reversed.take(6).where((p) => p.length > 7).toList();
   if (longPeriods.isNotEmpty) {
     final p = longPeriods.first;
-    out.add(PatternInsight(
-      'Period longer than 7 days',
-      'Your period starting ${fmtShort(p.start)} lasted ${p.length} days. Periods that often last '
-          'more than 7 days are worth mentioning to a clinician.',
-      tone: PatternTone.attention,
-      icon: '🩸',
-    ));
+    out.add(
+      PatternInsight(
+        'Period longer than 7 days',
+        'Your period starting ${fmtShort(p.start)} lasted ${p.length} days. Periods that often last '
+            'more than 7 days are worth mentioning to a clinician.',
+        tone: PatternTone.attention,
+        icon: '🩸',
+      ),
+    );
   }
 
   // Irregular cycles.
   final health = engine.health();
   if (health.enoughData && !health.regular) {
-    out.add(PatternInsight(
-      'Cycle lengths vary a lot',
-      'Your recent cycle lengths differ by ${health.variation} days. A difference of more than '
-          '7 days is often described as irregular.',
-      tone: PatternTone.attention,
-      icon: '〰️',
-    ));
+    out.add(
+      PatternInsight(
+        'Cycle lengths vary a lot',
+        'Your recent cycle lengths differ by ${health.variation} days. A difference of more than '
+            '7 days is often described as irregular.',
+        tone: PatternTone.attention,
+        icon: '〰️',
+      ),
+    );
   }
 
   // Spotting outside of a period.
@@ -208,22 +229,26 @@ List<PatternInsight> detectPatterns(CycleEngine engine, Map<String, DayLog> logs
       .where((l) => daysBetween(l.date, engine.today) <= 180)
       .length;
   if (spotting >= 2) {
-    out.add(PatternInsight(
-      'Spotting between periods',
-      'You logged spotting outside your period on $spotting days in the last 6 months.',
-      tone: PatternTone.attention,
-      icon: '💧',
-    ));
+    out.add(
+      PatternInsight(
+        'Spotting between periods',
+        'You logged spotting outside your period on $spotting days in the last 6 months.',
+        tone: PatternTone.attention,
+        icon: '💧',
+      ),
+    );
   }
 
   if (engine.isLate) {
-    out.add(PatternInsight(
-      'Your period is ${engine.daysLate} ${engine.daysLate == 1 ? 'day' : 'days'} late',
-      'Stress, travel, illness, and changes in routine can all delay a period. '
-          'If you might be pregnant, a pregnancy test can help.',
-      tone: PatternTone.attention,
-      icon: '⏰',
-    ));
+    out.add(
+      PatternInsight(
+        'Your period is ${engine.daysLate} ${engine.daysLate == 1 ? 'day' : 'days'} late',
+        'Stress, travel, illness, and changes in routine can all delay a period. '
+            'If you might be pregnant, a pregnancy test can help.',
+        tone: PatternTone.attention,
+        icon: '⏰',
+      ),
+    );
   }
   return out;
 }

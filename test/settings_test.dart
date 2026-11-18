@@ -224,6 +224,14 @@ void main() {
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
   });
 
+  testWidgets('doctor report PDF embeds the bundled fonts when they load', (tester) async {
+    final store = _storeWithPeriod(startDaysAgo: 40);
+    store.setNote(addDays(today(), -11), 'Felt “fine” — mostly 😀');
+    final bytes = (await tester.runAsync(() => buildReportPdf(buildReportData(store))))!;
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    expect(lastReportUsedBundledFonts, isTrue);
+  });
+
   group('Widgets', () {
     Widget wrap(AppStore store, Widget child) => ChangeNotifierProvider.value(
       value: store,
@@ -236,6 +244,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       final store = AppStore.memory(profile: Profile(name: 'Ada', onboarded: true));
       await tester.pumpWidget(wrap(store, const ProfileScreen()));
+      expect(find.text('You'), findsOneWidget);
       expect(find.text('Ada'), findsOneWidget);
       for (final t in ['My goal', 'Reminders', 'Birth control', 'Partner sharing', 'App lock', 'My data']) {
         expect(find.text(t), findsOneWidget);
@@ -270,6 +279,16 @@ void main() {
       await tester.tap(pill4);
       await tester.pump();
       expect(store.logFor(today()).has('pill', 'taken'), isTrue);
+    });
+
+    testWidgets('tapping a reminder opens its editor', (tester) async {
+      tester.view.physicalSize = const Size(1080, 7200);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(wrap(AppStore.memory(), const RemindersScreen()));
+      await tester.tap(find.text('Bedtime'));
+      await tester.pumpAndSettle();
+      expect(find.text('WELLNESS REMINDER'), findsOneWidget);
+      expect(find.text('Remind me'), findsOneWidget);
     });
 
     testWidgets('LockScreen rejects a wrong PIN and unlocks with the right one', (tester) async {

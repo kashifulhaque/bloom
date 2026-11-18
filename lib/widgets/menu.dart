@@ -1,29 +1,31 @@
-/// Settings-style lists: [MenuSection] and [MenuTile].
+/// Editorial lists: [MenuSection] and [MenuTile].
 library;
 
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_theme.dart';
-import 'bloom_card.dart';
+import 'bloom_card.dart' show readableTint;
+import 'ink.dart';
 
-/// A titled group of [MenuTile]s inside one card, with inset dividers.
+/// A group of [MenuTile]s under a mono label, ruled with hairlines. There's
+/// no card around it.
 ///
 /// ```dart
 /// MenuSection(
 ///   title: 'Privacy',
 ///   children: [
-///     MenuTile(icon: Icons.lock_rounded, color: BloomColors.luteal, title: 'App lock', onTap: ...),
-///     MenuTile.toggle(icon: Icons.visibility_off_rounded, title: 'Hide notifications',
-///         value: hide, onChanged: setHide),
+///     MenuTile(icon: Icons.lock_outline, title: 'App lock', onTap: ...),
+///     MenuTile.toggle(title: 'Hide notifications', value: hide, onChanged: setHide),
 ///   ],
 /// )
 /// ```
 class MenuSection extends StatelessWidget {
   const MenuSection({super.key, this.title, this.footer, required this.children});
 
+  /// Shown as an uppercase mono label above the rows.
   final String? title;
 
-  /// Muted note under the card.
+  /// Muted note under the rows.
   final String? footer;
 
   final List<Widget> children;
@@ -31,32 +33,24 @@ class MenuSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (title != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.xs, 0, Space.xs, Space.sm),
-            child: Text(
-              title!.toUpperCase(),
-              style: theme.textTheme.labelMedium!.copyWith(color: tokens.muted, letterSpacing: 1),
-            ),
+            padding: const EdgeInsets.only(bottom: Space.sm),
+            child: Text(title!.toUpperCase(), style: Almanac.label(context), semanticsLabel: title),
           ),
-        BloomCard(
-          padding: const EdgeInsets.symmetric(vertical: Space.xs),
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) Divider(indent: 72, endIndent: Space.lg, color: tokens.border),
-                children[i],
-              ],
-            ],
-          ),
-        ),
+        Container(height: 1, color: p.hairline),
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) Container(height: 1, color: p.hairline),
+          children[i],
+        ],
+        Container(height: 1, color: p.hairline),
         if (footer != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.xs, Space.sm, Space.xs, 0),
+            padding: const EdgeInsets.only(top: Space.sm),
             child: Text(footer!, style: theme.textTheme.bodySmall),
           ),
       ],
@@ -64,8 +58,8 @@ class MenuSection extends StatelessWidget {
   }
 }
 
-/// One row in a [MenuSection]: a colored [IconBadge], a title, an optional
-/// subtitle, and a trailing value, switch, or chevron.
+/// One row in a [MenuSection]: an optional thin icon, a title, an optional
+/// subtitle, and a trailing value (in mono), switch, or arrow.
 class MenuTile extends StatelessWidget {
   const MenuTile({
     super.key,
@@ -81,7 +75,8 @@ class MenuTile extends StatelessWidget {
     this.showChevron,
   });
 
-  /// A row with a trailing [Switch]. Tapping anywhere on the row toggles it.
+  /// A row with a trailing [InkSwitch]. Tapping anywhere on the row toggles
+  /// it.
   factory MenuTile.toggle({
     Key? key,
     required String title,
@@ -101,83 +96,93 @@ class MenuTile extends StatelessWidget {
         subtitle: subtitle,
         showChevron: false,
         onTap: onChanged == null ? null : () => onChanged(!value),
-        trailing: Switch(value: value, onChanged: onChanged),
+        trailing: ExcludeSemantics(child: InkSwitch(value: value, onChanged: onChanged)),
       );
 
   final String title;
+
+  /// A thin leading icon in ink2 (or the tint of [color]).
   final IconData? icon;
+
+  /// Shown small in place of an icon.
   final String? emoji;
 
-  /// Badge color. Defaults to the primary color.
+  /// Tints the icon. Usually leave it null: rows are ink.
   final Color? color;
 
   final String? subtitle;
 
-  /// Short muted value shown before the chevron, for example "28 days".
+  /// Short value before the arrow, for example "28 days". Set in mono.
   final String? value;
 
-  /// Custom trailing widget. Replaces [value] and the chevron.
+  /// Custom trailing widget. Replaces [value] and the arrow.
   final Widget? trailing;
 
   final VoidCallback? onTap;
 
-  /// Draws the title and badge in the error color.
+  /// Draws the title and icon in the error color.
   final bool destructive;
 
-  /// Shows a chevron. Defaults to true when [onTap] is set and [trailing] isn't.
+  /// Shows an arrow. Defaults to true when [onTap] is set and [trailing] isn't.
   final bool? showChevron;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    final c = destructive ? theme.colorScheme.error : color;
+    final p = BloomColors.of(context);
     final chevron = showChevron ?? (onTap != null && trailing == null);
-    return InkWell(
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 60),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm + 2),
-          child: Row(
-            children: [
-              if (icon != null || emoji != null) ...[
-                IconBadge(icon: icon, emoji: emoji, color: c, size: 40),
-                Gap.h16,
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.bodyLarge!.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: destructive ? theme.colorScheme.error : null,
-                      ),
-                    ),
-                    if (subtitle != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(subtitle!, style: theme.textTheme.bodyMedium!.copyWith(color: tokens.muted)),
-                      ),
-                  ],
-                ),
-              ),
-              if (trailing != null) ...[Gap.h8, trailing!],
-              if (trailing == null && value != null) ...[
-                Gap.h8,
-                Text(value!, style: theme.textTheme.bodyMedium!.copyWith(color: tokens.muted, fontWeight: FontWeight.w600)),
-              ],
-              if (chevron) ...[
-                Gap.h4,
-                Icon(Icons.chevron_right_rounded, color: tokens.muted.withValues(alpha: 0.7)),
-              ],
+    final iconColor = destructive
+        ? p.error
+        : color == null
+            ? p.ink2
+            : readableTint(color!, theme.brightness);
+    final row = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.md - 1),
+        child: Row(
+          children: [
+            if (emoji != null) ...[
+              SizedBox(width: 24, child: Text(emoji!, style: const TextStyle(fontSize: 16, height: 1))),
+              Gap.h12,
+            ] else if (icon != null) ...[
+              Icon(icon, size: 20, color: iconColor),
+              Gap.h16,
             ],
-          ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.bodyLarge!.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: destructive ? p.error : p.ink,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle!, style: theme.textTheme.bodyMedium!.copyWith(color: p.ink2, height: 1.4)),
+                    ),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[Gap.h8, trailing!],
+            if (trailing == null && value != null) ...[
+              Gap.h8,
+              Text(value!, style: Almanac.data(context, size: 12.5)),
+            ],
+            if (chevron) ...[
+              Gap.h8,
+              Icon(Icons.arrow_forward, size: 16, color: p.ink2.withValues(alpha: 0.8)),
+            ],
+          ],
         ),
       ),
     );
+    return onTap == null ? row : Pressable(onTap: onTap, child: row);
   }
 }

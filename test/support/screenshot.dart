@@ -20,6 +20,7 @@ import 'dart:io';
 
 import 'package:bloom/core/store.dart';
 import 'package:bloom/theme/app_theme.dart';
+import 'package:bloom/widgets/paper.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -39,22 +40,37 @@ Future<void> loadAppFonts() async {
     await loader.load();
   }
 
-  await family('Outfit', ['assets/fonts/Outfit-Medium.ttf', 'assets/fonts/Outfit-SemiBold.ttf', 'assets/fonts/Outfit-Bold.ttf']);
-  await family('Nunito', [
-    'assets/fonts/Nunito-Regular.ttf',
-    'assets/fonts/Nunito-SemiBold.ttf',
-    'assets/fonts/Nunito-Bold.ttf',
-    'assets/fonts/Nunito-ExtraBold.ttf',
+  await family('Fraunces', ['assets/fonts/Fraunces-VF.ttf', 'assets/fonts/Fraunces-Italic-VF.ttf']);
+  await family('Hanken Grotesk', [
+    'assets/fonts/HankenGrotesk-400.ttf',
+    'assets/fonts/HankenGrotesk-500.ttf',
+    'assets/fonts/HankenGrotesk-600.ttf',
+    'assets/fonts/HankenGrotesk-700.ttf',
   ]);
+  await family('IBM Plex Mono', ['assets/fonts/IBMPlexMono-Regular.ttf', 'assets/fonts/IBMPlexMono-Medium.ttf']);
   await family('BloomEmoji', ['assets/fonts/BloomEmoji.ttf']);
   final flutterRoot = Platform.environment['FLUTTER_ROOT'];
   if (flutterRoot != null) {
     final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
     if (icons.existsSync()) await family('MaterialIcons', [icons.path]);
   }
+  // CupertinoIcons, for screens that use the thinner icon set.
+  final pubCache = Platform.environment['PUB_CACHE'];
+  if (pubCache != null) {
+    final dir = Directory('$pubCache/hosted/pub.dev');
+    if (dir.existsSync()) {
+      final pkgs = dir.listSync().whereType<Directory>().where((d) => d.path.contains('cupertino_icons-')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+      if (pkgs.isNotEmpty) {
+        final f = File('${pkgs.last.path}/assets/CupertinoIcons.ttf');
+        if (f.existsSync()) await family('packages/cupertino_icons/CupertinoIcons', [f.path]);
+      }
+    }
+  }
 }
 
-/// Pumps [child] inside the app theme at phone size and saves a PNG named
+/// Pumps [child] inside the app theme (with the app's paper background,
+/// grain, and scroll behavior) at phone size and saves a PNG named
 /// `test/shots/goldens/<name>.png`. Set [size] for desktop shots.
 Future<void> shoot(
   WidgetTester tester,
@@ -76,9 +92,16 @@ Future<void> shoot(
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
-      home: RepaintBoundary(key: const ValueKey('shot'), child: child),
+      scrollBehavior: const AlmanacScrollBehavior(),
+      builder: (context, child) => RepaintBoundary(key: const ValueKey('shot'), child: PaperBackground(child: child!)),
+      home: child,
     ),
   ));
+  // Decode the grain texture for real so it shows in the PNG.
+  await tester.runAsync(() => precacheImage(const AssetImage(PaperBackground.grainAsset), tester.element(find.byKey(const ValueKey('shot')))));
+  // Two long frames: the first finishes the theme cross-fade, the second
+  // finishes the text-style animations it starts (matters for dark shots).
+  await tester.pump(const Duration(seconds: 2));
   await tester.pump(const Duration(seconds: 2));
   if (interact != null) {
     await interact(tester);

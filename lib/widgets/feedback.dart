@@ -5,18 +5,24 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_theme.dart';
 import 'bloom_card.dart' show readableTint;
+import 'botanical.dart';
+import 'ink.dart';
 
-/// A friendly placeholder for screens and sections with no data yet.
+/// A quiet placeholder for screens and sections with no data yet: a small
+/// botanical drawing, a serif title, a muted body, and an action.
 ///
 /// ```dart
 /// EmptyState(
-///   emoji: '🌱',
 ///   title: 'No cycles yet',
 ///   body: 'Log your last period to see predictions.',
 ///   actionLabel: 'Log period',
 ///   onAction: () => ...,
 /// )
 /// ```
+///
+/// [emoji] is no longer drawn (decorative emoji are de-emphasized in
+/// Almanac); pass [glyph] to pick the drawing. [icon] is drawn thin instead
+/// of the drawing.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -29,76 +35,69 @@ class EmptyState extends StatelessWidget {
     this.onAction,
     this.action,
     this.compact = false,
+    this.glyph = Botanical.sprig,
   });
 
   final String title;
   final String? body;
 
-  /// Illustration emoji. Takes precedence over [icon].
+  /// Kept for older code; not drawn.
   final String? emoji;
+
+  /// A thin icon in place of the botanical drawing.
   final IconData? icon;
 
-  /// Color of the illustration halo. Defaults to the brand color.
+  /// Accent color for the drawing. Defaults to ink2.
   final Color? color;
 
-  /// Label of a filled call-to-action button.
+  /// Label of an ink call-to-action button.
   final String? actionLabel;
   final VoidCallback? onAction;
 
   /// Custom action widget. Overrides [actionLabel].
   final Widget? action;
 
-  /// Smaller illustration and padding, for use inside a card.
+  /// Smaller drawing and padding, for use inside a section.
   final bool compact;
+
+  /// The botanical drawing to show.
+  final Botanical glyph;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final c = color ?? BloomColors.brand;
-    final art = compact ? 72.0 : 112.0;
+    final p = BloomColors.of(context);
+    final art = compact ? 36.0 : 56.0;
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: Space.xxl, vertical: compact ? Space.lg : Space.huge),
+      padding: EdgeInsets.symmetric(horizontal: Space.lg, vertical: compact ? Space.lg : Space.huge),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.85, end: 1),
+            tween: Tween(begin: 0, end: 1),
             duration: Motion.slow,
-            curve: Motion.spring,
-            builder: (context, v, child) => Transform.scale(scale: v, child: child),
-            child: Container(
-              width: art,
-              height: art,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [
-                  c.withValues(alpha: dark ? 0.32 : 0.22),
-                  c.withValues(alpha: dark ? 0.08 : 0.05),
-                ]),
-              ),
-              child: emoji != null
-                  ? Text(emoji!, style: TextStyle(fontSize: art * 0.42, height: 1))
-                  : Icon(icon ?? Icons.spa_rounded, size: art * 0.42, color: readableTint(c, theme.brightness)),
-            ),
+            curve: Motion.curve,
+            builder: (context, v, child) => Opacity(opacity: v, child: child),
+            child: icon != null
+                ? Icon(icon, size: art * 0.7, color: color == null ? p.ink2 : readableTint(color!, theme.brightness))
+                : BotanicalGlyph(glyph, size: art, accent: color),
           ),
-          SizedBox(height: compact ? Space.lg : Space.xxl),
-          Text(title, style: compact ? theme.textTheme.titleLarge : theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+          SizedBox(height: compact ? Space.md : Space.lg),
+          Text(
+            title,
+            style: compact ? theme.textTheme.titleLarge : theme.textTheme.headlineSmall,
+            textAlign: TextAlign.center,
+          ),
           if (body != null) ...[
             Gap.v8,
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
-              child: Text(
-                body!,
-                style: theme.textTheme.bodyLarge!.copyWith(color: BloomTokens.of(context).muted),
-                textAlign: TextAlign.center,
-              ),
+              child: Text(body!, style: theme.textTheme.bodyMedium!.copyWith(color: p.ink2), textAlign: TextAlign.center),
             ),
           ],
           if (action != null || actionLabel != null) ...[
             SizedBox(height: compact ? Space.lg : Space.xxl),
-            action ?? FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            action ?? InkButton(label: actionLabel!, onPressed: onAction, dense: compact),
           ],
         ],
       ),
@@ -109,8 +108,9 @@ class EmptyState extends StatelessWidget {
 /// Tone of an [InfoBanner].
 enum BannerTone { info, success, warning, error, brand }
 
-/// An inline message strip with a tone color, an icon, optional title and
-/// action, and an optional close button.
+/// An inline note: a thin colored rule on the left, an optional title, the
+/// message, an optional underlined action, and an optional close button.
+/// No box and no fill beyond a faint wash.
 class InfoBanner extends StatelessWidget {
   const InfoBanner({
     super.key,
@@ -128,10 +128,10 @@ class InfoBanner extends StatelessWidget {
   final String? title;
   final BannerTone tone;
 
-  /// Overrides the tone's default icon.
+  /// A small thin icon before the title.
   final IconData? icon;
 
-  /// Shown instead of an icon.
+  /// Shown small before the title instead of an icon.
   final String? emoji;
 
   final String? actionLabel;
@@ -140,67 +140,54 @@ class InfoBanner extends StatelessWidget {
   /// Shows a close button when set.
   final VoidCallback? onClose;
 
+  /// The light-mode color of [tone]. Shared widgets resolve it for dark mode.
   static Color toneColor(BannerTone tone) => switch (tone) {
         BannerTone.info => BloomColors.info,
         BannerTone.success => BloomColors.success,
         BannerTone.warning => BloomColors.warning,
-        BannerTone.error => const Color(0xFFD9434F),
+        BannerTone.error => BloomColors.error,
         BannerTone.brand => BloomColors.brand,
       };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final p = BloomColors.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final c = toneColor(tone);
-    final fg = readableTint(c, theme.brightness);
-    final defaultIcon = switch (tone) {
-      BannerTone.info => Icons.info_rounded,
-      BannerTone.success => Icons.check_circle_rounded,
-      BannerTone.warning => Icons.warning_amber_rounded,
-      BannerTone.error => Icons.error_rounded,
-      BannerTone.brand => Icons.auto_awesome_rounded,
-    };
+    final c = BloomColors.resolve(context, toneColor(tone));
+    final fg = readableTint(toneColor(tone), theme.brightness);
     return Container(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md + 2, Space.sm, Space.md + 2),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: dark ? 0.16 : 0.09),
-        borderRadius: Radii.mdAll,
-        border: Border.all(color: c.withValues(alpha: dark ? 0.3 : 0.2)),
+        color: c.withValues(alpha: dark ? 0.08 : 0.05),
+        border: Border(left: BorderSide(color: c, width: 2)),
       ),
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.xs, Space.md),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: emoji != null
-                ? Text(emoji!, style: const TextStyle(fontSize: 18, height: 1.2))
-                : Icon(icon ?? defaultIcon, size: 20, color: fg),
-          ),
-          Gap.h12,
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(right: Space.sm),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (title != null)
+                  if (title != null || icon != null || emoji != null)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: Space.xxs),
-                      child: Text(title!, style: theme.textTheme.titleSmall!.copyWith(color: fg)),
+                      padding: const EdgeInsets.only(bottom: Space.xxs + 1),
+                      child: Row(
+                        children: [
+                          if (emoji != null) ...[Text(emoji!, style: const TextStyle(fontSize: 13, height: 1.2)), Gap.h8]
+                          else if (icon != null) ...[Icon(icon, size: 16, color: fg), Gap.h8],
+                          if (title != null)
+                            Expanded(child: Text(title!, style: theme.textTheme.titleSmall!.copyWith(color: fg))),
+                        ],
+                      ),
                     ),
-                  Text(message, style: theme.textTheme.bodyMedium),
+                  Text(message, style: theme.textTheme.bodyMedium!.copyWith(color: p.ink)),
                   if (actionLabel != null)
                     Padding(
                       padding: const EdgeInsets.only(top: Space.xs),
-                      child: InkWell(
-                        onTap: onAction,
-                        borderRadius: Radii.smAll,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                          child: Text(actionLabel!, style: theme.textTheme.labelLarge!.copyWith(color: fg)),
-                        ),
-                      ),
+                      child: InkLink(actionLabel!, onTap: onAction, color: fg, arrow: true, size: 14),
                     ),
                 ],
               ),
@@ -211,7 +198,7 @@ class InfoBanner extends StatelessWidget {
               onPressed: onClose,
               tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
               visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.close_rounded, size: 18, color: BloomTokens.of(context).muted),
+              icon: Icon(Icons.close, size: 16, color: p.ink2),
             ),
         ],
       ),
@@ -219,8 +206,8 @@ class InfoBanner extends StatelessWidget {
   }
 }
 
-/// A small, muted "not medical advice" note. Put it at the bottom of health
-/// content.
+/// A small, muted "not medical advice" note with a mono "Note" label in the
+/// margin. Put it at the bottom of health content.
 class Disclaimer extends StatelessWidget {
   const Disclaimer({super.key, this.text = defaultText, this.center = false});
 
@@ -233,10 +220,10 @@ class Disclaimer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = BloomTokens.of(context).muted;
+    final p = BloomColors.of(context);
     final note = Text(
       text,
-      style: theme.textTheme.bodySmall!.copyWith(color: muted),
+      style: theme.textTheme.bodySmall!.copyWith(color: p.ink2),
       textAlign: center ? TextAlign.center : TextAlign.start,
     );
     return Padding(
@@ -246,11 +233,13 @@ class Disclaimer extends StatelessWidget {
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(Icons.info_outline_rounded, size: 15, color: muted),
+                SizedBox(
+                  width: Space.margin,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('NOTE', style: Almanac.label(context, size: 10), semanticsLabel: 'Note'),
+                  ),
                 ),
-                Gap.h8,
                 Expanded(child: note),
               ],
             ),

@@ -30,7 +30,17 @@ class KickCounterScreen extends StatefulWidget {
 }
 
 class _KickCounterScreenState extends State<KickCounterScreen> {
-  late final AppStore _store = context.read<AppStore>();
+  // Read in initState: dispose() saves an unfinished session, and the
+  // context can't be used for lookups by then.
+  late final AppStore _store;
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _store = context.read<AppStore>();
+  }
+
   DateTime? _start;
   int _count = 0;
   Timer? _ticker;
@@ -66,9 +76,10 @@ class _KickCounterScreenState extends State<KickCounterScreen> {
         'count': _count,
         'seconds': end.difference(start).inSeconds,
       });
-      _store.setFeature('kicks', list);
+      // From dispose() the tree is locked, so save after this frame.
+      _disposed ? Future.microtask(() => _store.setFeature('kicks', list)) : _store.setFeature('kicks', list);
     }
-    if (mounted) {
+    if (mounted && !_disposed) {
       setState(() {
         _start = null;
         _count = 0;
@@ -78,6 +89,7 @@ class _KickCounterScreenState extends State<KickCounterScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     if (_running && _count > 0) _finish();
     _ticker?.cancel();
     super.dispose();
@@ -86,160 +98,130 @@ class _KickCounterScreenState extends State<KickCounterScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final muted = BloomTokens.of(context).muted;
+    final p = BloomColors.of(context);
     final store = context.watch<AppStore>();
     final history = [...(store.feature<List>('kicks') ?? const [])].reversed.toList();
     final elapsed = _running ? DateTime.now().difference(_start!) : Duration.zero;
     final reached = _count >= kKickGoal;
-    final onPreg = BloomColors.onColor(BloomGradients.pregnancy.colors.first);
 
     return ModePage(
+      eyebrow: 'Pregnancy · Tools',
       title: 'Kick counter',
       subtitle:
           'Pick a time when your baby is usually active, get comfortable, and tap once for each movement: '
           'kicks, rolls, or flutters.',
-      heroColor: BloomColors.pregnancy,
       children: [
-        BloomCard(
-          padding: const EdgeInsets.fromLTRB(Space.xl, Space.xxl, Space.xl, Space.xl),
+        Gap.v8,
+        Center(
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.timer_outlined, size: 18, color: muted),
-                  Gap.h8,
-                  Text(
-                    fmtDuration(elapsed),
-                    style: t.textTheme.titleLarge!.copyWith(fontFeatures: tabular, color: muted),
-                  ),
-                ],
+              MonoLabel(_running ? 'Elapsed' : 'Session'),
+              Gap.v4,
+              Text(
+                fmtDuration(elapsed),
+                style: Almanac.mono(size: 20, color: p.ink).copyWith(fontFeatures: tabular),
               ),
               Gap.v20,
-              ProgressRing(
-                value: _count / kKickGoal,
-                size: 252,
-                stroke: 14,
-                gradient: reached ? BloomGradients.fertile : BloomGradients.pregnancy,
-                child: BigRoundButton(
-                  size: 196,
-                  gradient: BloomGradients.pregnancy,
-                  semanticLabel: _running ? 'Record a movement' : 'Start counting',
-                  onPressed: _running ? _kick : _begin,
-                  child: _running
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedSwitcher(
-                              duration: Motion.medium,
-                              switchInCurve: Motion.spring,
-                              transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
-                              child: Text(
-                                '$_count',
-                                key: ValueKey(_count),
-                                style: t.textTheme.displayLarge!.copyWith(
-                                  color: BloomColors.onColor(BloomGradients.pregnancy.colors.first),
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-                            Text('Tap for each movement', style: t.textTheme.labelMedium!.copyWith(color: onPreg)),
-                          ],
-                        )
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.touch_app_rounded, size: 44),
-                            Gap.v8,
-                            Text('Start', style: t.textTheme.headlineSmall!.copyWith(color: onPreg)),
-                          ],
-                        ),
-                ),
+              BigRoundButton(
+                size: 236,
+                emphasis: _running,
+                semanticLabel: _running ? 'Record a movement' : 'Start counting',
+                onPressed: _running ? _kick : _begin,
+                child: _running
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: Motion.medium,
+                            transitionBuilder: (child, a) => FadeTransition(opacity: a, child: child),
+                            child: Text('$_count', key: ValueKey(_count), style: Almanac.numeral(context, size: 88)),
+                          ),
+                          Gap.v4,
+                          Text('tap for each movement', style: Almanac.italic(context, size: 15, color: p.ink2)),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Begin', style: Almanac.serif(size: 34, weight: 330, color: p.ink)),
+                          Gap.v4,
+                          Text('tap to start counting', style: Almanac.italic(context, size: 15, color: p.ink2)),
+                        ],
+                      ),
               ),
-              Gap.v20,
+              Gap.v24,
+              _Tally(count: _count, goal: kKickGoal),
+              Gap.v12,
               AnimatedSwitcher(
                 duration: Motion.medium,
                 child: reached
-                    ? const PillChip(
-                        'Goal reached',
-                        key: ValueKey('done'),
-                        color: BloomColors.success,
-                        icon: Icons.check_rounded,
+                    ? Text(
+                        'Ten movements. Well counted.',
+                        key: const ValueKey('done'),
+                        style: Almanac.italic(
+                          context,
+                          size: 18,
+                          color: readableTint(BloomColors.success, t.brightness),
+                        ),
                       )
                     : Text(
                         '$_count of $kKickGoal movements',
                         key: const ValueKey('count'),
-                        style: t.textTheme.titleMedium,
+                        style: Almanac.data(context),
                       ),
-              ),
-              AnimatedSize(
-                duration: Motion.medium,
-                curve: Motion.curve,
-                child: _running
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: Space.xl),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            FilledButton.icon(
-                              onPressed: _finish,
-                              icon: const Icon(Icons.check_rounded),
-                              label: const Text('Finish and save'),
-                            ),
-                            Gap.v8,
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: _count > 0 ? () => setState(() => _count--) : null,
-                                    icon: const Icon(Icons.undo_rounded),
-                                    label: const Text('Undo'),
-                                  ),
-                                ),
-                                Gap.h8,
-                                Expanded(
-                                  child: TextButton(
-                                    onPressed: () => _finish(save: false),
-                                    child: const Text('Discard'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      )
-                    : const SizedBox(width: double.infinity),
               ),
             ],
           ),
         ),
+        AnimatedSize(
+          duration: Motion.medium,
+          curve: Motion.curve,
+          child: _running
+              ? Padding(
+                  padding: const EdgeInsets.only(top: Space.sm),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: Space.lg,
+                    runSpacing: Space.sm,
+                    children: [
+                      InkButton(label: 'Finish and save', icon: Icons.check, onPressed: _finish),
+                      InkButton.outlined(label: 'Undo', onPressed: _count > 0 ? () => setState(() => _count--) : null),
+                      InkLink('Discard', onTap: () => _finish(save: false)),
+                    ],
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+        Gap.v8,
         const InfoBanner(
           tone: BannerTone.warning,
           message:
               'If you notice your baby moving less than usual, or not at all, contact your care provider or '
               'maternity unit right away. Don\'t wait until the next day.',
         ),
-        const SectionHeader('History'),
+        const SectionHeader('History', label: 'Ledger'),
         if (history.isEmpty)
-          const BloomCard(
-            child: EmptyState(
-              compact: true,
-              emoji: '👶',
-              color: BloomColors.pregnancy,
-              title: 'No sessions yet',
-              body: 'Many care providers suggest timing how long it takes to feel 10 movements.',
-            ),
+          const EmptyState(
+            compact: true,
+            glyph: Botanical.sprout,
+            title: 'No sessions yet',
+            body: 'Many care providers suggest timing how long it takes to feel 10 movements.',
           )
         else
-          ListCard(
-            children: [
+          LedgerTable(
+            columns: const [
+              LedgerColumn('Date', flex: 5),
+              LedgerColumn('Moves', flex: 3, end: true),
+              LedgerColumn('Time', flex: 3, end: true),
+            ],
+            rows: [
               for (final h in history.take(30))
-                HistoryRow(
-                  icon: Icons.touch_app_rounded,
-                  color: BloomColors.pregnancy,
-                  title: '${h['count']} movements in ${fmtDuration(Duration(seconds: (h['seconds'] as num).toInt()))}',
-                  subtitle: _when(DateTime.parse(h['start'])),
-                ),
+                LedgerRow([
+                  Text(_when(DateTime.parse(h['start'])), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  LedgerTable.serif(context, '${h['count']}'),
+                  Text(fmtDuration(Duration(seconds: (h['seconds'] as num).toInt()))),
+                ]),
             ],
           ),
       ],
@@ -247,7 +229,36 @@ class _KickCounterScreenState extends State<KickCounterScreen> {
   }
 }
 
-String _when(DateTime d) => '${fmtFull(d)}, ${fmtTime(d)}';
+/// Ten short tally marks under the kick counter: ink for each movement
+/// counted, hairline for the rest.
+class _Tally extends StatelessWidget {
+  const _Tally({required this.count, required this.goal});
+  final int count;
+  final int goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return Semantics(
+      label: '$count of $goal',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < goal; i++)
+            AnimatedContainer(
+              duration: Motion.medium,
+              margin: EdgeInsets.only(left: i == 0 ? 0 : (i % 5 == 0 ? Space.md : Space.sm)),
+              width: 1.5,
+              height: i < count ? 20 : 14,
+              color: i < count ? p.ink : p.hairline,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _when(DateTime d) => '${fmtShort(d)}, ${fmtTime(d)}';
 
 // ------------------------------------------------------------------ contractions
 
@@ -322,8 +333,7 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final muted = BloomTokens.of(context).muted;
+    final p = BloomColors.of(context);
     final store = context.watch<AppStore>();
     final list = _read(store);
     final active = list.isNotEmpty && list.last.end == null;
@@ -349,14 +359,14 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
         : 'Since the last one started: ${fmtDuration(now.difference(list.last.start))}';
 
     return ModePage(
+      eyebrow: 'Pregnancy · Tools',
       title: 'Contraction timer',
       subtitle: 'Tap Start when a contraction begins and Stop when it ends.',
-      heroColor: active ? BloomColors.period : BloomColors.pregnancy,
       actions: [
         if (list.isNotEmpty)
           IconButton(
             tooltip: 'Clear history',
-            icon: const Icon(Icons.delete_outline_rounded),
+            icon: Icon(Icons.delete_outline, size: 20, color: p.ink2),
             onPressed: () async {
               if (await confirmDialog(
                 context,
@@ -370,41 +380,39 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
           ),
       ],
       children: [
-        BloomCard(
-          padding: const EdgeInsets.fromLTRB(Space.xl, Space.xxl, Space.xl, Space.xxl),
+        Gap.v8,
+        Center(
           child: Column(
             children: [
               AnimatedSwitcher(
                 duration: Motion.medium,
-                child: Text(
-                  active ? fmtDuration(now.difference(list.last.start)) : 'Ready',
-                  key: ValueKey(active),
-                  style: t.textTheme.displayMedium!.copyWith(fontFeatures: tabular),
-                ),
+                child: active
+                    ? Text(
+                        fmtDuration(now.difference(list.last.start)),
+                        key: const ValueKey(true),
+                        style: Almanac.numeral(context, size: 72),
+                      )
+                    : Text('Ready', key: const ValueKey(false), style: Almanac.italic(context, size: 52)),
               ),
-              Gap.v4,
-              Text(
-                status,
-                style: t.textTheme.bodyMedium!.copyWith(color: muted),
-                textAlign: TextAlign.center,
-              ),
+              Gap.v8,
+              Text(status, style: Almanac.data(context), textAlign: TextAlign.center),
               Gap.v24,
               BigRoundButton(
-                size: 184,
-                gradient: active ? BloomGradients.period : BloomGradients.pregnancy,
+                size: 200,
+                emphasis: active,
                 semanticLabel: active ? 'Stop contraction' : 'Start contraction',
-                onPressed: () => _toggle(store),
+                onPressed: () {
+                  Almanac.tick();
+                  _toggle(store);
+                },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(active ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 52),
+                    Text(active ? 'Stop' : 'Start', style: Almanac.serif(size: 36, weight: 330, color: p.ink)),
+                    Gap.v4,
                     Text(
-                      active ? 'Stop' : 'Start',
-                      style: t.textTheme.headlineSmall!.copyWith(
-                        color: BloomColors.onColor(
-                          (active ? BloomGradients.period : BloomGradients.pregnancy).colors.first,
-                        ),
-                      ),
+                      active ? 'when it eases' : 'as it begins',
+                      style: Almanac.italic(context, size: 15, color: p.ink2),
                     ),
                   ],
                 ),
@@ -412,26 +420,19 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
             ],
           ),
         ),
+        Gap.v8,
         if (avgDur != null)
           Row(
             children: [
               Expanded(
-                child: StatTile(
-                  value: fmtDuration(avgDur),
-                  label: 'Avg. length',
-                  caption: 'Last hour',
-                  icon: Icons.hourglass_bottom_rounded,
-                  color: BloomColors.pregnancy,
-                ),
+                child: StatTile(value: fmtDuration(avgDur), label: 'Avg. length', caption: 'Last hour'),
               ),
-              Gap.h12,
+              Gap.h16,
               Expanded(
                 child: StatTile(
                   value: avgGap == null ? '–' : fmtDuration(avgGap),
                   label: 'Avg. interval',
                   caption: 'Start to start',
-                  icon: Icons.swap_horiz_rounded,
-                  color: BloomColors.info,
                 ),
               ),
             ],
@@ -439,7 +440,6 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
         if (show511)
           const InfoBanner(
             tone: BannerTone.error,
-            icon: Icons.local_hospital_rounded,
             title: 'Your contractions match the 5-1-1 pattern',
             message:
                 'They have been about 5 minutes apart or closer, lasting about 1 minute, for about '
@@ -454,66 +454,32 @@ class _ContractionTimerScreenState extends State<ContractionTimerScreen> {
                 'you bleed, or your baby moves less.',
           ),
         if (list.isNotEmpty) ...[
-          const SectionHeader('History', subtitle: 'Interval is measured from start to start'),
-          BloomCard(
-            padding: const EdgeInsets.symmetric(vertical: Space.sm),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
-                  child: DefaultTextStyle.merge(
-                    style: t.textTheme.labelMedium!.copyWith(color: muted),
-                    child: const Row(
+          const SectionHeader('History', label: 'Ledger', subtitle: 'Interval is measured from start to start.'),
+          LedgerTable(
+            columns: const [
+              LedgerColumn('Started', flex: 4),
+              LedgerColumn('Length', flex: 3, end: true),
+              LedgerColumn('Interval', flex: 3, end: true),
+            ],
+            rows: [
+              for (var i = list.length - 1; i >= 0 && i >= list.length - 40; i--)
+                LedgerRow([
+                  Text.rich(
+                    TextSpan(
                       children: [
-                        Expanded(flex: 4, child: Text('Started')),
-                        Expanded(flex: 3, child: Text('Length', textAlign: TextAlign.right)),
-                        Expanded(flex: 3, child: Text('Interval', textAlign: TextAlign.right)),
+                        TextSpan(text: fmtTime(list[i].start)),
+                        TextSpan(text: '  ${fmtShort(list[i].start)}', style: Almanac.data(context, size: 11)),
                       ],
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                for (var i = list.length - 1; i >= 0 && i >= list.length - 40; i--) ...[
-                  Divider(height: 1, indent: Space.lg, endIndent: Space.lg, color: BloomTokens.of(context).border),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md),
-                    child: DefaultTextStyle.merge(
-                      style: t.textTheme.bodyMedium!.copyWith(fontFeatures: tabular),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 4,
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(text: fmtTime(list[i].start), style: t.textTheme.titleSmall),
-                                  TextSpan(text: '  ${fmtShort(list[i].start)}', style: t.textTheme.bodySmall),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: list[i].duration == null
-                                ? const Align(
-                                    alignment: Alignment.centerRight,
-                                    child: PillChip('Now', color: BloomColors.period, dense: true),
-                                  )
-                                : Text(fmtDuration(list[i].duration!), textAlign: TextAlign.right),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              i == 0 ? '–' : fmtDuration(list[i].start.difference(list[i - 1].start)),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+                  list[i].duration == null
+                      ? Text('now', style: Almanac.italic(context, size: 15))
+                      : Text(fmtDuration(list[i].duration!)),
+                  Text(i == 0 ? '–' : fmtDuration(list[i].start.difference(list[i - 1].start))),
+                ]),
+            ],
           ),
         ],
       ],
@@ -544,12 +510,10 @@ class PregnancyWeightScreen extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(labelText: 'Weight', suffixText: unit == WeightUnit.kg ? 'kg' : 'lb'),
               ),
-              Gap.v8,
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_rounded),
-                title: Text(fmtFull(date)),
-                trailing: const Icon(Icons.edit_calendar_rounded),
+              Gap.v20,
+              DateField(
+                label: 'Date',
+                date: date,
                 onTap: () async {
                   final d = await pickDay(c, initial: date, first: addDays(today(), -400), last: today());
                   if (d != null) setS(() => date = d);
@@ -573,8 +537,7 @@ class PregnancyWeightScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final pal = BloomColors.of(context);
     final store = context.watch<AppStore>();
     final p = readPregnancy(store);
     final unit = store.profile.weightUnit;
@@ -591,16 +554,16 @@ class PregnancyWeightScreen extends StatelessWidget {
     final spots = [
       for (final e in entries) FlSpot(daysBetween(lmp, e.date) / 7, double.parse(show(e.kg).toStringAsFixed(1))),
     ];
-    final lineColor = readableTint(BloomColors.pregnancy, t.brightness);
+    final axis = Almanac.data(context, size: 10.5);
 
     return ModePage(
+      eyebrow: 'Pregnancy · Tools',
       title: 'Pregnancy weight',
-      subtitle: 'Your weight by pregnancy week',
+      subtitle: 'Your weight by pregnancy week.',
       children: [
-        FilledButton.icon(
-          onPressed: () => _add(context, store),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Log weight'),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkButton(label: 'Log weight', icon: Icons.add, onPressed: () => _add(context, store)),
         ),
         if (latest != null)
           Row(
@@ -611,12 +574,10 @@ class PregnancyWeightScreen extends StatelessWidget {
                   unit: unitLabel,
                   label: 'Latest',
                   caption: fmtShort(latest.date),
-                  icon: Icons.monitor_weight_rounded,
-                  color: BloomColors.fertile,
                 ),
               ),
               if (baseline != null && baseline != latest) ...[
-                Gap.h12,
+                Gap.h16,
                 Expanded(
                   child: StatTile(
                     value:
@@ -624,109 +585,88 @@ class PregnancyWeightScreen extends StatelessWidget {
                     unit: unitLabel,
                     label: 'Change',
                     caption: 'Since ${fmtShort(baseline.date)}',
-                    icon: Icons.trending_up_rounded,
-                    color: BloomColors.pregnancy,
                   ),
                 ),
               ],
             ],
           ),
-        if (entries.length >= 2)
-          SectionCard(
-            title: 'Weight by pregnancy week',
-            icon: Icons.show_chart_rounded,
-            accent: BloomColors.pregnancy,
-            child: SizedBox(
-              height: 220,
-              child: LineChart(
-                LineChartData(
-                  minX: (daysBetween(lmp, entries.first.date) / 7).floorToDouble(),
-                  maxX: (daysBetween(lmp, entries.last.date) / 7).ceilToDouble().clamp(1, 44),
-                  gridData: FlGridData(
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (_) => FlLine(color: tokens.border, strokeWidth: 1, dashArray: [4, 4]),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (_) => t.colorScheme.inverseSurface,
-                      getTooltipItems: (spots) => [
-                        for (final s in spots)
-                          LineTooltipItem(
-                            '${s.y.toStringAsFixed(1)} $unitLabel\nweek ${s.x.floor()}',
-                            t.textTheme.labelMedium!.copyWith(color: t.colorScheme.onInverseSurface),
-                          ),
-                      ],
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(),
-                    rightTitles: const AxisTitles(),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        getTitlesWidget: (v, meta) => SideTitleWidget(
-                          meta: meta,
-                          child: Text(meta.formattedValue, style: t.textTheme.bodySmall),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      axisNameWidget: Text('Week', style: t.textTheme.labelSmall!.copyWith(color: tokens.muted)),
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: 4,
-                        getTitlesWidget: (v, meta) => SideTitleWidget(
-                          meta: meta,
-                          child: Text(v.round() % 4 == 0 ? v.round().toString() : '', style: t.textTheme.bodySmall),
-                        ),
-                      ),
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      preventCurveOverShooting: true,
-                      color: lineColor,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            BloomColors.pregnancy.withValues(alpha: 0.28),
-                            BloomColors.pregnancy.withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                      dotData: FlDotData(
-                        show: spots.length <= 24,
-                        getDotPainter: (_, _, _, _) => FlDotCirclePainter(
-                          radius: 4,
-                          color: lineColor,
-                          strokeWidth: 2,
-                          strokeColor: t.brightness == Brightness.dark ? t.colorScheme.surfaceContainer : Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
+        if (entries.length >= 2) ...[
+          const SectionHeader('By pregnancy week', label: 'Chart'),
+          Gap.v8,
+          SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                minX: (daysBetween(lmp, entries.first.date) / 7).floorToDouble(),
+                maxX: (daysBetween(lmp, entries.last.date) / 7).ceilToDouble().clamp(1, 44),
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(color: pal.hairline, strokeWidth: 1),
                 ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border(bottom: BorderSide(color: pal.ink.withValues(alpha: 0.6))),
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => pal.ink,
+                    getTooltipItems: (spots) => [
+                      for (final s in spots)
+                        LineTooltipItem(
+                          '${s.y.toStringAsFixed(1)} $unitLabel\nweek ${s.x.floor()}',
+                          Almanac.mono(size: 11.5, color: pal.paper),
+                        ),
+                    ],
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(meta.formattedValue, style: axis),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    axisNameWidget: Text('WEEK', style: Almanac.label(context, size: 9.5)),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 4,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(v.round() % 4 == 0 ? v.round().toString() : '', style: axis),
+                      ),
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: pal.ink,
+                    barWidth: 1.5,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: spots.length <= 24,
+                      getDotPainter: (_, _, _, _) =>
+                          FlDotCirclePainter(radius: 2.5, color: pal.ink, strokeWidth: 1.5, strokeColor: pal.paper),
+                    ),
+                  ),
+                ],
               ),
             ),
-          )
-        else
-          BloomCard(
-            child: EmptyState(
-              compact: true,
-              emoji: '⚖️',
-              color: BloomColors.fertile,
-              title: entries.isEmpty ? 'No weight logged yet' : 'One more to see a chart',
-              body: 'Log your weight regularly to see a chart of your pregnancy weight.',
-            ),
+          ),
+        ] else
+          EmptyState(
+            compact: true,
+            title: entries.isEmpty ? 'No weight logged yet' : 'One more to see a chart',
+            body: 'Log your weight regularly to see a chart of your pregnancy weight.',
           ),
         const InfoBanner(
           message:
@@ -734,19 +674,26 @@ class PregnancyWeightScreen extends StatelessWidget {
               'Ask your care provider what range is right for you.',
         ),
         if (entries.isNotEmpty) ...[
-          const SectionHeader('Entries'),
-          ListCard(
-            children: [
+          const SectionHeader('Entries', label: 'Ledger'),
+          LedgerTable(
+            trailingWidth: 44,
+            columns: const [
+              LedgerColumn('Date', flex: 4),
+              LedgerColumn('Week', flex: 2, end: true),
+              LedgerColumn('Weight', flex: 4, end: true),
+            ],
+            rows: [
               for (final e in entries.reversed)
-                HistoryRow(
-                  icon: Icons.monitor_weight_rounded,
-                  color: BloomColors.fertile,
-                  title: fmtWeight(e.kg, unit),
-                  subtitle:
-                      '${fmtFull(e.date)}${e.date.isBefore(lmp) ? '' : ' · week ${gestationalAge(lmp, e.date).weeks}'}',
+                LedgerRow(
+                  [
+                    Text(fmtShort(e.date)),
+                    Text(e.date.isBefore(lmp) ? '–' : '${gestationalAge(lmp, e.date).weeks}'),
+                    LedgerTable.serif(context, fmtWeight(e.kg, unit)),
+                  ],
                   trailing: IconButton(
+                    visualDensity: VisualDensity.compact,
                     tooltip: 'Delete',
-                    icon: Icon(Icons.delete_outline_rounded, color: tokens.muted),
+                    icon: Icon(Icons.close, size: 18, color: pal.ink2),
                     onPressed: () => store.setMetric(e.date, 'weight', null),
                   ),
                 ),
@@ -763,21 +710,18 @@ class PregnancyWeightScreen extends StatelessWidget {
 class PregnancyChecklistScreen extends StatelessWidget {
   const PregnancyChecklistScreen({super.key});
 
+  static const _roman = ['I', 'II', 'III'];
+
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final store = context.watch<AppStore>();
     final p = readPregnancy(store);
     if (p == null) {
       return const ModePage(
+        eyebrow: 'Pregnancy · Tools',
         title: 'Pregnancy checklist',
         children: [
-          EmptyState(
-            emoji: '🤰',
-            color: BloomColors.pregnancy,
-            title: 'No active pregnancy',
-            body: 'Set up your pregnancy first.',
-          ),
+          EmptyState(glyph: Botanical.sprout, title: 'No active pregnancy', body: 'Set up your pregnancy first.'),
         ],
       );
     }
@@ -786,35 +730,16 @@ class PregnancyChecklistScreen extends StatelessWidget {
     final total = kPregnancyChecklist.length;
 
     return ModePage(
+      eyebrow: 'Pregnancy · Tools',
       title: 'Pregnancy checklist',
-      subtitle: 'Things to plan, trimester by trimester',
+      subtitle: 'Things to plan, trimester by trimester.',
       children: [
-        BloomCard(
-          child: Row(
-            children: [
-              ProgressRing(
-                value: doneCount / total,
-                size: 72,
-                stroke: 8,
-                gradient: BloomGradients.pregnancy,
-                child: Text('${(doneCount / total * 100).round()}%', style: t.textTheme.labelLarge),
-              ),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('$doneCount of $total done', style: t.textTheme.titleMedium),
-                    Text('You\'re in your ${trimesterLabel(current).toLowerCase()}.', style: t.textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        SerifFigure(value: '$doneCount', unit: 'of $total done', size: 52),
+        SoftBar(value: doneCount / total),
+        Text('You\'re in your ${trimesterLabel(current).toLowerCase()}.', style: Theme.of(context).textTheme.bodySmall),
         for (final tri in [1, 2, 3]) ...[
           Builder(
-            builder: (_) {
+            builder: (context) {
               final items = kPregnancyChecklist.where((i) => i.trimester == tri).toList();
               final n = items.where((i) => p.checklist.contains(i.id)).length;
               return Column(
@@ -822,34 +747,22 @@ class PregnancyChecklistScreen extends StatelessWidget {
                 children: [
                   SectionHeader(
                     trimesterLabel(tri),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (tri == current) ...[
-                          const PillChip('Now', color: BloomColors.pregnancy, dense: true),
-                          Gap.h8,
-                        ],
-                        Text('$n/${items.length}', style: t.textTheme.labelLarge),
-                      ],
-                    ),
+                    label: tri == current ? 'Part ${_roman[tri - 1]} · Now' : 'Part ${_roman[tri - 1]}',
+                    trailing: Text('$n/${items.length}', style: Almanac.data(context)),
                   ),
                   Gap.v12,
-                  BloomCard(
-                    padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                    child: Column(
-                      children: [
-                        for (final i in items)
-                          CheckRow(
-                            label: i.label,
-                            checked: p.checklist.contains(i.id),
-                            color: BloomColors.success,
-                            onChanged: (v) {
-                              v ? p.checklist.add(i.id) : p.checklist.remove(i.id);
-                              savePregnancy(store, p);
-                            },
-                          ),
-                      ],
-                    ),
+                  CheckList(
+                    children: [
+                      for (final i in items)
+                        CheckRow(
+                          label: i.label,
+                          checked: p.checklist.contains(i.id),
+                          onChanged: (v) {
+                            v ? p.checklist.add(i.id) : p.checklist.remove(i.id);
+                            savePregnancy(store, p);
+                          },
+                        ),
+                    ],
                   ),
                 ],
               );
@@ -892,11 +805,10 @@ class AppointmentsScreen extends StatelessWidget {
                   decoration: const InputDecoration(labelText: 'Notes'),
                   maxLines: 3,
                 ),
-                Gap.v8,
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.event_rounded),
-                  title: Text(fmtFull(date)),
+                Gap.v20,
+                DateField(
+                  label: 'Date',
+                  date: date,
                   onTap: () async {
                     final d = await pickDay(
                       c,
@@ -907,10 +819,12 @@ class AppointmentsScreen extends StatelessWidget {
                     if (d != null) setS(() => date = d);
                   },
                 ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.schedule_rounded),
-                  title: Text(time ?? 'Add a time'),
+                Gap.v16,
+                UnderlineField(
+                  label: 'Time',
+                  value: time ?? 'Add a time',
+                  placeholder: time == null,
+                  icon: Icons.schedule_outlined,
                   onTap: () async {
                     final tod = await showTimePicker(context: c, initialTime: const TimeOfDay(hour: 9, minute: 0));
                     if (tod != null) {
@@ -951,14 +865,10 @@ class AppointmentsScreen extends StatelessWidget {
     final p = readPregnancy(store);
     if (p == null) {
       return const ModePage(
+        eyebrow: 'Pregnancy · Tools',
         title: 'Appointments and notes',
         children: [
-          EmptyState(
-            emoji: '📅',
-            color: BloomColors.info,
-            title: 'No active pregnancy',
-            body: 'Set up your pregnancy first.',
-          ),
+          EmptyState(glyph: Botanical.sprout, title: 'No active pregnancy', body: 'Set up your pregnancy first.'),
         ],
       );
     }
@@ -979,24 +889,30 @@ class AppointmentsScreen extends StatelessWidget {
       },
     );
 
-    return ModePage(
-      title: 'Appointments and notes',
-      subtitle: 'Checkups, scans, and questions for your care provider',
+    Widget group(List<Map<String, dynamic>> list, {required bool isPast}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilledButton.icon(
-          onPressed: () => _edit(context, store, p),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Add'),
+        const Hairline(),
+        for (final a in list) ...[tile(a, isPast: isPast), const Hairline()],
+      ],
+    );
+
+    return ModePage(
+      eyebrow: 'Pregnancy · Tools',
+      title: 'Appointments and notes',
+      subtitle: 'Checkups, scans, and questions for your care provider.',
+      children: [
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkButton(label: 'Add', icon: Icons.add, onPressed: () => _edit(context, store, p)),
         ),
         if (sorted.isEmpty)
           const EmptyState(
-            emoji: '📅',
-            color: BloomColors.info,
             title: 'Nothing planned yet',
             body: 'Keep track of checkups, scans, and questions for your care provider. Tap Add to start.',
           ),
-        if (upcoming.isNotEmpty) ...[const SectionHeader('Upcoming'), for (final a in upcoming) tile(a, isPast: false)],
-        if (past.isNotEmpty) ...[const SectionHeader('Past'), for (final a in past) tile(a, isPast: true)],
+        if (upcoming.isNotEmpty) ...[const SectionHeader('Upcoming', label: 'Diary'), group(upcoming, isPast: false)],
+        if (past.isNotEmpty) ...[const SectionHeader('Past', label: 'Diary'), group(past, isPast: true)],
       ],
     );
   }
@@ -1020,55 +936,58 @@ class _AppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final d = parseDayKey(a['date']);
-    final c = past ? tokens.muted : BloomColors.info;
-    final fg = readableTint(c, t.brightness);
+    final fg = past ? p.ink2 : p.ink;
     final note = (a['note'] ?? '') as String;
-    return BloomCard(
+    return Pressable(
       onTap: onTap,
-      padding: Insets.cardCompact,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 56,
-            padding: const EdgeInsets.symmetric(vertical: Space.sm),
-            decoration: BoxDecoration(
-              color: c.withValues(alpha: t.brightness == Brightness.dark ? 0.22 : 0.12),
-              borderRadius: Radii.mdAll,
-            ),
-            child: Column(
-              children: [
-                Text(DateFormat('MMM').format(d).toUpperCase(), style: t.textTheme.labelSmall!.copyWith(color: fg)),
-                Text('${d.day}', style: t.textTheme.headlineSmall!.copyWith(color: fg, height: 1.1)),
-              ],
-            ),
-          ),
-          Gap.h12,
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(a['title'] ?? '', style: t.textTheme.titleMedium),
-                const SizedBox(height: Space.xxs),
-                Text(
-                  '${DateFormat('EEEE').format(d)}${a['time'] != null ? ', ${a['time']}' : ''} · week $week',
-                  style: t.textTheme.bodySmall,
-                ),
-                if (note.isNotEmpty) ...[
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.lg),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 52,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormat('MMM').format(d).toUpperCase(), style: Almanac.label(context)),
                   Gap.v4,
-                  Text(note, style: t.textTheme.bodyMedium, maxLines: 3, overflow: TextOverflow.ellipsis),
+                  Text('${d.day}', style: Almanac.numeral(context, size: 30, color: fg)),
                 ],
-              ],
+              ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Delete',
-            icon: Icon(Icons.delete_outline_rounded, color: tokens.muted),
-            onPressed: onDelete,
-          ),
-        ],
+            Gap.h8,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(a['title'] ?? '', style: t.textTheme.titleMedium!.copyWith(color: fg)),
+                  const SizedBox(height: Space.xxs),
+                  Text(
+                    '${DateFormat('EEEE').format(d)}${a['time'] != null ? ', ${a['time']}' : ''} · week $week',
+                    style: Almanac.data(context, size: 12),
+                  ),
+                  if (note.isNotEmpty) ...[
+                    Gap.v8,
+                    Text(
+                      note,
+                      style: Almanac.italic(context, size: 15.5, color: p.ink2),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Delete',
+              icon: Icon(Icons.close, size: 18, color: p.ink2),
+              onPressed: onDelete,
+            ),
+          ],
+        ),
       ),
     );
   }

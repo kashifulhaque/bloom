@@ -23,206 +23,199 @@ class PregnancyHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final p = readPregnancy(store);
+    final pd = readPregnancy(store);
     final t = Theme.of(context);
-    if (p == null) {
-      return BloomCard(
-        child: EmptyState(
-          compact: true,
-          emoji: '🤰',
-          color: BloomColors.pregnancy,
-          title: 'Track your pregnancy',
-          body: 'Add your last period or due date to see your week-by-week progress.',
-          actionLabel: 'Set up pregnancy',
-          onAction: () => startPregnancyActivation(context),
-        ),
+    final p = BloomColors.of(context);
+    if (pd == null) {
+      return EmptyState(
+        compact: true,
+        glyph: Botanical.sprout,
+        color: BloomColors.pregnancy,
+        title: 'Track your pregnancy',
+        body: 'Add your last period or due date to see your week-by-week progress.',
+        actionLabel: 'Set up pregnancy',
+        onAction: () => startPregnancyActivation(context),
       );
     }
 
     final now = today();
-    final age = p.ageOn(now);
-    final toGo = p.daysToGo(now);
+    final age = pd.ageOn(now);
+    final toGo = pd.daysToGo(now);
     final size = babySizeForWeek(age.weeks);
     void open(Widget w) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => w));
-    final muted = BloomTokens.of(context).muted;
-    final accent = readableTint(BloomColors.pregnancy, t.brightness);
 
     final countdown = toGo > 0
-        ? Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: '$toGo',
-                  style: t.textTheme.headlineSmall!.copyWith(color: accent),
-                ),
-                TextSpan(
-                  text: ' days to go',
-                  style: t.textTheme.bodyMedium!.copyWith(color: muted),
-                ),
-              ],
-            ),
-          )
+        ? SerifFigure(value: '$toGo', unit: 'days to go', size: 44)
         : Text(
             toGo == 0 ? 'Due today' : '${-toGo} days past due date',
-            style: t.textTheme.titleMedium!.copyWith(color: accent),
+            style: Almanac.italic(context, size: 24, color: p.ink),
           );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (age.isOverdue) ...[
-          SectionCard(
-            color: BloomColors.info,
-            title: 'Has your baby arrived?',
-            icon: Icons.child_friendly_rounded,
+          Container(
+            padding: const EdgeInsets.only(left: Space.lg),
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: p.ink, width: 2)),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('Has your baby arrived?', style: t.textTheme.headlineSmall),
+                Gap.v8,
                 const Text(
                   'You are past 42 weeks. If your baby is here, congratulations! '
                   'Log the birth to switch to after-birth mode. If not, keep in close touch with your care provider.',
                 ),
                 Gap.v12,
                 Wrap(
-                  spacing: Space.sm,
+                  spacing: Space.xl,
                   runSpacing: Space.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    FilledButton(onPressed: () => startBirthFlow(context), child: const Text('A baby is born!')),
-                    OutlinedButton(
-                      onPressed: () => open(const PregnancySettingsScreen()),
-                      child: const Text('Edit dates'),
-                    ),
+                    InkButton(label: 'A baby is born!', dense: true, onPressed: () => startBirthFlow(context)),
+                    InkLink('Edit dates', onTap: () => open(const PregnancySettingsScreen())),
                   ],
                 ),
               ],
             ),
           ),
-          Gap.v16,
+          Gap.v32,
         ],
-        // Hero.
-        BloomCard(
-          padding: EdgeInsets.zero,
+        // Hero: the week in words, then the 40-week ledger.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: MonoLabel(
+                [trimesterLabel(age.trimester), if (pd.babies > 1) pd.babies == 2 ? 'Twins' : 'Multiples'].join(' · '),
+              ),
+            ),
+            InkLink('Settings', size: 13, onTap: () => open(const PregnancySettingsScreen())),
+          ],
+        ),
+        Gap.v4,
+        Pressable(
           onTap: () => open(WeekDetailScreen(week: age.contentWeek)),
-          child: DecoratedBox(
-            decoration: BoxDecoration(gradient: BloomGradients.wash(BloomColors.pregnancy, t.brightness)),
-            child: Padding(
-              padding: Insets.card,
-              child: Column(
+          semanticLabel: 'Week ${age.weeks}, day ${age.days}. Open this week.',
+          child: PhaseTitle(
+            lead: 'Week ${Almanac.spell(age.weeks)},',
+            italic: 'day ${Almanac.spell(age.days)}.',
+            color: BloomColors.pregnancy,
+            size: 40,
+          ),
+        ),
+        Gap.v20,
+        WeekLedger(
+          total: 40,
+          value: (age.totalDays / 7).clamp(0, 40).toDouble(),
+          accent: BloomColors.pregnancy,
+          marks: const {0: '0', 13: '13', 27: '27', 40: '40'},
+          semanticLabel: 'Week ${age.weeks} of 40',
+        ),
+        Gap.v8,
+        Row(
+          children: [
+            Text('Week ${age.weeks} · Day ${age.days}', style: Almanac.data(context)),
+            const Spacer(),
+            Text('${(age.progress * 100).round()} %', style: Almanac.data(context)),
+          ],
+        ),
+        Gap.v20,
+        if (size != null) ...[
+          Marginalia(
+            label: 'Size',
+            child: Text.rich(
+              TextSpan(
                 children: [
-                  Row(
-                    children: [
-                      PillChip(trimesterLabel(age.trimester), color: BloomColors.pregnancy, icon: Icons.spa_rounded),
-                      if (p.babies > 1) ...[
-                        Gap.h8,
-                        PillChip(p.babies == 2 ? 'Twins' : 'Multiples', color: BloomColors.coral),
-                      ],
-                      const Spacer(),
-                      IconButton(
-                        tooltip: 'Pregnancy settings',
-                        onPressed: () => open(const PregnancySettingsScreen()),
-                        icon: Icon(Icons.tune_rounded, color: muted),
-                      ),
-                    ],
-                  ),
-                  Gap.v8,
-                  ProgressRing(
-                    value: age.progress,
-                    size: 196,
-                    stroke: 14,
-                    gradient: BloomGradients.pregnancy,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(size?.emoji ?? '🌱', style: const TextStyle(fontSize: 64, height: 1.1)),
-                        Gap.v4,
-                        Text('${(age.progress * 100).round()}%', style: t.textTheme.labelLarge!.copyWith(color: muted)),
-                      ],
-                    ),
-                  ),
-                  Gap.v16,
-                  Text(
-                    'Week ${age.weeks} · Day ${age.days}',
-                    style: t.textTheme.headlineMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  if (size != null) ...[
-                    Gap.v4,
-                    Text(
-                      'Your baby is about the size of ${size.name}${p.babies > 1 ? ' (each)' : ''}, '
-                      'around ${_lengthLabel(size)} long.',
-                      style: t.textTheme.bodyMedium!.copyWith(color: muted),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  Gap.v16,
-                  Divider(height: 1, color: BloomTokens.of(context).border),
-                  Gap.v12,
-                  Row(
-                    children: [
-                      Expanded(child: countdown),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('Due date', style: t.textTheme.bodySmall),
-                          Text(fmtFull(p.dueDate), style: t.textTheme.titleSmall),
-                        ],
-                      ),
-                    ],
-                  ),
+                  const TextSpan(text: 'Your baby is about the size of '),
+                  TextSpan(text: size.name, style: Almanac.italic(context, size: 16.5)),
+                  TextSpan(text: '${pd.babies > 1 ? ' (each)' : ''}, around ${_lengthLabel(size)} long.'),
                 ],
               ),
             ),
           ),
+          Gap.v20,
+        ],
+        const Hairline(),
+        Gap.v16,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(child: countdown),
+            Gap.h12,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const MonoLabel('Due'),
+                Gap.v4,
+                Text(fmtFull(pd.dueDate), style: Almanac.serif(size: 17, weight: 360, color: p.ink)),
+              ],
+            ),
+          ],
         ),
         Gap.v16,
-        SectionCard(
-          title: 'This week',
-          icon: Icons.auto_stories_rounded,
-          accent: BloomColors.pregnancy,
-          trailing: const CardChevron(),
-          onTap: () => open(WeekDetailScreen(week: age.contentWeek)),
-          child: Text(weekContent(age.contentWeek).baby, maxLines: 3, overflow: TextOverflow.ellipsis),
+        const Hairline(),
+        SectionHeader(
+          'This week',
+          padding: const EdgeInsets.only(top: Space.xxl),
+          label: 'Week ${age.contentWeek} · Field notes',
+          actionLabel: 'Read',
+          onAction: () => open(WeekDetailScreen(week: age.contentWeek)),
         ),
         Gap.v8,
-        const SectionHeader('Pregnancy tools'),
+        Text(weekContent(age.contentWeek).baby, maxLines: 3, overflow: TextOverflow.ellipsis),
+        const SectionHeader(
+          'Pregnancy tools',
+          label: 'Index',
+          padding: EdgeInsets.only(top: Space.xxxl),
+        ),
         Gap.v12,
         ToolGrid(
           items: [
             ToolItem(
-              Icons.touch_app_rounded,
+              Icons.touch_app_outlined,
               'Kick counter',
               BloomColors.pregnancy,
               () => open(const KickCounterScreen()),
+              caption: 'Time ten movements',
             ),
             ToolItem(
-              Icons.timer_rounded,
+              Icons.timer_outlined,
               'Contractions',
               BloomColors.period,
               () => open(const ContractionTimerScreen()),
+              caption: 'Length and interval',
             ),
             ToolItem(
-              Icons.monitor_weight_rounded,
+              Icons.monitor_weight_outlined,
               'Weight',
               BloomColors.fertile,
               () => open(const PregnancyWeightScreen()),
+              caption: 'By pregnancy week',
             ),
             ToolItem(
-              Icons.checklist_rounded,
+              Icons.checklist,
               'Checklist',
               BloomColors.success,
               () => open(const PregnancyChecklistScreen()),
+              caption: 'Trimester by trimester',
             ),
             ToolItem(
-              Icons.event_note_rounded,
+              Icons.event_note_outlined,
               'Appointments',
               BloomColors.info,
               () => open(const AppointmentsScreen()),
+              caption: 'Checkups and questions',
             ),
             ToolItem(
-              Icons.auto_stories_rounded,
+              Icons.auto_stories_outlined,
               'Week by week',
               BloomColors.luteal,
               () => open(WeekDetailScreen(week: age.contentWeek)),
+              caption: 'All forty-two weeks',
             ),
           ],
         ),
@@ -231,7 +224,8 @@ class PregnancyHome extends StatelessWidget {
   }
 }
 
-/// Week-by-week content, with a week strip and arrows to browse weeks 1-42.
+/// Week-by-week content, like a page in a field guide, with a strip of week
+/// numerals and links to browse weeks 1-42.
 class WeekDetailScreen extends StatefulWidget {
   const WeekDetailScreen({super.key, required this.week});
   final int week;
@@ -243,8 +237,7 @@ class WeekDetailScreen extends StatefulWidget {
 class _WeekDetailScreenState extends State<WeekDetailScreen> {
   late int _week = widget.week.clamp(1, 42);
   final _strip = ScrollController();
-  static const _dot = 44.0;
-  static const _gap = Space.sm;
+  static const _cell = 44.0;
 
   @override
   void initState() {
@@ -261,7 +254,7 @@ class _WeekDetailScreenState extends State<WeekDetailScreen> {
   void _center({bool animate = true}) {
     if (!_strip.hasClients) return;
     final pos = _strip.position;
-    final target = ((_week - 1) * (_dot + _gap) - (pos.viewportDimension - _dot) / 2).clamp(
+    final target = ((_week - 1) * _cell - (pos.viewportDimension - _cell) / 2).clamp(
       pos.minScrollExtent,
       pos.maxScrollExtent,
     );
@@ -270,6 +263,7 @@ class _WeekDetailScreenState extends State<WeekDetailScreen> {
 
   void _go(int w) {
     if (w < 1 || w > 42 || w == _week) return;
+    Almanac.tick();
     setState(() => _week = w);
     WidgetsBinding.instance.addPostFrameCallback((_) => _center());
   }
@@ -277,165 +271,153 @@ class _WeekDetailScreenState extends State<WeekDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
+    final p = BloomColors.of(context);
     final c = weekContent(_week);
     final size = babySizeForWeek(_week);
     final trimester = GestationalAge(_week * 7).trimester;
     final checklist = kPregnancyChecklist.where((i) => i.trimester == trimester).toList();
     final store = context.watch<AppStore>();
-    final p = readPregnancy(store);
-    final done = p?.checklist ?? const <String>[];
-    final current = p?.ageOn(today()).contentWeek;
+    final pd = readPregnancy(store);
+    final done = pd?.checklist ?? const <String>[];
+    final current = pd?.ageOn(today()).contentWeek;
 
-    Widget section(String title, IconData icon, Color color, String body) => SectionCard(
-      title: title,
-      icon: icon,
-      accent: color,
-      child: Text(body, style: t.textTheme.bodyLarge),
+    Widget section(String label, String body) => Marginalia(
+      label: label,
+      child: Text(body, style: t.textTheme.bodyLarge!.copyWith(height: 1.6)),
+    );
+
+    final hero = AnimatedSwitcher(
+      duration: Motion.medium,
+      layoutBuilder: (cur, prev) => Stack(alignment: Alignment.topLeft, children: [...prev, ?cur]),
+      child: Column(
+        key: ValueKey(_week),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoLabel('Week $_week of 40 · ${trimesterLabel(trimester)}'),
+          Gap.v12,
+          PhaseTitle(
+            lead: size == null ? 'Week ${Almanac.spell(_week)},' : 'The size of',
+            italic: size == null ? 'tiny beginnings.' : '${size.name}.',
+            color: BloomColors.pregnancy,
+            size: 38,
+          ),
+          if (size != null) ...[
+            Gap.v8,
+            Text('Around ${_lengthLabel(size)} long', style: Almanac.italic(context, size: 17, color: p.ink2)),
+          ],
+        ],
+      ),
     );
 
     return ModePage(
-      eyebrow: 'Week by week',
       title: 'Week $_week',
-      subtitle: trimesterLabel(trimester),
-      heroColor: BloomColors.pregnancy,
+      header: GestureDetector(
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v < -200) _go(_week + 1);
+          if (v > 200) _go(_week - 1);
+        },
+        child: hero,
+      ),
       children: [
         SizedBox(
-          height: _dot + 18,
-          child: ListView.separated(
+          height: 48,
+          child: ListView.builder(
             controller: _strip,
             scrollDirection: Axis.horizontal,
             itemCount: 42,
-            separatorBuilder: (_, _) => const SizedBox(width: _gap),
+            itemExtent: _cell,
             itemBuilder: (context, i) {
               final w = i + 1;
               final sel = w == _week;
-              return Column(
-                children: [
-                  InkWell(
-                    onTap: () => _go(w),
-                    customBorder: const CircleBorder(),
-                    child: AnimatedContainer(
+              return Pressable(
+                onTap: () => _go(w),
+                selected: sel,
+                semanticLabel: 'Week $w',
+                borderRadius: Radii.smAll,
+                child: Column(
+                  children: [
+                    AnimatedContainer(
                       duration: Motion.medium,
-                      curve: Motion.curve,
-                      width: _dot,
-                      height: _dot,
+                      width: 34,
+                      height: 30,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: sel ? BloomGradients.pregnancy : null,
-                        color: sel
-                            ? null
-                            : (t.brightness == Brightness.dark ? t.colorScheme.surfaceContainer : Colors.white),
-                        border: Border.all(color: sel ? Colors.transparent : tokens.border),
+                        borderRadius: Radii.smAll,
+                        border: Border.all(color: sel ? p.ink : Colors.transparent),
                       ),
                       child: Text(
                         '$w',
-                        style: t.textTheme.titleSmall!.copyWith(
-                          color: sel ? BloomColors.onColor(BloomGradients.pregnancy.colors.first) : null,
+                        style: Almanac.numeral(
+                          context,
+                          size: 18,
+                          weight: sel ? 420 : 320,
+                          color: sel || w == current ? p.ink : p.ink2,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: Space.xs),
-                  if (w == current)
+                    const SizedBox(height: 3),
                     Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(color: BloomColors.pregnancy, shape: BoxShape.circle),
+                      width: 14,
+                      height: 1.5,
+                      color: w == current ? BloomColors.resolve(context, BloomColors.pregnancy) : Colors.transparent,
                     ),
-                ],
+                  ],
+                ),
               );
             },
           ),
         ),
-        GestureDetector(
-          onHorizontalDragEnd: (d) {
-            final v = d.primaryVelocity ?? 0;
-            if (v < -200) _go(_week + 1);
-            if (v > 200) _go(_week - 1);
-          },
-          child: BloomCard.gradient(
-            gradient: BloomGradients.pregnancy,
-            padding: const EdgeInsets.symmetric(vertical: Space.xl, horizontal: Space.sm),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: 'Previous week',
-                  onPressed: _week > 1 ? () => _go(_week - 1) : null,
-                  icon: const Icon(Icons.chevron_left_rounded, size: 32),
-                  color: Colors.white,
-                  disabledColor: Colors.white38,
-                ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: Motion.medium,
-                    transitionBuilder: (child, a) => FadeTransition(
-                      opacity: a,
-                      child: ScaleTransition(scale: Tween(begin: 0.92, end: 1.0).animate(a), child: child),
-                    ),
-                    child: Column(
-                      key: ValueKey(_week),
-                      children: [
-                        Text(size?.emoji ?? '🌱', style: const TextStyle(fontSize: 72, height: 1.1)),
-                        Gap.v12,
-                        Text(
-                          size == null ? 'Tiny beginnings' : 'About the size of ${size.name}.',
-                          style: t.textTheme.titleLarge!.copyWith(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (size != null) ...[
-                          Gap.v4,
-                          Text(
-                            'Around ${_lengthLabel(size)} long',
-                            style: t.textTheme.bodyMedium!.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Next week',
-                  onPressed: _week < 42 ? () => _go(_week + 1) : null,
-                  icon: const Icon(Icons.chevron_right_rounded, size: 32),
-                  color: Colors.white,
-                  disabledColor: Colors.white38,
-                ),
-              ],
-            ),
+        Row(
+          children: [
+            if (_week > 1) InkLink('← Week ${_week - 1}', size: 13.5, onTap: () => _go(_week - 1)),
+            const Spacer(),
+            if (current != null && current != _week) ...[
+              InkLink('This week', size: 13.5, onTap: () => _go(current)),
+              const Spacer(),
+            ],
+            if (_week < 42) InkLink('Week ${_week + 1}', size: 13.5, arrow: true, onTap: () => _go(_week + 1)),
+          ],
+        ),
+        const Hairline(),
+        AnimatedSwitcher(
+          duration: Motion.medium,
+          child: Column(
+            key: ValueKey(_week),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Gap.v8,
+              section('Baby', c.baby),
+              Gap.v24,
+              section('Body', c.body),
+              Gap.v24,
+              section('Tip', c.tip),
+              Gap.v8,
+            ],
           ),
         ),
-        section('Your baby', Icons.child_care_rounded, BloomColors.pregnancy, c.baby),
-        section('Your body', Icons.self_improvement_rounded, BloomColors.coral, c.body),
-        section('Tip', Icons.lightbulb_rounded, BloomColors.luteal, c.tip),
+        const Hairline(),
         SectionHeader(
           '${trimesterLabel(trimester)} checklist',
+          label: 'To do',
           actionLabel: 'Open',
           onAction: () =>
               Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PregnancyChecklistScreen())),
         ),
-        BloomCard(
-          padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md),
-          child: Column(
-            children: [
-              for (final i in checklist)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: Space.xs + 2),
-                  child: Row(
-                    children: [
-                      Icon(
-                        done.contains(i.id) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                        size: 20,
-                        color: done.contains(i.id) ? BloomColors.success : tokens.muted.withValues(alpha: 0.6),
-                      ),
-                      Gap.h12,
-                      Expanded(child: Text(i.label, style: t.textTheme.bodyMedium)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+        CheckList(
+          children: [
+            for (final i in checklist)
+              CheckRow(
+                label: i.label,
+                checked: done.contains(i.id),
+                onChanged: pd == null
+                    ? null
+                    : (v) {
+                        v ? pd.checklist.add(i.id) : pd.checklist.remove(i.id);
+                        savePregnancy(store, pd);
+                      },
+              ),
+          ],
         ),
         const EduNote(),
       ],

@@ -55,6 +55,16 @@ const List<RecoveryItem> kRecoveryChecklist = [
   RecoveryItem('pp_exercise', 'Get the all-clear before high-impact exercise'),
 ];
 
+/// [kRecoveryWeeks] text without its "Week N: " lead, for places that
+/// already show the week as a heading.
+String recoveryBody(int i) {
+  final s = kRecoveryWeeks[i];
+  final cut = s.indexOf(': ');
+  if (cut < 0 || cut > 16) return s;
+  final rest = s.substring(cut + 2);
+  return '${rest[0].toUpperCase()}${rest.substring(1)}';
+}
+
 Map<String, dynamic> _pp(AppStore s) => Map<String, dynamic>.from(s.feature<Map>('postpartum') ?? const {});
 
 /// Baby age as "N weeks, M days" (or days only in the first week).
@@ -73,24 +83,22 @@ class PostpartumHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final t = Theme.of(context);
+    final p = BloomColors.of(context);
     final pp = _pp(store);
     final birth = pp['birthDate'] is String ? parseDayKey(pp['birthDate']) : null;
     void open(Widget w) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => w));
 
     if (birth == null) {
-      return BloomCard(
-        child: EmptyState(
-          compact: true,
-          emoji: '👶',
-          color: BloomColors.follicular,
-          title: 'After birth',
-          body: 'Add your baby\'s birth date to see recovery tips for each week.',
-          actionLabel: 'Add birth date',
-          onAction: () async {
-            final d = await pickDay(context, initial: today(), first: addDays(today(), -730), last: today());
-            if (d != null) store.setFeature('postpartum', {...pp, 'birthDate': dayKey(d)});
-          },
-        ),
+      return EmptyState(
+        compact: true,
+        glyph: Botanical.bud,
+        title: 'After birth',
+        body: 'Add your baby\'s birth date to see recovery tips for each week.',
+        actionLabel: 'Add birth date',
+        onAction: () async {
+          final d = await pickDay(context, initial: today(), first: addDays(today(), -730), last: today());
+          if (d != null) store.setFeature('postpartum', {...pp, 'birthDate': dayKey(d)});
+        },
       );
     }
 
@@ -98,120 +106,126 @@ class PostpartumHome extends StatelessWidget {
     final week = (days ~/ 7).clamp(0, 12);
     final checklist = List<String>.from(pp['checklist'] ?? const []);
     final done = checklist.where((id) => kRecoveryChecklist.any((c) => c.id == id)).length;
-    final white = Colors.white.withValues(alpha: 0.9);
+    final timelineWeek = days > 90 ? null : week;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        BloomCard.gradient(
-          gradient: BloomGradients.follicular,
-          onTap: () => open(RecoveryTimelineScreen(currentWeek: days > 90 ? null : week)),
-          child: Row(
-            children: [
-              ProgressRing(
-                value: days / 84,
-                size: 96,
-                stroke: 8,
-                color: Colors.white,
-                trackColor: Colors.white.withValues(alpha: 0.28),
-                child: const Text('👶', style: TextStyle(fontSize: 40, height: 1.1)),
-              ),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Your baby is', style: t.textTheme.bodyMedium!.copyWith(color: white)),
-                    Text(babyAgeLabel(birth, today()), style: t.textTheme.headlineSmall!.copyWith(color: Colors.white)),
-                    Gap.v4,
-                    Text('Born ${fmtFull(birth)}', style: t.textTheme.bodySmall!.copyWith(color: white)),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        MonoLabel('After birth · Born ${fmtFull(birth)}'),
+        Gap.v8,
+        Text('Your baby is', style: Almanac.serif(size: 22, weight: 340, color: p.ink2)),
+        Pressable(
+          onTap: () => open(RecoveryTimelineScreen(currentWeek: timelineWeek)),
+          child: PhaseTitle(italic: babyAgeLabel(birth, today()), size: 38),
         ),
-        Gap.v16,
-        SectionCard(
-          title: days > 90 ? 'Recovery' : 'Recovery: ${week == 0 ? 'first days' : 'week $week'}',
-          icon: Icons.healing_rounded,
-          accent: BloomColors.follicular,
-          trailing: const CardChevron(),
-          onTap: () => open(RecoveryTimelineScreen(currentWeek: days > 90 ? null : week)),
-          child: Text(
-            days > 90
-                ? 'You are past the first 12 weeks. Recovery is different for everyone; keep listening to your body.'
-                : kRecoveryWeeks[week],
-          ),
+        Gap.v20,
+        WeekLedger(
+          total: 12,
+          value: (days / 7).clamp(0, 12).toDouble(),
+          marks: const {0: 'Birth', 6: '6 wk', 12: '12 wk'},
+          semanticLabel: 'Week $week of the first 12',
         ),
+        Gap.v20,
+        const Hairline(),
         Gap.v16,
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _MiniCard(
-                  icon: Icons.baby_changing_station_rounded,
-                  color: BloomColors.fertile,
-                  title: 'Feeding log',
-                  body: _lastFeedSummary(pp),
-                  onTap: () => open(const FeedingLogScreen()),
-                ),
-              ),
-              Gap.h12,
-              Expanded(
-                child: _MiniCard(
-                  icon: Icons.checklist_rounded,
-                  color: BloomColors.success,
-                  title: 'Recovery checklist',
-                  body: '$done/${kRecoveryChecklist.length} done',
-                  footer: SoftBar(value: done / kRecoveryChecklist.length, color: BloomColors.success, height: 6),
-                  onTap: () => open(const RecoveryChecklistScreen()),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Gap.v16,
-        SectionCard(
-          title: 'Bleeding after birth',
-          icon: Icons.water_drop_rounded,
-          accent: BloomColors.period,
+        Marginalia(
+          label: days > 90 ? 'Recovery' : (week == 0 ? 'Days 1–6' : 'Week $week'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Bleeding (lochia) usually lasts up to about 6 weeks and slowly gets lighter. '
-                'Log it to keep an eye on how it changes. Get medical help right away if you soak a pad in an hour, '
-                'pass clots bigger than a plum, have a fever, or the bleeding smells bad.',
+              Text(
+                days > 90
+                    ? 'You are past the first 12 weeks. Recovery is different for everyone; keep listening to your body.'
+                    : recoveryBody(week),
+                style: t.textTheme.bodyLarge!.copyWith(height: 1.6),
               ),
-              Gap.v12,
-              OutlinedButton.icon(
-                onPressed: () => showLogSheet(context, today()),
-                icon: const Icon(Icons.edit_note_rounded),
-                label: const Text('Log today'),
+              Gap.v4,
+              InkLink(
+                'Recovery timeline',
+                arrow: true,
+                size: 13.5,
+                onTap: () => open(RecoveryTimelineScreen(currentWeek: timelineWeek)),
               ),
             ],
           ),
         ),
-        Gap.v16,
-        const SectionCard(
-          title: 'How are you feeling?',
-          icon: Icons.favorite_rounded,
-          color: BloomColors.luteal,
-          child: Text(
-            'Up to 4 in 5 new parents get the baby blues: tearfulness and mood swings in the first two weeks. '
-            'If low mood, anxiety, or not enjoying things lasts longer than two weeks, or you have thoughts of '
-            'harming yourself or your baby, it could be postpartum depression or anxiety. It is common and '
-            'treatable. Tell your care provider, a health visitor, or someone you trust. In a crisis, contact '
-            'emergency services or a local crisis line.',
+        const SectionHeader(
+          'Your notebook',
+          label: 'Index',
+          padding: EdgeInsets.only(top: Space.xxxl),
+        ),
+        Gap.v12,
+        ToolGrid(
+          items: [
+            ToolItem(
+              Icons.baby_changing_station_outlined,
+              'Feeding log',
+              BloomColors.fertile,
+              () => open(const FeedingLogScreen()),
+              caption: _lastFeedSummary(pp),
+            ),
+            ToolItem(
+              Icons.checklist,
+              'Recovery checklist',
+              BloomColors.success,
+              () => open(const RecoveryChecklistScreen()),
+              caption: '$done of ${kRecoveryChecklist.length} done',
+            ),
+            ToolItem(
+              Icons.timeline,
+              'Recovery timeline',
+              BloomColors.follicular,
+              () => open(RecoveryTimelineScreen(currentWeek: timelineWeek)),
+              caption: 'The first twelve weeks',
+            ),
+          ],
+        ),
+        const SectionHeader(
+          'Bleeding after birth',
+          label: 'Lochia',
+          padding: EdgeInsets.only(top: Space.xxxl),
+        ),
+        Gap.v8,
+        const Text(
+          'Bleeding (lochia) usually lasts up to about 6 weeks and slowly gets lighter. '
+          'Log it to keep an eye on how it changes. Get medical help right away if you soak a pad in an hour, '
+          'pass clots bigger than a plum, have a fever, or the bleeding smells bad.',
+        ),
+        Gap.v12,
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkButton.outlined(
+            label: 'Log today',
+            icon: Icons.edit_note,
+            dense: true,
+            color: BloomColors.period,
+            onPressed: () => showLogSheet(context, today()),
           ),
         ),
-        Gap.v16,
-        FilledButton.tonalIcon(
-          onPressed: () => startPeriodBackFlow(context),
-          icon: const Icon(Icons.water_drop_rounded),
-          label: const Text('My period is back'),
+        const SectionHeader(
+          'How are you feeling?',
+          label: 'Mood',
+          padding: EdgeInsets.only(top: Space.xxxl),
+        ),
+        Gap.v8,
+        const Text(
+          'Up to 4 in 5 new parents get the baby blues: tearfulness and mood swings in the first two weeks. '
+          'If low mood, anxiety, or not enjoying things lasts longer than two weeks, or you have thoughts of '
+          'harming yourself or your baby, it could be postpartum depression or anxiety. It is common and '
+          'treatable. Tell your care provider, a health visitor, or someone you trust. In a crisis, contact '
+          'emergency services or a local crisis line.',
+        ),
+        Gap.v24,
+        const Hairline(),
+        Gap.v12,
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkLink(
+            'My period is back',
+            arrow: true,
+            color: BloomColors.period,
+            onTap: () => startPeriodBackFlow(context),
+          ),
         ),
         Gap.v8,
         const EduNote(),
@@ -220,53 +234,9 @@ class PostpartumHome extends StatelessWidget {
   }
 }
 
-class _MiniCard extends StatelessWidget {
-  const _MiniCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.body,
-    required this.onTap,
-    this.footer,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String body;
-  final VoidCallback onTap;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    return BloomCard(
-      onTap: onTap,
-      padding: Insets.cardCompact,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IconBadge(icon: icon, color: color, size: 36),
-              const Spacer(),
-              const CardChevron(),
-            ],
-          ),
-          Gap.v12,
-          Text(title, style: t.textTheme.titleSmall),
-          const SizedBox(height: Space.xxs),
-          Text(body, style: t.textTheme.bodySmall, maxLines: 3, overflow: TextOverflow.ellipsis),
-          if (footer != null) ...[Gap.v8, footer!],
-        ],
-      ),
-    );
-  }
-}
-
 String _lastFeedSummary(Map<String, dynamic> pp) {
   final feeds = List<Map>.from(pp['feeds'] ?? const []);
-  if (feeds.isEmpty) return 'Time breastfeeding on each side or log bottle feeds.';
+  if (feeds.isEmpty) return 'Time each side, or log bottle feeds.';
   final last = feeds.last;
   final start = DateTime.parse(last['start']);
   return 'Last feed: ${_feedLabel(last['type'])}, ${_ago(DateTime.now().difference(start))}.';
@@ -281,6 +251,8 @@ String _feedLabel(Object? type) => switch (type) {
   _ => 'bottle',
 };
 
+/// The first 12 weeks as a printed vertical timeline: mono week numbers in
+/// the margin, a hairline spine with ink dots, and an ink marker on this week.
 class RecoveryTimelineScreen extends StatelessWidget {
   const RecoveryTimelineScreen({super.key, this.currentWeek});
   final int? currentWeek;
@@ -288,84 +260,92 @@ class RecoveryTimelineScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final tokens = BloomTokens.of(context);
-    const c = BloomColors.follicular;
+    final p = BloomColors.of(context);
     final last = kRecoveryWeeks.length - 1;
     return ModePage(
+      eyebrow: 'After birth',
       title: 'Recovery timeline',
-      subtitle: 'What to expect in the first 12 weeks',
-      heroColor: c,
+      subtitle: 'What to expect in the first 12 weeks.',
+      spacing: 0,
       children: [
-        Column(
-          children: [
-            for (var i = 0; i <= last; i++)
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: 28,
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: i == currentWeek ? 19 : 22,
-                            child: Center(
-                              child: Container(width: 2, color: i == 0 ? Colors.transparent : tokens.border),
-                            ),
-                          ),
-                          Container(
-                            width: i == currentWeek ? 18 : 12,
-                            height: i == currentWeek ? 18 : 12,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: currentWeek != null && i <= currentWeek! ? BloomGradients.follicular : null,
-                              color: currentWeek != null && i <= currentWeek!
-                                  ? null
-                                  : tokens.muted.withValues(alpha: 0.3),
-                              border: i == currentWeek ? Border.all(color: t.colorScheme.surface, width: 3) : null,
-                              boxShadow: i == currentWeek ? BloomShadows.glow(c) : null,
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Container(width: 2, color: i == last ? Colors.transparent : tokens.border),
-                            ),
-                          ),
-                        ],
-                      ),
+        for (var i = 0; i <= last; i++)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 48,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      i == 0 ? 'DAYS' : 'WK ${indexNumber(i)}',
+                      style: Almanac.label(context, color: i == currentWeek ? p.ink : null),
                     ),
-                    Gap.h12,
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: Space.md),
-                        child: i == currentWeek
-                            ? BloomCard.tinted(color: c, padding: Insets.cardCompact, child: _week(context, i, true))
-                            : BloomCard(padding: Insets.cardCompact, child: _week(context, i, false)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-          ],
-        ),
+                SizedBox(
+                  width: 24,
+                  child: Stack(
+                    alignment: Alignment.topCenter,
+                    children: [
+                      Positioned(
+                        top: i == 0 ? 8 : 0,
+                        bottom: i == last ? null : 0,
+                        height: i == last ? 8 : null,
+                        child: Container(width: 1, color: p.hairline),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.only(top: i == currentWeek ? 2 : 4),
+                        child: Container(
+                          width: i == currentWeek ? 12 : 8,
+                          height: i == currentWeek ? 12 : 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: currentWeek != null && i <= currentWeek! ? p.ink : p.paper,
+                            border: Border.all(color: currentWeek != null && i <= currentWeek! ? p.ink : p.ink2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Gap.h12,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: Space.xxl),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: i == 0 ? 'First days' : 'Week ${Almanac.spell(i)}',
+                                style: Almanac.serif(size: 19, weight: 370, color: p.ink),
+                              ),
+                              if (i == currentWeek)
+                                TextSpan(
+                                  text: '   this week',
+                                  style: Almanac.italic(context, size: 15, color: p.ink2),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Gap.v4,
+                        Text(
+                          recoveryBody(i),
+                          style: t.textTheme.bodyMedium!.copyWith(
+                            color: currentWeek == null || i >= currentWeek! ? p.ink : p.ink2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         const EduNote(),
-      ],
-    );
-  }
-
-  Widget _week(BuildContext context, int i, bool now) {
-    final t = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text(i == 0 ? 'First days' : 'Week $i', style: t.textTheme.titleMedium)),
-            if (now) const PillChip('This week', color: BloomColors.follicular, dense: true),
-          ],
-        ),
-        Gap.v4,
-        Text(kRecoveryWeeks[i], style: t.textTheme.bodyMedium),
       ],
     );
   }
@@ -383,48 +363,26 @@ class RecoveryChecklistScreen extends StatelessWidget {
     final n = kRecoveryChecklist.where((i) => done.contains(i.id)).length;
     final total = kRecoveryChecklist.length;
     return ModePage(
+      eyebrow: 'After birth',
       title: 'Recovery checklist',
-      subtitle: 'Small steps for your first weeks',
+      subtitle: 'Small steps for your first weeks.',
       children: [
-        BloomCard(
-          child: Row(
-            children: [
-              ProgressRing(
-                value: n / total,
-                size: 72,
-                stroke: 8,
-                gradient: BloomGradients.follicular,
-                child: Text('$n/$total', style: t.textTheme.labelLarge),
+        SerifFigure(value: '$n', unit: n == total ? 'of $total. All done.' : 'of $total done', size: 52),
+        SoftBar(value: n / total),
+        Text('Go at your own pace. There is no deadline.', style: t.textTheme.bodySmall),
+        Gap.v8,
+        CheckList(
+          children: [
+            for (final i in kRecoveryChecklist)
+              CheckRow(
+                label: i.label,
+                checked: done.contains(i.id),
+                onChanged: (v) {
+                  v ? done.add(i.id) : done.remove(i.id);
+                  store.setFeature('postpartum', {...pp, 'checklist': done});
+                },
               ),
-              Gap.h16,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(n == total ? 'All done. Well done!' : '$n of $total done', style: t.textTheme.titleMedium),
-                    Text('Go at your own pace. There is no deadline.', style: t.textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        BloomCard(
-          padding: const EdgeInsets.symmetric(vertical: Space.xs),
-          child: Column(
-            children: [
-              for (final i in kRecoveryChecklist)
-                CheckRow(
-                  label: i.label,
-                  checked: done.contains(i.id),
-                  color: BloomColors.success,
-                  onChanged: (v) {
-                    v ? done.add(i.id) : done.remove(i.id);
-                    store.setFeature('postpartum', {...pp, 'checklist': done});
-                  },
-                ),
-            ],
-          ),
+          ],
         ),
         const EduNote(),
       ],
@@ -442,7 +400,17 @@ class FeedingLogScreen extends StatefulWidget {
 }
 
 class _FeedingLogScreenState extends State<FeedingLogScreen> {
-  late final AppStore _store = context.read<AppStore>();
+  // Read in initState: dispose() saves an unfinished session, and the
+  // context can't be used for lookups by then.
+  late final AppStore _store;
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _store = context.read<AppStore>();
+  }
+
   String? _type;
   DateTime? _start;
   Timer? _ticker;
@@ -464,7 +432,7 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
     if (start != null && type != null) {
       _save({'start': start.toIso8601String(), 'end': DateTime.now().toIso8601String(), 'type': type});
     }
-    if (mounted) {
+    if (mounted && !_disposed) {
       setState(() {
         _type = null;
         _start = null;
@@ -476,7 +444,9 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
     final pp = _pp(_store);
     final feeds = [...List<Map>.from(pp['feeds'] ?? const []), feed];
     if (feeds.length > 500) feeds.removeRange(0, feeds.length - 500);
-    _store.setFeature('postpartum', {...pp, 'feeds': feeds});
+    void write() => _store.setFeature('postpartum', {...pp, 'feeds': feeds});
+    // From dispose() the tree is locked, so save after this frame.
+    _disposed ? Future.microtask(write) : write();
   }
 
   Future<void> _bottle() async {
@@ -506,6 +476,7 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     if (_type != null) _stop();
     _ticker?.cancel();
     super.dispose();
@@ -513,7 +484,6 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final store = context.watch<AppStore>();
     final feeds = List<Map>.from(_pp(store)['feeds'] ?? const []).reversed.toList();
     final lastBreast = feeds.where((f) => f['type'] != 'bottle').firstOrNull;
@@ -532,85 +502,59 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
     );
 
     return ModePage(
+      eyebrow: 'After birth',
       title: 'Feeding log',
       subtitle: 'Tap a side to start the timer, and tap again to stop.',
-      heroColor: BloomColors.fertile,
       children: [
         AnimatedSize(
           duration: Motion.medium,
           child: suggest != null && _type == null
-              ? InfoBanner(
-                  tone: BannerTone.success,
-                  icon: Icons.swap_horiz_rounded,
-                  message: 'Last time you started on the ${lastBreast!['type']}. Try the $suggest side next.',
+              ? Marginalia(
+                  label: 'Next',
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: 'Last time you started on the ${lastBreast!['type']}. Try the '),
+                        TextSpan(text: '$suggest side', style: Almanac.italic(context, size: 16)),
+                        const TextSpan(text: ' next.'),
+                      ],
+                    ),
+                  ),
                 )
               : const SizedBox(width: double.infinity),
         ),
         Row(children: [side('left', 'Left'), Gap.h12, side('right', 'Right')]),
-        OutlinedButton.icon(
-          onPressed: _bottle,
-          icon: const Icon(Icons.local_drink_rounded),
-          label: const Text('Log a bottle feed'),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkButton.outlined(label: 'Log a bottle feed', icon: Icons.add, onPressed: _bottle),
         ),
         if (feeds.isNotEmpty)
           Row(
             children: [
               Expanded(
-                child: StatTile(
-                  value: '$todayCount',
-                  label: 'Feeds today',
-                  icon: Icons.today_rounded,
-                  color: BloomColors.fertile,
-                ),
+                child: StatTile(value: '$todayCount', label: 'Feeds today'),
               ),
-              Gap.h12,
+              Gap.h16,
               Expanded(
                 child: StatTile(
                   value: _ago(now.difference(DateTime.parse(feeds.first['start']))).replaceAll(' ago', ''),
                   label: 'Since last feed',
-                  icon: Icons.schedule_rounded,
-                  color: BloomColors.info,
                 ),
               ),
             ],
           ),
-        const SectionHeader('History'),
+        const SectionHeader('History', label: 'Ledger'),
         if (feeds.isNotEmpty)
-          ListCard(
-            children: [
-              for (final f in feeds.take(50))
-                Builder(
-                  builder: (_) {
-                    final s = DateTime.parse(f['start']);
-                    final e = DateTime.parse(f['end']);
-                    final bottle = f['type'] == 'bottle';
-                    final detail = bottle
-                        ? (f['ml'] != null ? '${(f['ml'] as num).round()} ml' : '')
-                        : fmtDuration(e.difference(s));
-                    final label = _feedLabel(f['type']);
-                    return HistoryRow(
-                      icon: bottle ? Icons.local_drink_rounded : Icons.baby_changing_station_rounded,
-                      color: bottle ? BloomColors.info : BloomColors.fertile,
-                      title: '${label[0].toUpperCase()}${label.substring(1)}',
-                      subtitle: '${fmtShort(s)}, ${fmtTime(s)}',
-                      trailing: detail.isEmpty
-                          ? null
-                          : Text(detail, style: t.textTheme.titleSmall!.copyWith(fontFeatures: tabular)),
-                    );
-                  },
-                ),
+          LedgerTable(
+            columns: const [
+              LedgerColumn('When', flex: 4),
+              LedgerColumn('Side', flex: 4),
+              LedgerColumn('Length', flex: 3, end: true),
             ],
+            rows: [for (final f in feeds.take(50)) _feedRow(context, f)],
           )
         else
-          const BloomCard(
-            child: EmptyState(
-              compact: true,
-              emoji: '🍼',
-              color: BloomColors.fertile,
-              title: 'No feeds logged yet.',
-              body: 'Your feeds will show up here.',
-            ),
-          ),
+          const EmptyState(compact: true, title: 'No feeds logged yet.', body: 'Your feeds will show up here.'),
         const EduNote(
           text:
               'Newborns often feed 8 to 12 times a day. If you have pain while feeding or worries about how your '
@@ -621,6 +565,26 @@ class _FeedingLogScreenState extends State<FeedingLogScreen> {
   }
 }
 
+LedgerRow _feedRow(BuildContext context, Map f) {
+  final s = DateTime.parse(f['start']);
+  final e = DateTime.parse(f['end']);
+  final bottle = f['type'] == 'bottle';
+  final detail = bottle ? (f['ml'] != null ? '${(f['ml'] as num).round()} ml' : '–') : fmtDuration(e.difference(s));
+  final label = _feedLabel(f['type']);
+  return LedgerRow([
+    Text('${fmtShort(s)}, ${fmtTime(s)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+    Text(
+      '${label[0].toUpperCase()}${label.substring(1)}',
+      style: Almanac.italic(context, size: 15),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    ),
+    Text(detail),
+  ]);
+}
+
+/// One breast side: a hairline box with a serif label. While its timer
+/// runs it turns into an inked block with the elapsed time.
 class _SideButton extends StatelessWidget {
   const _SideButton({
     required this.label,
@@ -638,70 +602,43 @@ class _SideButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    final dark = t.brightness == Brightness.dark;
-    final tokens = BloomTokens.of(context);
-    const c = BloomColors.fertile;
-    final fg = active ? Colors.white : t.colorScheme.onSurface;
-    return Semantics(
-      button: true,
-      label: '$label side, ${active ? 'stop' : 'start'}',
+    final p = BloomColors.of(context);
+    final fg = active ? p.paper : p.ink;
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: '$label side, ${active ? 'stop' : 'start'}',
+      borderRadius: Radii.lgAll,
       child: AnimatedContainer(
         duration: Motion.medium,
         curve: Motion.curve,
-        height: 148,
+        constraints: const BoxConstraints(minHeight: 148),
+        padding: const EdgeInsets.all(Space.lg),
         decoration: BoxDecoration(
+          color: active ? p.ink : Colors.transparent,
           borderRadius: Radii.lgAll,
-          gradient: active ? BloomGradients.fertile : null,
-          color: active ? null : (dark ? t.colorScheme.surfaceContainer : Colors.white),
-          border: Border.all(
-            color: active ? Colors.transparent : (suggested ? c.withValues(alpha: 0.7) : tokens.border),
-            width: suggested ? 2 : 1,
-          ),
-          boxShadow: active && !dark ? BloomShadows.glow(c) : tokens.cardShadow,
+          border: Border.all(color: active || suggested ? p.ink : p.hairline, width: suggested ? 1.5 : 1),
         ),
-        child: Material(
-          type: MaterialType.transparency,
-          borderRadius: Radii.lgAll,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              children: [
-                if (suggested)
-                  const Positioned(
-                    top: Space.md,
-                    right: Space.md,
-                    child: PillChip('Next', color: c, dense: true),
-                  ),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        active ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        size: 32,
-                        color: active ? Colors.white : readableTint(c, t.brightness),
-                      ),
-                      Gap.v4,
-                      Text(label, style: t.textTheme.headlineSmall!.copyWith(color: fg)),
-                      AnimatedSwitcher(
-                        duration: Motion.fast,
-                        child: Text(
-                          active ? 'Stop ${fmtDuration(elapsed!)}' : 'Start',
-                          key: ValueKey(active),
-                          style: t.textTheme.titleSmall!.copyWith(
-                            color: active ? Colors.white : tokens.muted,
-                            fontFeatures: tabular,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MonoLabel(
+              active ? 'Timing' : (suggested ? 'Next' : 'Breast'),
+              color: active ? p.paper.withValues(alpha: 0.75) : (suggested ? p.ink : null),
             ),
-          ),
+            Gap.v32,
+            Text(label, style: Almanac.serif(size: 30, weight: 340, color: fg)),
+            Gap.v4,
+            AnimatedSwitcher(
+              duration: Motion.fast,
+              child: Text(
+                active ? fmtDuration(elapsed!) : 'tap to start',
+                key: ValueKey(active),
+                style: active
+                    ? Almanac.mono(size: 15, color: fg).copyWith(fontFeatures: tabular)
+                    : Almanac.italic(context, size: 15, color: p.ink2),
+              ),
+            ),
+          ],
         ),
       ),
     );

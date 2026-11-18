@@ -1,17 +1,22 @@
-/// Bloom's design system: colors, tokens, and the Material theme.
+/// Bloom's design system, "Almanac": ink on warm paper, an editorial serif,
+/// hairlines instead of cards, and color only where it carries meaning.
 ///
 /// Read `bloom_docs/DESIGN.md` for how to use these tokens. In short:
 ///
-/// * Semantic colors live in [BloomColors]; everything else comes from
-///   `Theme.of(context).colorScheme`.
-/// * Spacing comes from [Space] (numbers), [Gap] (fixed-size boxes), and
-///   [Insets] (padding).
-/// * Corner radii come from [Radii], motion from [Motion], shadows from
-///   [BloomShadows], and gradients from [BloomGradients].
-/// * Brightness-dependent tokens (card shadow, hairline border, muted text)
-///   come from `BloomTokens.of(context)`.
+/// * Semantic colors live in [BloomColors]. The static constants are the
+///   light ("paper") values. For colors that follow the theme brightness, use
+///   `BloomColors.of(context)` (a [BloomPalette]) or
+///   `BloomColors.resolve(context, color)`.
+/// * Text comes from the theme's text theme plus the [Almanac] helpers:
+///   `Almanac.label` (mono marginalia), `Almanac.numeral` (serif figures),
+///   and `Almanac.italic` (serif italic accents).
+/// * Spacing comes from [Space], [Gap], and [Insets]; corner radii from
+///   [Radii]; motion from [Motion].
+/// * [BloomShadows] and [BloomGradients] still exist so older code compiles,
+///   but they're flat: no shadows and no gradients in Almanac.
 library;
 
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:material_ui/material_ui.dart';
 
 import '../core/engine.dart';
@@ -20,68 +25,328 @@ import '../core/engine.dart';
 // Colors
 // ---------------------------------------------------------------------------
 
-/// Semantic colors used across the app (calendar, rings, charts).
+/// Semantic colors used across the app (calendar, dial, charts).
 ///
-/// These are the same in light and dark mode. For text on top of these colors,
-/// use [onColor].
+/// The static constants are the light ("paper") palette, so they work in
+/// `const` expressions. In dark mode ("lamplight"), get the matching color
+/// with `BloomColors.of(context).period` or
+/// `BloomColors.resolve(context, BloomColors.period)`. The shared widgets in
+/// `lib/widgets` resolve any color you pass them, so `PillChip(color:
+/// BloomColors.period)` is correct in both modes.
 abstract final class BloomColors {
-  /// Logged period days.
-  static const period = Color(0xFFF0507A);
+  // Paper and ink -----------------------------------------------------------
 
-  /// Light period tint, for backgrounds behind period content.
-  static const periodSoft = Color(0xFFFFD9E3);
+  /// Page background: warm paper.
+  static const paper = Color(0xFFF6F1E7);
 
-  /// Predicted (not yet logged) period days.
-  static const predicted = Color(0xFFF7A1B8);
+  /// Raised surface: a slightly lighter sheet (inputs, sheets, menus).
+  static const raised = Color(0xFFFBF8F2);
 
-  /// Fertile window.
-  static const fertile = Color(0xFF2FB8A6);
+  /// Hairline rules and outlines.
+  static const hairline = Color(0xFFE2D9C8);
 
-  /// Light fertile tint.
-  static const fertileSoft = Color(0xFFCDF1EB);
+  /// Primary text and the "ink" accent (buttons, selected states).
+  static const ink = Color(0xFF2A2420);
 
-  /// Ovulation day: a deeper teal than [fertile].
-  static const ovulation = Color(0xFF138F80);
+  /// Secondary text, captions, and thin icons.
+  static const ink2 = Color(0xFF6E645A);
 
-  /// Luteal phase.
-  static const luteal = Color(0xFF9B87F5);
+  // Cycle ------------------------------------------------------------------
 
-  /// Light luteal tint.
-  static const lutealSoft = Color(0xFFE6E0FD);
+  /// Logged period days: oxblood.
+  static const period = Color(0xFFA23B2A);
 
-  /// Follicular phase: a soft peach that sits between period and fertile.
-  static const follicular = Color(0xFFF59E7A);
+  /// A soft wash of [period], for backgrounds behind period content.
+  static const periodSoft = Color(0xFFE7D0C5);
 
-  /// Pregnancy mode.
-  static const pregnancy = Color(0xFFF4B740);
+  /// Predicted (not yet logged) period days. Draw predictions dotted too.
+  static const predicted = Color(0xFFC48476);
 
-  /// Light pregnancy tint.
-  static const pregnancySoft = Color(0xFFFDEDC8);
+  /// Fertile window: sage.
+  static const fertile = Color(0xFF4F6B5A);
 
-  /// Brand rose, for decoration (gradients, illustrations, the logo).
-  static const brand = Color(0xFFE8457A);
+  /// A soft wash of [fertile].
+  static const fertileSoft = Color(0xFFD8DCCF);
 
-  /// Deep brand rose, for gradient ends and emphasis.
-  static const brandDeep = Color(0xFFB8235A);
+  /// Ovulation day: a deeper sage than [fertile].
+  static const ovulation = Color(0xFF3C5446);
 
-  /// Brand coral, the warm end of the brand gradient.
-  static const coral = Color(0xFFFF8A73);
+  /// Luteal phase: dusty plum.
+  static const luteal = Color(0xFF7A5C7E);
+
+  /// A soft wash of [luteal].
+  static const lutealSoft = Color(0xFFE2D7DA);
+
+  /// Follicular phase: ochre. It's light; for text, use [readableTint].
+  static const follicular = Color(0xFFC7A15A);
+
+  /// Pregnancy mode: a warm amber ink.
+  static const pregnancy = Color(0xFF946426);
+
+  /// A soft wash of [pregnancy].
+  static const pregnancySoft = Color(0xFFE6DAC5);
+
+  // Brand and status -------------------------------------------------------
+
+  /// Brand accent: oxblood, the same as [period].
+  static const brand = Color(0xFFA23B2A);
+
+  /// A deeper oxblood, for emphasis.
+  static const brandDeep = Color(0xFF7C2B1E);
+
+  /// Terracotta, a warm secondary accent.
+  static const coral = Color(0xFFC0654A);
 
   /// Positive state (on track, saved).
-  static const success = Color(0xFF2E9E6B);
+  static const success = Color(0xFF3E6B4E);
 
   /// Caution state (late, check in).
-  static const warning = Color(0xFFE59A1F);
+  static const warning = Color(0xFFA87A22);
 
-  /// Info state.
-  static const info = Color(0xFF5B7FE8);
+  /// Info state: slate ink.
+  static const info = Color(0xFF4D6475);
 
-  /// Returns black or white, whichever reads better on [background].
-  static Color onColor(Color background) =>
-      background.computeLuminance() > 0.45 ? const Color(0xFF2A1F2D) : Colors.white;
+  /// Errors and destructive actions.
+  static const error = Color(0xFF9E2B25);
+
+  /// The brightness-aware palette for the current theme.
+  static BloomPalette of(BuildContext context) =>
+      Theme.of(context).extension<BloomPalette>() ?? BloomPalette.light;
+
+  /// Returns the dark-mode ("lamplight") equivalent of a light [color]
+  /// constant when [brightness] is dark. Unknown colors pass through.
+  static Color adapt(Color color, Brightness brightness) {
+    if (brightness == Brightness.light) return color;
+    return _darkOf[color.toARGB32()] ?? color;
+  }
+
+  /// [adapt] for the theme brightness of [context].
+  static Color resolve(BuildContext context, Color color) => adapt(color, Theme.of(context).brightness);
+
+  /// Paper or ink, whichever has more contrast on [background].
+  static Color onColor(Color background) {
+    final l = background.computeLuminance();
+    final onInk = (l + 0.05) / (ink.computeLuminance() + 0.05);
+    final onPaper = (raised.computeLuminance() + 0.05) / (l + 0.05);
+    return onInk > onPaper ? ink : raised;
+  }
+
+  static final Map<int, Color> _darkOf = {
+    for (final (l, d) in [
+      (paper, BloomPalette.dark.paper),
+      (raised, BloomPalette.dark.raised),
+      (hairline, BloomPalette.dark.hairline),
+      (ink, BloomPalette.dark.ink),
+      (ink2, BloomPalette.dark.ink2),
+      (period, BloomPalette.dark.period),
+      (periodSoft, BloomPalette.dark.periodSoft),
+      (predicted, BloomPalette.dark.predicted),
+      (fertile, BloomPalette.dark.fertile),
+      (fertileSoft, BloomPalette.dark.fertileSoft),
+      (ovulation, BloomPalette.dark.ovulation),
+      (luteal, BloomPalette.dark.luteal),
+      (lutealSoft, BloomPalette.dark.lutealSoft),
+      (follicular, BloomPalette.dark.follicular),
+      (pregnancy, BloomPalette.dark.pregnancy),
+      (pregnancySoft, BloomPalette.dark.pregnancySoft),
+      (brandDeep, BloomPalette.dark.brandDeep),
+      (coral, BloomPalette.dark.coral),
+      (success, BloomPalette.dark.success),
+      (warning, BloomPalette.dark.warning),
+      (info, BloomPalette.dark.info),
+      (error, BloomPalette.dark.error),
+    ])
+      l.toARGB32(): d,
+  };
 }
 
-/// The color that represents [phase] in rings, chips, and charts.
+/// The full Almanac palette for one brightness. Read it with
+/// `BloomColors.of(context)`.
+@immutable
+class BloomPalette extends ThemeExtension<BloomPalette> {
+  const BloomPalette({
+    required this.paper,
+    required this.raised,
+    required this.hairline,
+    required this.ink,
+    required this.ink2,
+    required this.period,
+    required this.periodSoft,
+    required this.predicted,
+    required this.fertile,
+    required this.fertileSoft,
+    required this.ovulation,
+    required this.luteal,
+    required this.lutealSoft,
+    required this.follicular,
+    required this.pregnancy,
+    required this.pregnancySoft,
+    required this.brand,
+    required this.brandDeep,
+    required this.coral,
+    required this.success,
+    required this.warning,
+    required this.info,
+    required this.error,
+  });
+
+  /// Light mode ("paper"): warm paper and brown-black ink.
+  static const light = BloomPalette(
+    paper: BloomColors.paper,
+    raised: BloomColors.raised,
+    hairline: BloomColors.hairline,
+    ink: BloomColors.ink,
+    ink2: BloomColors.ink2,
+    period: BloomColors.period,
+    periodSoft: BloomColors.periodSoft,
+    predicted: BloomColors.predicted,
+    fertile: BloomColors.fertile,
+    fertileSoft: BloomColors.fertileSoft,
+    ovulation: BloomColors.ovulation,
+    luteal: BloomColors.luteal,
+    lutealSoft: BloomColors.lutealSoft,
+    follicular: BloomColors.follicular,
+    pregnancy: BloomColors.pregnancy,
+    pregnancySoft: BloomColors.pregnancySoft,
+    brand: BloomColors.brand,
+    brandDeep: BloomColors.brandDeep,
+    coral: BloomColors.coral,
+    success: BloomColors.success,
+    warning: BloomColors.warning,
+    info: BloomColors.info,
+    error: BloomColors.error,
+  );
+
+  /// Dark mode ("lamplight"): lamplight on dark walnut.
+  static const dark = BloomPalette(
+    paper: Color(0xFF1A1714),
+    raised: Color(0xFF23201C),
+    hairline: Color(0xFF3A342D),
+    ink: Color(0xFFEFE7DA),
+    ink2: Color(0xFFA79C8D),
+    period: Color(0xFFE07A63),
+    periodSoft: Color(0xFF3E2922),
+    predicted: Color(0xFFA55C4B),
+    fertile: Color(0xFF8DB09A),
+    fertileSoft: Color(0xFF2F332C),
+    ovulation: Color(0xFFA9CBB5),
+    luteal: Color(0xFFB79BBB),
+    lutealSoft: Color(0xFF362F32),
+    follicular: Color(0xFFE0BE7A),
+    pregnancy: Color(0xFFE0B074),
+    pregnancySoft: Color(0xFF3C3224),
+    brand: Color(0xFFE07A63),
+    brandDeep: Color(0xFFF09A85),
+    coral: Color(0xFFE8957E),
+    success: Color(0xFF8DB09A),
+    warning: Color(0xFFE0BE7A),
+    info: Color(0xFF9DB3C4),
+    error: Color(0xFFF08A7A),
+  );
+
+  /// Page background.
+  final Color paper;
+
+  /// Raised surfaces: sheets, menus, inputs.
+  final Color raised;
+
+  /// Rules and outlines.
+  final Color hairline;
+
+  /// Primary text and ink fills.
+  final Color ink;
+
+  /// Secondary text, captions, thin icons.
+  final Color ink2;
+
+  final Color period;
+  final Color periodSoft;
+  final Color predicted;
+  final Color fertile;
+  final Color fertileSoft;
+  final Color ovulation;
+  final Color luteal;
+  final Color lutealSoft;
+  final Color follicular;
+  final Color pregnancy;
+  final Color pregnancySoft;
+  final Color brand;
+  final Color brandDeep;
+  final Color coral;
+  final Color success;
+  final Color warning;
+  final Color info;
+  final Color error;
+
+  /// The color for [phase].
+  Color phase(Phase phase) => switch (phase) {
+        Phase.menstrual => period,
+        Phase.follicular => follicular,
+        Phase.ovulation => ovulation,
+        Phase.luteal => luteal,
+      };
+
+  @override
+  BloomPalette copyWith({Color? paper, Color? ink}) => BloomPalette(
+        paper: paper ?? this.paper,
+        raised: raised,
+        hairline: hairline,
+        ink: ink ?? this.ink,
+        ink2: ink2,
+        period: period,
+        periodSoft: periodSoft,
+        predicted: predicted,
+        fertile: fertile,
+        fertileSoft: fertileSoft,
+        ovulation: ovulation,
+        luteal: luteal,
+        lutealSoft: lutealSoft,
+        follicular: follicular,
+        pregnancy: pregnancy,
+        pregnancySoft: pregnancySoft,
+        brand: brand,
+        brandDeep: brandDeep,
+        coral: coral,
+        success: success,
+        warning: warning,
+        info: info,
+        error: error,
+      );
+
+  @override
+  BloomPalette lerp(BloomPalette? other, double t) {
+    if (other == null) return this;
+    Color l(Color a, Color b) => Color.lerp(a, b, t)!;
+    return BloomPalette(
+      paper: l(paper, other.paper),
+      raised: l(raised, other.raised),
+      hairline: l(hairline, other.hairline),
+      ink: l(ink, other.ink),
+      ink2: l(ink2, other.ink2),
+      period: l(period, other.period),
+      periodSoft: l(periodSoft, other.periodSoft),
+      predicted: l(predicted, other.predicted),
+      fertile: l(fertile, other.fertile),
+      fertileSoft: l(fertileSoft, other.fertileSoft),
+      ovulation: l(ovulation, other.ovulation),
+      luteal: l(luteal, other.luteal),
+      lutealSoft: l(lutealSoft, other.lutealSoft),
+      follicular: l(follicular, other.follicular),
+      pregnancy: l(pregnancy, other.pregnancy),
+      pregnancySoft: l(pregnancySoft, other.pregnancySoft),
+      brand: l(brand, other.brand),
+      brandDeep: l(brandDeep, other.brandDeep),
+      coral: l(coral, other.coral),
+      success: l(success, other.success),
+      warning: l(warning, other.warning),
+      info: l(info, other.info),
+      error: l(error, other.error),
+    );
+  }
+}
+
+/// The light-mode color for [phase]. In widgets, prefer
+/// `BloomColors.of(context).phase(phase)`, which follows dark mode.
 Color phaseColor(Phase phase) => switch (phase) {
       Phase.menstrual => BloomColors.period,
       Phase.follicular => BloomColors.follicular,
@@ -89,7 +354,8 @@ Color phaseColor(Phase phase) => switch (phase) {
       Phase.luteal => BloomColors.luteal,
     };
 
-/// The hero gradient for [phase], for example behind the Today header.
+/// A flat "inked" fill for [phase] (Almanac has no gradients). Kept for
+/// `BloomCard.gradient`; see [BloomGradients].
 LinearGradient phaseGradient(Phase phase) => switch (phase) {
       Phase.menstrual => BloomGradients.period,
       Phase.follicular => BloomGradients.follicular,
@@ -101,7 +367,8 @@ LinearGradient phaseGradient(Phase phase) => switch (phase) {
 // Tokens
 // ---------------------------------------------------------------------------
 
-/// Spacing scale on a 4-pt grid. Use these for every margin and padding.
+/// Spacing scale on a 4-pt grid (8-pt rhythm). Use these for every margin
+/// and padding.
 abstract final class Space {
   static const double xxs = 2;
   static const double xs = 4;
@@ -113,14 +380,17 @@ abstract final class Space {
   static const double xxxl = 32;
   static const double huge = 48;
 
-  /// Horizontal page gutter on phones.
-  static const double gutter = 20;
+  /// Page side margin: the editorial column's left edge.
+  static const double gutter = 24;
 
   /// Maximum width of page content on wide screens.
   static const double maxContentWidth = 640;
 
   /// Bottom padding that keeps scrolled content clear of the navigation bar.
   static const double navClearance = 24;
+
+  /// Width of the left label column in [Marginalia] rows.
+  static const double margin = 64;
 }
 
 /// Fixed-size spacers built from [Space]. `Gap.v16` is a 16-px vertical gap.
@@ -142,10 +412,10 @@ abstract final class Gap {
 
 /// Standard paddings.
 abstract final class Insets {
-  /// Page content padding (horizontal gutter, small top).
+  /// Page content padding (side margins, small top).
   static const page = EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.xxl);
 
-  /// Horizontal page gutter only.
+  /// Side margins only.
   static const pageH = EdgeInsets.symmetric(horizontal: Space.gutter);
 
   /// Default card padding.
@@ -164,15 +434,17 @@ abstract final class Insets {
   static const all24 = EdgeInsets.all(Space.xxl);
 }
 
-/// Corner radii. Cards use [lg]; pills and buttons use [pill].
+/// Corner radii. Almanac corners are small and consistent: 6 to 8 px where a
+/// container exists at all. [pill] is for dots and thin progress tracks only.
 abstract final class Radii {
-  static const double xs = 8;
-  static const double sm = 12;
-  static const double md = 16;
-  static const double lg = 24;
-  static const double xl = 32;
+  static const double xs = 2;
+  static const double sm = 4;
+  static const double md = 6;
+  static const double lg = 8;
+  static const double xl = 12;
   static const double pill = 999;
 
+  static const xsAll = BorderRadius.all(Radius.circular(xs));
   static const smAll = BorderRadius.all(Radius.circular(sm));
   static const mdAll = BorderRadius.all(Radius.circular(md));
   static const lgAll = BorderRadius.all(Radius.circular(lg));
@@ -180,18 +452,21 @@ abstract final class Radii {
   static const pillAll = BorderRadius.all(Radius.circular(pill));
 }
 
-/// Animation durations and curves.
+/// Animation durations and curves. Almanac motion is slow and quiet.
 ///
 /// Named `Motion` because Material already exports a `Durations` class.
 abstract final class Motion {
-  /// Hover, press, and small state changes.
+  /// Press feedback and small state changes.
   static const fast = Duration(milliseconds: 150);
 
   /// Selection changes, cross-fades, and expanding content.
-  static const medium = Duration(milliseconds: 260);
+  static const medium = Duration(milliseconds: 300);
 
-  /// Hero elements and rings animating in.
+  /// Hero elements entering.
   static const slow = Duration(milliseconds: 600);
+
+  /// The dial's arcs drawing in like ink.
+  static const ink = Duration(milliseconds: 1400);
 
   /// Default curve for most motion.
   static const curve = Curves.easeOutCubic;
@@ -199,90 +474,75 @@ abstract final class Motion {
   /// Curve for elements entering the screen.
   static const emphasized = Curves.easeOutQuart;
 
-  /// Slight overshoot, for playful selection feedback.
-  static const spring = Curves.easeOutBack;
+  /// Kept for older code. Almanac doesn't overshoot, so it's a soft ease-out.
+  static const spring = Curves.easeOutCubic;
 }
 
-/// Layered shadows. Light mode uses soft, warm shadows; dark mode uses none
-/// (cards get a hairline border instead, see [BloomTokens.border]).
+/// Kept so older code compiles. Almanac has no shadows: every method returns
+/// an empty list. Separate surfaces with [Hairline]s instead.
 abstract final class BloomShadows {
-  /// Resting card shadow.
-  static List<BoxShadow> card(Brightness b) => b == Brightness.dark
-      ? const []
-      : const [
-          BoxShadow(color: Color(0x0F7A2E4A), blurRadius: 2, offset: Offset(0, 1)),
-          BoxShadow(color: Color(0x147A2E4A), blurRadius: 24, offset: Offset(0, 8), spreadRadius: -4),
-        ];
-
-  /// Raised elements: floating buttons, active hero cards.
-  static List<BoxShadow> raised(Brightness b) => b == Brightness.dark
-      ? const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 10), spreadRadius: -6)]
-      : const [
-          BoxShadow(color: Color(0x147A2E4A), blurRadius: 4, offset: Offset(0, 2)),
-          BoxShadow(color: Color(0x267A2E4A), blurRadius: 32, offset: Offset(0, 14), spreadRadius: -8),
-        ];
-
-  /// A colored glow under gradient buttons and hero elements.
-  static List<BoxShadow> glow(Color color) => [
-        BoxShadow(color: color.withValues(alpha: 0.32), blurRadius: 20, offset: const Offset(0, 8), spreadRadius: -6),
-      ];
+  static List<BoxShadow> card(Brightness b) => const [];
+  static List<BoxShadow> raised(Brightness b) => const [];
+  static List<BoxShadow> glow(Color color) => const [];
 }
 
-/// Gradients for hero elements. Use at most one or two per screen.
+/// Flat fills for inked emphasis blocks (`BloomCard.gradient`). Almanac has
+/// no gradients, so each "gradient" is a single color: deep enough for paper
+/// text on top in both modes.
 abstract final class BloomGradients {
-  static const _begin = Alignment.topLeft;
-  static const _end = Alignment.bottomRight;
+  static LinearGradient _flat(Color c) => LinearGradient(colors: [c, c]);
 
-  /// Brand rose to coral: primary hero and call-to-action.
-  static const brand = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFFE23D74), Color(0xFFFF8A73)]);
+  /// Ink. `BloomCard.gradient` draws it as a dark ink block (light mode) or a
+  /// raised walnut block (dark mode).
+  static const brand = LinearGradient(colors: [BloomColors.ink, BloomColors.ink]);
 
-  /// Period: rose to soft pink.
-  static const period = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFFE8396E), Color(0xFFFF7E9D)]);
+  /// Oxblood.
+  static const period = LinearGradient(colors: [BloomColors.period, BloomColors.period]);
 
-  /// Follicular: peach to coral.
-  static const follicular = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFFF07A62), Color(0xFFFBB38A)]);
+  /// Deep ochre (readable with paper text).
+  static const follicular = LinearGradient(colors: [Color(0xFF8C6A2C), Color(0xFF8C6A2C)]);
 
-  /// Fertile window and ovulation: deep teal to mint.
-  static const fertile = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFF0F8A7C), Color(0xFF3CC7B2)]);
+  /// Sage.
+  static const fertile = LinearGradient(colors: [BloomColors.fertile, BloomColors.fertile]);
 
-  /// Luteal: violet to lavender.
-  static const luteal = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFF7A62E6), Color(0xFFAE9BFA)]);
+  /// Dusty plum.
+  static const luteal = LinearGradient(colors: [BloomColors.luteal, BloomColors.luteal]);
 
-  /// Pregnancy: amber to honey.
-  static const pregnancy = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFFE79A1C), Color(0xFFF8C866)]);
+  /// Amber ink.
+  static const pregnancy = LinearGradient(colors: [BloomColors.pregnancy, BloomColors.pregnancy]);
 
-  /// Calm dusk, for neutral hero areas (insights, assistant).
-  static const dusk = LinearGradient(begin: _begin, end: _end, colors: [Color(0xFF8E6BE8), Color(0xFFE8457A)]);
+  /// Neutral emphasis: plum.
+  static const dusk = LinearGradient(colors: [BloomColors.luteal, BloomColors.luteal]);
 
-  /// A two-stop gradient from [color] to a lighter version of it.
-  static LinearGradient of(Color color) => LinearGradient(
-        begin: _begin,
-        end: _end,
-        colors: [color, Color.lerp(color, Colors.white, 0.3)!],
-      );
+  /// A flat fill of [color].
+  static LinearGradient of(Color color) => _flat(color);
 
-  /// A barely-there wash of [color], for tinted hero backgrounds.
-  static LinearGradient wash(Color color, Brightness b) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          color.withValues(alpha: b == Brightness.dark ? 0.22 : 0.16),
-          color.withValues(alpha: b == Brightness.dark ? 0.06 : 0.04),
-        ],
-      );
+  /// A barely-there flat wash of [color].
+  static LinearGradient wash(Color color, Brightness b) =>
+      _flat(BloomColors.adapt(color, b).withValues(alpha: b == Brightness.dark ? 0.10 : 0.06));
 }
 
 /// Font families bundled under `assets/fonts` (works offline).
 abstract final class BloomFonts {
-  /// Display and heading face: geometric and friendly.
-  static const display = 'Outfit';
+  /// Display serif (variable: `wght` 300 to 600, `opsz` 9 to 144, `SOFT`
+  /// fixed at 50). Use the [Almanac] helpers rather than this name.
+  static const serif = 'Fraunces';
 
-  /// Body and UI face: rounded and highly legible.
-  static const body = 'Nunito';
+  /// Body and UI face.
+  static const sans = 'Hanken Grotesk';
+
+  /// Monospace for marginalia labels, dates, and times.
+  static const mono = 'IBM Plex Mono';
 
   /// Bundled subset of Noto Color Emoji (OFL). Listed as a fallback on every
-  /// text style so emoji render offline and without a first-frame "tofu" box.
+  /// text style so emoji render offline.
   static const emoji = 'BloomEmoji';
+
+  /// Kept for older code: the display face.
+  static const display = serif;
+
+  /// Kept for older code: the body face.
+  static const body = sans;
 
   static const fallback = [emoji];
 }
@@ -299,22 +559,22 @@ class BloomTokens extends ThemeExtension<BloomTokens> {
     required this.heroWash,
   });
 
-  /// Shadow for resting cards (empty in dark mode).
+  /// Always empty in Almanac; kept for older code.
   final List<BoxShadow> cardShadow;
 
-  /// Shadow for raised and floating elements.
+  /// Always empty in Almanac; kept for older code.
   final List<BoxShadow> raisedShadow;
 
-  /// Hairline border color for cards and dividers.
+  /// Hairline color for rules and outlines.
   final Color border;
 
-  /// Muted text and icon color (captions, disclaimers).
+  /// Secondary text and thin icon color (ink2).
   final Color muted;
 
-  /// Subtle fill for inset areas (inputs, tracks, chip backgrounds).
+  /// Subtle fill for inset areas (tracks, wells). A shade off the paper.
   final Color subtle;
 
-  /// Background gradient for the top of hero pages.
+  /// A flat, nearly transparent wash. Kept for older code.
   final LinearGradient heroWash;
 
   static BloomTokens of(BuildContext context) => Theme.of(context).extension<BloomTokens>()!;
@@ -341,8 +601,8 @@ class BloomTokens extends ThemeExtension<BloomTokens> {
   BloomTokens lerp(BloomTokens? other, double t) {
     if (other == null) return this;
     return BloomTokens(
-      cardShadow: BoxShadow.lerpList(cardShadow, other.cardShadow, t) ?? other.cardShadow,
-      raisedShadow: BoxShadow.lerpList(raisedShadow, other.raisedShadow, t) ?? other.raisedShadow,
+      cardShadow: const [],
+      raisedShadow: const [],
       border: Color.lerp(border, other.border, t)!,
       muted: Color.lerp(muted, other.muted, t)!,
       subtle: Color.lerp(subtle, other.subtle, t)!,
@@ -352,150 +612,300 @@ class BloomTokens extends ThemeExtension<BloomTokens> {
 }
 
 // ---------------------------------------------------------------------------
+// Typography
+// ---------------------------------------------------------------------------
+
+/// Almanac text styles beyond the Material text theme.
+///
+/// ```dart
+/// Text('Cycle 07 · Wed 18 Nov'.toUpperCase(), style: Almanac.label(context));
+/// Text('14', style: Almanac.numeral(context, size: 64));
+/// Text('ovulation likely.', style: Almanac.italic(context, size: 22));
+/// ```
+abstract final class Almanac {
+  /// Fraunces at [size] with the given weight. Sets the `wght` and `opsz`
+  /// axes; `opsz` follows the size unless you pass one.
+  static TextStyle serif({
+    required double size,
+    double weight = 350,
+    bool italic = false,
+    double? opsz,
+    Color? color,
+    double height = 1.15,
+    double? letterSpacing,
+    bool tabular = false,
+  }) =>
+      TextStyle(
+        fontFamily: BloomFonts.serif,
+        fontFamilyFallback: BloomFonts.fallback,
+        fontSize: size,
+        fontWeight: FontWeight(weight.round()),
+        fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+        fontVariations: [
+          FontVariation('wght', weight.clamp(300, 600)),
+          FontVariation('opsz', (opsz ?? size * 4).clamp(9, 144)),
+        ],
+        fontFeatures: tabular
+            ? const [FontFeature.liningFigures(), FontFeature.tabularFigures()]
+            : const [FontFeature.liningFigures()],
+        letterSpacing: letterSpacing ?? (size >= 28 ? -size * 0.012 : 0),
+        height: height,
+        color: color,
+      );
+
+  /// Hanken Grotesk at [size].
+  static TextStyle sans({
+    required double size,
+    FontWeight weight = FontWeight.w400,
+    Color? color,
+    double height = 1.5,
+    double letterSpacing = 0,
+  }) =>
+      TextStyle(
+        fontFamily: BloomFonts.sans,
+        fontFamilyFallback: BloomFonts.fallback,
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+
+  /// IBM Plex Mono at [size], not uppercased. For dates, times, and data.
+  static TextStyle mono({required double size, FontWeight weight = FontWeight.w400, Color? color, double letterSpacing = 0}) =>
+      TextStyle(
+        fontFamily: BloomFonts.mono,
+        fontFamilyFallback: BloomFonts.fallback,
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        height: 1.35,
+        letterSpacing: letterSpacing,
+      );
+
+  /// Marginalia: small tracked mono in ink2. Uppercase the string yourself
+  /// (or use the `MonoLabel` widget, which does it for you).
+  static TextStyle label(BuildContext context, {Color? color, double size = 10.5}) =>
+      mono(size: size, color: color ?? BloomColors.of(context).ink2, letterSpacing: size * 0.09, weight: FontWeight.w500);
+
+  /// A serif numeral: light Fraunces with tabular lining figures. The hero
+  /// numeral on a screen is about 64; inline figures 20 to 28.
+  static TextStyle numeral(BuildContext context, {double size = 64, Color? color, double weight = 300}) =>
+      serif(size: size, weight: weight, color: color ?? BloomColors.of(context).ink, height: 1.0, tabular: true);
+
+  /// Serif italic for phase names and accents ("*Follicular*").
+  static TextStyle italic(BuildContext context, {double size = 17, Color? color, double weight = 300}) =>
+      serif(size: size, weight: weight, italic: true, color: color ?? BloomColors.of(context).ink, height: 1.25);
+
+  /// Alias of [italic], matching the design brief's name.
+  static TextStyle italicAccent(BuildContext context, {double size = 17, Color? color}) =>
+      italic(context, size: size, color: color);
+
+  /// Small mono data text (dates, times, values) in ink2.
+  static TextStyle data(BuildContext context, {Color? color, double size = 12.5}) =>
+      mono(size: size, color: color ?? BloomColors.of(context).ink2);
+
+  /// Spells out 0 to 99 in words ("fourteen"), for editorial headlines such
+  /// as "Day fourteen". Larger numbers come back as digits.
+  static String spell(int n) {
+    const ones = [
+      'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', //
+      'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
+    ];
+    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    if (n < 0 || n > 99) return '$n';
+    if (n < 20) return ones[n];
+    return n % 10 == 0 ? tens[n ~/ 10] : '${tens[n ~/ 10]}-${ones[n % 10]}';
+  }
+
+  /// A light selection haptic for toggles, day picks, and saves. Does nothing
+  /// on the web.
+  static void tick() => HapticFeedback.selectionClick();
+}
+
+/// Weight changes for Almanac text styles.
+///
+/// Fraunces is a variable font whose weight is set through its `wght` axis.
+/// `copyWith(fontWeight: ...)` alone doesn't move that axis (Android then
+/// fakes a bold, the web ignores it), so use [weight] instead:
+///
+/// ```dart
+/// theme.textTheme.headlineSmall!.weight(450)
+/// ```
+extension AlmanacTextStyle on TextStyle {
+  /// This style at weight [w] (300 to 600 for Fraunces, 400 to 700 for the
+  /// sans). Keeps the other axes, such as `opsz`.
+  TextStyle weight(double w) {
+    final axes = [
+      for (final v in fontVariations ?? const <FontVariation>[])
+        if (v.axis != 'wght') v,
+    ];
+    final serif = fontFamily == BloomFonts.serif;
+    return copyWith(
+      fontWeight: FontWeight(w.round().clamp(1, 1000)),
+      fontVariations: serif ? [FontVariation('wght', w.clamp(300, 600)), ...axes] : fontVariations,
+    );
+  }
+}
+
+TextTheme _textTheme(BloomPalette p) {
+  TextStyle serif(double size, double w, {double height = 1.15, double? opsz}) =>
+      Almanac.serif(size: size, weight: w, height: height, opsz: opsz, color: p.ink);
+  TextStyle sans(double size, FontWeight w, {double height = 1.5, Color? color, double spacing = 0}) =>
+      Almanac.sans(size: size, weight: w, height: height, color: color ?? p.ink, letterSpacing: spacing);
+  return TextTheme(
+    displayLarge: serif(64, 300, height: 1.0),
+    displayMedium: serif(52, 300, height: 1.02),
+    displaySmall: serif(40, 320, height: 1.05),
+    headlineLarge: serif(34, 350, height: 1.08),
+    headlineMedium: serif(28, 350, height: 1.12),
+    headlineSmall: serif(23, 380, height: 1.18),
+    titleLarge: serif(20, 400, height: 1.25, opsz: 72),
+    titleMedium: sans(16, FontWeight.w600, height: 1.35),
+    titleSmall: sans(14, FontWeight.w600, height: 1.35),
+    bodyLarge: sans(16, FontWeight.w400, height: 1.55),
+    bodyMedium: sans(14.5, FontWeight.w400, height: 1.55),
+    bodySmall: sans(12.5, FontWeight.w400, height: 1.45, color: p.ink2),
+    labelLarge: sans(14.5, FontWeight.w600, height: 1.25, spacing: 0.1),
+    labelMedium: sans(12.5, FontWeight.w500, height: 1.25, spacing: 0.2),
+    labelSmall: sans(11, FontWeight.w600, height: 1.2, spacing: 0.5),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page transitions and scrolling
+// ---------------------------------------------------------------------------
+
+/// A short fade with a small horizontal slide: the new page settles in from
+/// the right while the old one drifts a little to the left.
+class AlmanacPageTransitionsBuilder extends PageTransitionsBuilder {
+  const AlmanacPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final enter = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    final under = CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return SlideTransition(
+      position: Tween(begin: Offset.zero, end: const Offset(-0.025, 0)).animate(under),
+      child: FadeTransition(
+        opacity: enter,
+        child: SlideTransition(
+          position: Tween(begin: const Offset(0.05, 0), end: Offset.zero).animate(enter),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouncing scroll physics everywhere and no Android glow or stretch.
+class AlmanacScrollBehavior extends MaterialScrollBehavior {
+  const AlmanacScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) => const BouncingScrollPhysics();
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
+}
+
+// ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
 
-ColorScheme _scheme(Brightness b) {
+ColorScheme _scheme(Brightness b, BloomPalette p) {
   final light = b == Brightness.light;
-  final seed = ColorScheme.fromSeed(seedColor: BloomColors.brand, brightness: b);
-  return light
-      ? seed.copyWith(
-          primary: const Color(0xFFD6336C),
-          onPrimary: Colors.white,
-          primaryContainer: const Color(0xFFFFDCE6),
-          onPrimaryContainer: const Color(0xFF5C0F2E),
-          secondary: const Color(0xFF8A4F67),
-          onSecondary: Colors.white,
-          secondaryContainer: const Color(0xFFF9DCE6),
-          onSecondaryContainer: const Color(0xFF4A1830),
-          tertiary: const Color(0xFF6F58D9),
-          onTertiary: Colors.white,
-          tertiaryContainer: const Color(0xFFE6E0FD),
-          onTertiaryContainer: const Color(0xFF2A1A73),
-          error: const Color(0xFFC62F3B),
-          errorContainer: const Color(0xFFFFDAD9),
-          onErrorContainer: const Color(0xFF5F0A12),
-          surface: const Color(0xFFFFF8F9),
-          onSurface: const Color(0xFF2A1F2D),
-          onSurfaceVariant: const Color(0xFF6E5F70),
-          surfaceDim: const Color(0xFFF3E4E8),
-          surfaceBright: Colors.white,
-          surfaceContainerLowest: Colors.white,
-          surfaceContainerLow: const Color(0xFFFFF1F4),
-          surfaceContainer: const Color(0xFFFCEBEF),
-          surfaceContainerHigh: const Color(0xFFF8E4E9),
-          surfaceContainerHighest: const Color(0xFFF2DDE3),
-          outline: const Color(0xFFB9A6B0),
-          outlineVariant: const Color(0xFFEBD9DF),
-          inverseSurface: const Color(0xFF342937),
-          onInverseSurface: const Color(0xFFFBEEF2),
-          inversePrimary: const Color(0xFFFF8FB1),
-          shadow: const Color(0xFF7A2E4A),
-          surfaceTint: Colors.transparent,
-        )
-      : seed.copyWith(
-          primary: const Color(0xFFFF8FB1),
-          onPrimary: const Color(0xFF4A0E26),
-          primaryContainer: const Color(0xFF6E1E3E),
-          onPrimaryContainer: const Color(0xFFFFD9E3),
-          secondary: const Color(0xFFEDB8CB),
-          onSecondary: const Color(0xFF4A1830),
-          secondaryContainer: const Color(0xFF4F2A3B),
-          onSecondaryContainer: const Color(0xFFFFD9E3),
-          tertiary: const Color(0xFFC3B5FF),
-          onTertiary: const Color(0xFF2A1A73),
-          tertiaryContainer: const Color(0xFF433384),
-          onTertiaryContainer: const Color(0xFFE6E0FD),
-          error: const Color(0xFFFFB4AE),
-          errorContainer: const Color(0xFF7C1A22),
-          onErrorContainer: const Color(0xFFFFDAD7),
-          surface: const Color(0xFF17111A),
-          onSurface: const Color(0xFFF4ECF5),
-          onSurfaceVariant: const Color(0xFFC0B2C3),
-          surfaceDim: const Color(0xFF17111A),
-          surfaceBright: const Color(0xFF3A2F3E),
-          surfaceContainerLowest: const Color(0xFF120D15),
-          surfaceContainerLow: const Color(0xFF1E1722),
-          surfaceContainer: const Color(0xFF231B27),
-          surfaceContainerHigh: const Color(0xFF2B2230),
-          surfaceContainerHighest: const Color(0xFF352B3A),
-          outline: const Color(0xFF7D6E80),
-          outlineVariant: const Color(0xFF3A2F3F),
-          inverseSurface: const Color(0xFFF4ECF5),
-          onInverseSurface: const Color(0xFF2A1F2D),
-          inversePrimary: const Color(0xFFD6336C),
-          shadow: Colors.black,
-          surfaceTint: Colors.transparent,
-        );
-}
-
-TextTheme _textTheme(ColorScheme s) {
-  TextStyle display(double size, FontWeight w, {double spacing = -0.4, double height = 1.15}) => TextStyle(
-        fontFamily: BloomFonts.display,
-        fontFamilyFallback: BloomFonts.fallback,
-        fontSize: size,
-        fontWeight: w,
-        letterSpacing: spacing,
-        height: height,
-        color: s.onSurface,
-      );
-  TextStyle body(double size, FontWeight w, {double spacing = 0, double height = 1.45, Color? color}) => TextStyle(
-        fontFamily: BloomFonts.body,
-        fontFamilyFallback: BloomFonts.fallback,
-        fontSize: size,
-        fontWeight: w,
-        letterSpacing: spacing,
-        height: height,
-        color: color ?? s.onSurface,
-      );
-  return TextTheme(
-    displayLarge: display(52, FontWeight.w600, spacing: -1.2, height: 1.05),
-    displayMedium: display(42, FontWeight.w600, spacing: -1, height: 1.08),
-    displaySmall: display(34, FontWeight.w600, spacing: -0.8, height: 1.1),
-    headlineLarge: display(30, FontWeight.w600, spacing: -0.6),
-    headlineMedium: display(26, FontWeight.w600, spacing: -0.5),
-    headlineSmall: display(22, FontWeight.w600, spacing: -0.3, height: 1.2),
-    titleLarge: display(20, FontWeight.w600, spacing: -0.2, height: 1.25),
-    titleMedium: body(16, FontWeight.w700, height: 1.35),
-    titleSmall: body(14, FontWeight.w700, height: 1.35),
-    bodyLarge: body(16, FontWeight.w400, height: 1.5),
-    bodyMedium: body(14.5, FontWeight.w400, height: 1.45),
-    bodySmall: body(12.5, FontWeight.w400, height: 1.4, color: s.onSurfaceVariant),
-    labelLarge: body(14.5, FontWeight.w700, spacing: 0.1, height: 1.25),
-    labelMedium: body(12.5, FontWeight.w700, spacing: 0.2, height: 1.25),
-    labelSmall: body(11, FontWeight.w700, spacing: 0.4, height: 1.2),
+  return ColorScheme(
+    brightness: b,
+    primary: p.ink,
+    onPrimary: p.paper,
+    primaryContainer: light ? const Color(0xFFECE4D5) : const Color(0xFF2E2924),
+    onPrimaryContainer: p.ink,
+    primaryFixed: light ? const Color(0xFFECE4D5) : const Color(0xFF2E2924),
+    secondary: p.period,
+    onSecondary: light ? p.raised : p.paper,
+    secondaryContainer: p.periodSoft,
+    onSecondaryContainer: light ? p.brandDeep : p.ink,
+    tertiary: p.fertile,
+    onTertiary: light ? p.raised : p.paper,
+    tertiaryContainer: p.fertileSoft,
+    onTertiaryContainer: light ? p.ovulation : p.ink,
+    error: p.error,
+    onError: light ? p.raised : p.paper,
+    errorContainer: light ? const Color(0xFFF0D5CF) : const Color(0xFF45231F),
+    onErrorContainer: light ? const Color(0xFF5E1712) : const Color(0xFFF7D2CB),
+    surface: p.paper,
+    onSurface: p.ink,
+    onSurfaceVariant: p.ink2,
+    surfaceDim: light ? const Color(0xFFEDE6D8) : const Color(0xFF151210),
+    surfaceBright: p.raised,
+    surfaceContainerLowest: p.raised,
+    surfaceContainerLow: light ? const Color(0xFFF3EDE2) : const Color(0xFF1F1B18),
+    surfaceContainer: light ? const Color(0xFFF0E9DC) : p.raised,
+    surfaceContainerHigh: light ? const Color(0xFFECE4D5) : const Color(0xFF2A2621),
+    surfaceContainerHighest: light ? const Color(0xFFE7DECD) : const Color(0xFF322D27),
+    outline: light ? const Color(0xFFB3A693) : const Color(0xFF6B6157),
+    outlineVariant: p.hairline,
+    shadow: const Color(0x00000000),
+    scrim: const Color(0xFF000000),
+    inverseSurface: p.ink,
+    onInverseSurface: p.paper,
+    inversePrimary: p.paper,
+    surfaceTint: const Color(0x00000000),
   );
 }
 
-/// Builds Bloom's complete Material 3 theme for [brightness].
+/// Builds Bloom's complete theme for [brightness]: paper, ink, hairlines,
+/// no ripples, no elevation, no tonal tints.
 ThemeData buildTheme(Brightness brightness) {
   final light = brightness == Brightness.light;
-  final s = _scheme(brightness);
-  final text = _textTheme(s);
+  final p = light ? BloomPalette.light : BloomPalette.dark;
+  final s = _scheme(brightness, p);
+  final text = _textTheme(p);
+  final subtle = light ? const Color(0xFFEFE8DB) : const Color(0xFF26221E);
   final tokens = BloomTokens(
-    cardShadow: BloomShadows.card(brightness),
-    raisedShadow: BloomShadows.raised(brightness),
-    border: light ? const Color(0xFFF1E1E6) : const Color(0xFF342A39),
-    muted: s.onSurfaceVariant,
-    subtle: light ? const Color(0xFFFBEDF1) : const Color(0xFF2A2130),
-    heroWash: BloomGradients.wash(BloomColors.brand, brightness),
+    cardShadow: const [],
+    raisedShadow: const [],
+    border: p.hairline,
+    muted: p.ink2,
+    subtle: subtle,
+    heroWash: LinearGradient(colors: [p.paper, p.paper]),
   );
-  final cardColor = light ? Colors.white : s.surfaceContainer;
-  const pill = StadiumBorder();
-  const buttonPadding = EdgeInsets.symmetric(horizontal: Space.xxl, vertical: Space.md);
-  const buttonSize = Size(64, 52);
-  final buttonText = text.labelLarge!.copyWith(fontSize: 15.5, color: null);
+  final hair = BorderSide(color: p.hairline);
+  final inkSide = BorderSide(color: p.ink);
+  const shape = RoundedRectangleBorder(borderRadius: Radii.mdAll);
+  const buttonPadding = EdgeInsets.symmetric(horizontal: Space.xl, vertical: Space.md);
+  const buttonSize = Size(64, 48);
+  final buttonText = Almanac.sans(size: 15, weight: FontWeight.w600, height: 1.2, letterSpacing: 0.1);
+  final none = WidgetStateProperty.all<Color?>(Colors.transparent);
+
+  // Press feedback without ripples: a faint ink (or paper, on ink) veil.
+  WidgetStateProperty<Color?> veil(Color c) => WidgetStateProperty.resolveWith((st) {
+        if (st.contains(WidgetState.pressed)) return c.withValues(alpha: 0.12);
+        if (st.contains(WidgetState.hovered)) return c.withValues(alpha: 0.05);
+        if (st.contains(WidgetState.focused)) return c.withValues(alpha: 0.10);
+        return null;
+      });
+
   const transitions = PageTransitionsTheme(builders: {
-    TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-    TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
-    TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
-    TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-    TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-    TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+    TargetPlatform.android: AlmanacPageTransitionsBuilder(),
+    TargetPlatform.iOS: AlmanacPageTransitionsBuilder(),
+    TargetPlatform.macOS: AlmanacPageTransitionsBuilder(),
+    TargetPlatform.windows: AlmanacPageTransitionsBuilder(),
+    TargetPlatform.linux: AlmanacPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: AlmanacPageTransitionsBuilder(),
   });
 
-  OutlineInputBorder inputBorder(Color c, [double w = 1]) =>
-      OutlineInputBorder(borderRadius: Radii.mdAll, borderSide: BorderSide(color: c, width: w));
+  UnderlineInputBorder line(Color c, [double w = 1]) =>
+      UnderlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: c, width: w));
+
+  final disabledFg = p.ink.withValues(alpha: 0.38);
 
   return ThemeData(
     useMaterial3: true,
@@ -503,331 +913,496 @@ ThemeData buildTheme(Brightness brightness) {
     colorScheme: s,
     textTheme: text,
     primaryTextTheme: text,
-    fontFamily: BloomFonts.body,
+    fontFamily: BloomFonts.sans,
     fontFamilyFallback: BloomFonts.fallback,
-    scaffoldBackgroundColor: s.surface,
-    canvasColor: s.surface,
-    splashFactory: InkSparkle.splashFactory,
+    scaffoldBackgroundColor: p.paper,
+    canvasColor: p.paper,
+    cardColor: p.raised,
+    dividerColor: p.hairline,
+    disabledColor: disabledFg,
+    // No ink ripples, no highlights. Widgets give their own quiet feedback.
+    splashFactory: NoSplash.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: p.ink.withValues(alpha: 0.03),
+    focusColor: p.ink.withValues(alpha: 0.08),
     visualDensity: VisualDensity.standard,
     materialTapTargetSize: MaterialTapTargetSize.padded,
     pageTransitionsTheme: transitions,
-    extensions: [tokens],
-    iconTheme: IconThemeData(color: s.onSurface, size: 24),
-    dividerTheme: DividerThemeData(color: tokens.border, thickness: 1, space: 1),
+    extensions: [tokens, p],
+    iconTheme: IconThemeData(color: p.ink, size: 22),
+    primaryIconTheme: IconThemeData(color: p.ink, size: 22),
+    dividerTheme: DividerThemeData(color: p.hairline, thickness: 1, space: 1),
     appBarTheme: AppBarTheme(
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: s.surface,
+      backgroundColor: p.paper,
       surfaceTintColor: Colors.transparent,
-      foregroundColor: s.onSurface,
+      shadowColor: Colors.transparent,
+      foregroundColor: p.ink,
+      iconTheme: IconThemeData(color: p.ink, size: 22),
       titleSpacing: Space.gutter,
       titleTextStyle: text.titleLarge,
       toolbarHeight: 60,
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: cardColor,
+      color: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: Radii.lgAll,
-        side: BorderSide(color: tokens.border),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: Radii.lgAll, side: hair),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
     ),
     listTileTheme: ListTileThemeData(
-      contentPadding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.xxs),
+      contentPadding: const EdgeInsets.symmetric(horizontal: Space.xs),
       minVerticalPadding: Space.md,
       horizontalTitleGap: Space.md,
-      shape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
-      iconColor: s.onSurfaceVariant,
-      titleTextStyle: text.bodyLarge!.copyWith(fontWeight: FontWeight.w600),
-      subtitleTextStyle: text.bodyMedium!.copyWith(color: s.onSurfaceVariant),
-      leadingAndTrailingTextStyle: text.labelLarge!.copyWith(color: s.onSurfaceVariant),
+      shape: const RoundedRectangleBorder(),
+      iconColor: p.ink2,
+      textColor: p.ink,
+      selectedColor: p.ink,
+      selectedTileColor: Colors.transparent,
+      titleTextStyle: text.bodyLarge!.copyWith(fontWeight: FontWeight.w500),
+      subtitleTextStyle: text.bodyMedium!.copyWith(color: p.ink2),
+      leadingAndTrailingTextStyle: Almanac.mono(size: 12.5, color: p.ink2),
     ),
     chipTheme: ChipThemeData(
-      shape: const StadiumBorder(),
-      side: BorderSide(color: tokens.border),
-      backgroundColor: cardColor,
-      selectedColor: s.primaryContainer,
-      checkmarkColor: s.onPrimaryContainer,
-      labelStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w600),
-      secondaryLabelStyle: text.labelLarge!.copyWith(color: s.onPrimaryContainer),
-      padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+      shape: RoundedRectangleBorder(borderRadius: Radii.smAll, side: hair),
+      side: hair,
+      backgroundColor: Colors.transparent,
+      selectedColor: p.ink,
+      disabledColor: Colors.transparent,
+      checkmarkColor: p.paper,
+      deleteIconColor: p.ink2,
+      labelStyle: WidgetStateTextStyle.resolveWith(
+        (st) => text.labelMedium!.copyWith(
+          fontSize: 13.5,
+          color: st.contains(WidgetState.selected) ? p.paper : p.ink,
+        ),
+      ),
+      secondaryLabelStyle: text.labelMedium!.copyWith(fontSize: 13.5, color: p.paper),
+      padding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: Space.xs + 2),
       labelPadding: const EdgeInsets.symmetric(horizontal: Space.xs),
       showCheckmark: false,
       elevation: 0,
       pressElevation: 0,
+      iconTheme: IconThemeData(color: p.ink2, size: 16),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: buttonSize,
-        padding: buttonPadding,
-        shape: pill,
-        textStyle: buttonText,
-        elevation: 0,
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(buttonSize),
+        padding: const WidgetStatePropertyAll(buttonPadding),
+        shape: const WidgetStatePropertyAll(shape),
+        textStyle: WidgetStatePropertyAll(buttonText),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.disabled) ? p.ink.withValues(alpha: 0.12) : p.ink,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.disabled) ? disabledFg : p.paper,
+        ),
+        iconColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.disabled) ? disabledFg : p.paper,
+        ),
+        overlayColor: veil(p.paper),
+        iconSize: const WidgetStatePropertyAll(18),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        minimumSize: buttonSize,
-        padding: buttonPadding,
-        shape: pill,
-        textStyle: buttonText,
-        backgroundColor: cardColor,
-        foregroundColor: s.primary,
-        elevation: light ? 1 : 0,
-        shadowColor: s.shadow.withValues(alpha: 0.3),
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(buttonSize),
+        padding: const WidgetStatePropertyAll(buttonPadding),
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: Radii.mdAll, side: hair)),
+        textStyle: WidgetStatePropertyAll(buttonText),
+        elevation: const WidgetStatePropertyAll(0),
+        shadowColor: none,
+        surfaceTintColor: none,
+        backgroundColor: WidgetStatePropertyAll(p.raised),
+        foregroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.disabled) ? disabledFg : p.ink),
+        overlayColor: veil(p.ink),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: buttonSize,
-        padding: buttonPadding,
-        shape: pill,
-        textStyle: buttonText,
-        foregroundColor: s.primary,
-        side: BorderSide(color: light ? const Color(0xFFEBC6D2) : s.outline, width: 1.2),
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(buttonSize),
+        padding: const WidgetStatePropertyAll(buttonPadding),
+        shape: const WidgetStatePropertyAll(shape),
+        textStyle: WidgetStatePropertyAll(buttonText),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: none,
+        foregroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.disabled) ? disabledFg : p.ink),
+        iconColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.disabled) ? disabledFg : p.ink),
+        side: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.disabled) ? hair : inkSide,
+        ),
+        overlayColor: veil(p.ink),
+        iconSize: const WidgetStatePropertyAll(18),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
-        shape: pill,
-        textStyle: buttonText.copyWith(fontSize: 14.5),
-        foregroundColor: s.primary,
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: Space.sm, vertical: Space.sm)),
+        shape: const WidgetStatePropertyAll(shape),
+        textStyle: WidgetStatePropertyAll(
+          buttonText.copyWith(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w500,
+            decoration: TextDecoration.underline,
+            decorationThickness: 1,
+          ),
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.disabled) ? disabledFg : p.ink),
+        iconColor: WidgetStatePropertyAll(p.ink2),
+        backgroundColor: none,
+        overlayColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.pressed) ? p.ink.withValues(alpha: 0.06) : null,
+        ),
+        iconSize: const WidgetStatePropertyAll(18),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: s.onSurface),
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+        foregroundColor: WidgetStateProperty.resolveWith((st) {
+          if (st.contains(WidgetState.disabled)) return disabledFg;
+          return st.contains(WidgetState.selected) ? p.ink : p.ink;
+        }),
+        overlayColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.pressed) || st.contains(WidgetState.focused)
+              ? p.ink.withValues(alpha: 0.07)
+              : null,
+        ),
+        shape: const WidgetStatePropertyAll(shape),
+        iconSize: const WidgetStatePropertyAll(22),
+      ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: s.primary,
-      foregroundColor: s.onPrimary,
-      elevation: 2,
-      highlightElevation: 4,
-      shape: const StadiumBorder(),
+      backgroundColor: p.ink,
+      foregroundColor: p.paper,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 0,
+      disabledElevation: 0,
+      splashColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.lgAll),
       extendedTextStyle: buttonText,
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
-      style: SegmentedButton.styleFrom(
-        minimumSize: const Size(48, 46),
-        textStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w700),
-        side: BorderSide(color: tokens.border, width: 1.2),
-        selectedBackgroundColor: s.primaryContainer,
-        selectedForegroundColor: s.onPrimaryContainer,
-        backgroundColor: cardColor,
-        foregroundColor: s.onSurfaceVariant,
-        shape: pill,
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(48, 42)),
+        textStyle: WidgetStatePropertyAll(text.labelLarge!.copyWith(fontWeight: FontWeight.w500, fontSize: 14)),
+        side: WidgetStatePropertyAll(BorderSide(color: light ? const Color(0xFFCFC4B1) : const Color(0xFF4A433A))),
+        backgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : Colors.transparent),
+        foregroundColor: WidgetStateProperty.resolveWith((st) {
+          if (st.contains(WidgetState.disabled)) return disabledFg;
+          return st.contains(WidgetState.selected) ? p.paper : p.ink;
+        }),
+        iconColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.ink2),
+        overlayColor: veil(p.ink),
+        shape: const WidgetStatePropertyAll(shape),
+        elevation: const WidgetStatePropertyAll(0),
       ),
+      selectedIcon: Icon(Icons.check, size: 16, color: p.paper),
     ),
     toggleButtonsTheme: ToggleButtonsThemeData(
       borderRadius: Radii.mdAll,
-      selectedColor: s.onPrimaryContainer,
-      fillColor: s.primaryContainer,
-      borderColor: tokens.border,
-      selectedBorderColor: tokens.border,
+      color: p.ink,
+      selectedColor: p.paper,
+      fillColor: p.ink,
+      borderColor: p.hairline,
+      selectedBorderColor: p.ink,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
     ),
     inputDecorationTheme: InputDecorationThemeData(
-      filled: true,
-      fillColor: tokens.subtle,
-      contentPadding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.lg),
-      border: inputBorder(Colors.transparent),
-      enabledBorder: inputBorder(Colors.transparent),
-      focusedBorder: inputBorder(s.primary, 1.6),
-      errorBorder: inputBorder(s.error),
-      focusedErrorBorder: inputBorder(s.error, 1.6),
-      disabledBorder: inputBorder(Colors.transparent),
-      labelStyle: text.bodyLarge!.copyWith(color: s.onSurfaceVariant),
-      floatingLabelStyle: text.bodyMedium!.copyWith(color: s.primary, fontWeight: FontWeight.w700),
-      hintStyle: text.bodyLarge!.copyWith(color: s.onSurfaceVariant.withValues(alpha: 0.7)),
+      filled: false,
+      isDense: false,
+      contentPadding: const EdgeInsets.fromLTRB(0, Space.md, 0, Space.md),
+      border: line(p.hairline),
+      enabledBorder: line(light ? const Color(0xFFCFC4B1) : const Color(0xFF4A433A)),
+      focusedBorder: line(p.ink, 1.5),
+      errorBorder: line(p.error),
+      focusedErrorBorder: line(p.error, 1.5),
+      disabledBorder: line(p.hairline),
+      labelStyle: text.bodyLarge!.copyWith(color: p.ink2),
+      floatingLabelStyle: Almanac.mono(size: 13, color: p.ink2, letterSpacing: 0.6),
+      hintStyle: text.bodyLarge!.copyWith(color: p.ink2.withValues(alpha: 0.75)),
       helperStyle: text.bodySmall,
-      prefixIconColor: s.onSurfaceVariant,
-      suffixIconColor: s.onSurfaceVariant,
+      errorStyle: text.bodySmall!.copyWith(color: p.error),
+      prefixIconColor: p.ink2,
+      suffixIconColor: p.ink2,
+      iconColor: p.ink2,
     ),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: s.primary,
-      selectionColor: s.primary.withValues(alpha: 0.25),
-      selectionHandleColor: s.primary,
+      cursorColor: p.ink,
+      selectionColor: p.period.withValues(alpha: 0.22),
+      selectionHandleColor: p.period,
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith(
-        (st) => st.contains(WidgetState.selected) ? s.onPrimary : (light ? Colors.white : s.outline),
-      ),
+      thumbColor: WidgetStateProperty.resolveWith((st) {
+        if (st.contains(WidgetState.disabled)) return p.ink2.withValues(alpha: 0.4);
+        return st.contains(WidgetState.selected) ? p.paper : p.ink2;
+      }),
       trackColor: WidgetStateProperty.resolveWith(
-        (st) => st.contains(WidgetState.selected) ? s.primary : tokens.subtle,
+        (st) => st.contains(WidgetState.selected) ? p.ink : Colors.transparent,
       ),
       trackOutlineColor: WidgetStateProperty.resolveWith(
-        (st) => st.contains(WidgetState.selected) ? Colors.transparent : (light ? const Color(0xFFE4CCD4) : s.outline),
+        (st) => st.contains(WidgetState.selected) ? p.ink : (light ? const Color(0xFFB3A693) : const Color(0xFF6B6157)),
       ),
-      thumbIcon: WidgetStateProperty.resolveWith(
-        (st) => st.contains(WidgetState.selected) ? Icon(Icons.check_rounded, size: 16, color: s.primary) : null,
-      ),
+      trackOutlineWidth: const WidgetStatePropertyAll(1),
+      thumbIcon: const WidgetStatePropertyAll(null),
+      overlayColor: none,
+      splashRadius: 0,
     ),
     checkboxTheme: CheckboxThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      side: BorderSide(color: s.outline, width: 1.6),
+      shape: const RoundedRectangleBorder(borderRadius: Radii.xsAll),
+      side: WidgetStateBorderSide.resolveWith(
+        (st) => BorderSide(color: st.contains(WidgetState.selected) ? p.ink : p.ink2, width: 1.2),
+      ),
+      fillColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : Colors.transparent),
+      checkColor: WidgetStatePropertyAll(p.paper),
+      overlayColor: none,
+      splashRadius: 0,
     ),
     radioTheme: RadioThemeData(
-      fillColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? s.primary : s.outline),
+      fillColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : p.ink2),
+      overlayColor: none,
+      splashRadius: 0,
     ),
     sliderTheme: SliderThemeData(
-      trackHeight: 6,
-      activeTrackColor: s.primary,
-      inactiveTrackColor: tokens.subtle,
-      thumbColor: s.primary,
-      overlayColor: s.primary.withValues(alpha: 0.12),
-      valueIndicatorColor: s.inverseSurface,
-      valueIndicatorTextStyle: text.labelLarge!.copyWith(color: s.onInverseSurface),
+      trackHeight: 1.5,
+      activeTrackColor: p.ink,
+      inactiveTrackColor: light ? const Color(0xFFCFC4B1) : const Color(0xFF4A433A),
+      disabledActiveTrackColor: p.ink2.withValues(alpha: 0.4),
+      disabledInactiveTrackColor: p.hairline,
+      activeTickMarkColor: Colors.transparent,
+      inactiveTickMarkColor: Colors.transparent,
+      thumbColor: p.ink,
+      overlayColor: Colors.transparent,
+      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7, elevation: 0, pressedElevation: 0),
+      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+      trackShape: const RectangularSliderTrackShape(),
+      valueIndicatorColor: p.ink,
+      valueIndicatorShape: const RectangularSliderValueIndicatorShape(),
+      valueIndicatorTextStyle: Almanac.mono(size: 12.5, color: p.paper),
       showValueIndicator: ShowValueIndicator.onDrag,
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
-      color: s.primary,
-      linearTrackColor: tokens.subtle,
-      circularTrackColor: tokens.subtle,
-      linearMinHeight: 8,
-      borderRadius: Radii.pillAll,
-      strokeCap: StrokeCap.round,
+      color: p.ink,
+      linearTrackColor: p.hairline,
+      circularTrackColor: Colors.transparent,
+      linearMinHeight: 2,
+      borderRadius: BorderRadius.zero,
+      strokeCap: StrokeCap.butt,
+      refreshBackgroundColor: p.raised,
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: light ? Colors.white : s.surfaceContainerLow,
+      backgroundColor: p.paper,
       surfaceTintColor: Colors.transparent,
-      modalBackgroundColor: light ? Colors.white : s.surfaceContainerLow,
+      modalBackgroundColor: p.paper,
+      elevation: 0,
+      modalElevation: 0,
+      shadowColor: Colors.transparent,
       showDragHandle: true,
-      dragHandleColor: s.outline.withValues(alpha: 0.5),
-      dragHandleSize: const Size(40, 5),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.xl))),
+      dragHandleColor: light ? const Color(0xFFCFC4B1) : const Color(0xFF4A433A),
+      dragHandleSize: const Size(36, 3),
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.xl)),
+        side: hair,
+      ),
       constraints: const BoxConstraints(maxWidth: Space.maxContentWidth),
       clipBehavior: Clip.antiAlias,
-      modalBarrierColor: Colors.black.withValues(alpha: light ? 0.32 : 0.55),
+      modalBarrierColor: (light ? const Color(0xFF2A2420) : Colors.black).withValues(alpha: light ? 0.28 : 0.55),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: light ? Colors.white : s.surfaceContainerHigh,
+      backgroundColor: p.paper,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: Radii.xlAll),
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: Radii.lgAll, side: hair),
       titleTextStyle: text.headlineSmall,
-      contentTextStyle: text.bodyLarge!.copyWith(color: s.onSurfaceVariant),
+      contentTextStyle: text.bodyLarge!.copyWith(color: p.ink2),
       insetPadding: const EdgeInsets.symmetric(horizontal: Space.xxl, vertical: Space.xxl),
+      barrierColor: (light ? const Color(0xFF2A2420) : Colors.black).withValues(alpha: light ? 0.28 : 0.55),
     ),
     datePickerTheme: DatePickerThemeData(
-      backgroundColor: light ? Colors.white : s.surfaceContainerHigh,
+      backgroundColor: p.paper,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: Radii.xlAll),
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: Radii.lgAll, side: hair),
+      headerBackgroundColor: p.paper,
+      headerForegroundColor: p.ink,
       headerHeadlineStyle: text.headlineMedium,
+      headerHelpStyle: Almanac.mono(size: 11, color: p.ink2, letterSpacing: 1),
+      weekdayStyle: Almanac.mono(size: 12, color: p.ink2),
+      dayStyle: text.bodyMedium,
+      dividerColor: p.hairline,
       dayShape: const WidgetStatePropertyAll(CircleBorder()),
+      dayForegroundColor: WidgetStateProperty.resolveWith((st) {
+        if (st.contains(WidgetState.disabled)) return disabledFg;
+        return st.contains(WidgetState.selected) ? p.paper : p.ink;
+      }),
+      dayBackgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : null),
+      dayOverlayColor: none,
+      todayForegroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.period),
+      todayBackgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : null),
+      todayBorder: BorderSide(color: p.period),
+      yearForegroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.ink),
+      yearBackgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : null),
+      yearOverlayColor: none,
+      rangeSelectionBackgroundColor: p.periodSoft,
+      cancelButtonStyle: ButtonStyle(foregroundColor: WidgetStatePropertyAll(p.ink2)),
+      confirmButtonStyle: ButtonStyle(foregroundColor: WidgetStatePropertyAll(p.ink)),
     ),
     timePickerTheme: TimePickerThemeData(
-      backgroundColor: light ? Colors.white : s.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(borderRadius: Radii.xlAll),
+      backgroundColor: p.paper,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: Radii.lgAll, side: hair),
+      dialBackgroundColor: p.raised,
+      dialHandColor: p.ink,
+      dialTextColor: WidgetStateColor.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.ink),
+      hourMinuteShape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
+      hourMinuteColor: WidgetStateColor.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : p.raised),
+      hourMinuteTextColor: WidgetStateColor.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.ink),
+      dayPeriodShape: RoundedRectangleBorder(borderRadius: Radii.mdAll, side: hair),
+      dayPeriodColor: WidgetStateColor.resolveWith((st) => st.contains(WidgetState.selected) ? p.ink : Colors.transparent),
+      dayPeriodTextColor: WidgetStateColor.resolveWith((st) => st.contains(WidgetState.selected) ? p.paper : p.ink),
+      dayPeriodBorderSide: hair,
+      entryModeIconColor: p.ink2,
+      helpTextStyle: Almanac.mono(size: 11, color: p.ink2, letterSpacing: 1),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: s.inverseSurface,
-      contentTextStyle: text.bodyMedium!.copyWith(color: s.onInverseSurface, fontWeight: FontWeight.w600),
-      actionTextColor: s.inversePrimary,
+      backgroundColor: p.ink,
+      contentTextStyle: text.bodyMedium!.copyWith(color: p.paper),
+      actionTextColor: light ? const Color(0xFFE0BE7A) : BloomColors.period,
       shape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
       elevation: 0,
       insetPadding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.lg),
       width: null,
     ),
     tooltipTheme: TooltipThemeData(
-      decoration: BoxDecoration(color: s.inverseSurface, borderRadius: Radii.smAll),
-      textStyle: text.labelMedium!.copyWith(color: s.onInverseSurface),
-      padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+      decoration: BoxDecoration(color: p.ink, borderRadius: Radii.smAll),
+      textStyle: Almanac.sans(size: 12.5, color: p.paper, height: 1.3),
+      padding: const EdgeInsets.symmetric(horizontal: Space.sm + 2, vertical: Space.xs + 2),
+      waitDuration: const Duration(milliseconds: 400),
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: light ? Colors.white : s.surfaceContainerHigh,
+      color: p.raised,
       surfaceTintColor: Colors.transparent,
-      elevation: 6,
-      shadowColor: s.shadow.withValues(alpha: 0.25),
-      shape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: Radii.mdAll, side: hair),
       textStyle: text.bodyLarge,
+      labelTextStyle: WidgetStatePropertyAll(text.bodyLarge),
     ),
     menuTheme: MenuThemeData(
       style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(light ? Colors.white : s.surfaceContainerHigh),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: const WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: Radii.mdAll)),
+        backgroundColor: WidgetStatePropertyAll(p.raised),
+        surfaceTintColor: none,
+        shadowColor: none,
+        elevation: const WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: Radii.mdAll, side: hair)),
       ),
     ),
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: text.bodyLarge,
       menuStyle: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(light ? Colors.white : s.surfaceContainerHigh),
-        shape: const WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: Radii.mdAll)),
+        backgroundColor: WidgetStatePropertyAll(p.raised),
+        surfaceTintColor: none,
+        shadowColor: none,
+        elevation: const WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: Radii.mdAll, side: hair)),
       ),
     ),
+    // The shell no longer uses NavigationBar or NavigationRail; these keep
+    // any stray use flat and quiet.
     navigationBarTheme: NavigationBarThemeData(
-      height: 72,
+      height: 64,
       elevation: 0,
-      backgroundColor: light ? Colors.white : s.surfaceContainerLow,
+      backgroundColor: p.paper,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
-      indicatorColor: s.primaryContainer,
-      indicatorShape: const StadiumBorder(),
+      indicatorColor: Colors.transparent,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith(
-        (st) => text.labelMedium!.copyWith(
-          color: st.contains(WidgetState.selected) ? s.onSurface : s.onSurfaceVariant,
-          fontWeight: st.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
-        ),
+        (st) => text.labelMedium!.copyWith(color: st.contains(WidgetState.selected) ? p.ink : p.ink2),
       ),
       iconTheme: WidgetStateProperty.resolveWith(
-        (st) => IconThemeData(
-          size: 24,
-          color: st.contains(WidgetState.selected) ? s.onPrimaryContainer : s.onSurfaceVariant,
-        ),
+        (st) => IconThemeData(size: 22, color: st.contains(WidgetState.selected) ? p.ink : p.ink2),
       ),
     ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      indicatorColor: s.primaryContainer,
-      indicatorShape: const StadiumBorder(),
-      selectedIconTheme: IconThemeData(color: s.onPrimaryContainer, size: 24),
-      unselectedIconTheme: IconThemeData(color: s.onSurfaceVariant, size: 24),
-      selectedLabelTextStyle: text.labelLarge!.copyWith(color: s.onSurface, fontWeight: FontWeight.w800),
-      unselectedLabelTextStyle: text.labelLarge!.copyWith(color: s.onSurfaceVariant, fontWeight: FontWeight.w600),
-      labelType: NavigationRailLabelType.all,
-      minWidth: 88,
-      groupAlignment: -0.6,
+      indicatorColor: Colors.transparent,
+      selectedIconTheme: IconThemeData(color: p.ink, size: 22),
+      unselectedIconTheme: IconThemeData(color: p.ink2, size: 22),
+      selectedLabelTextStyle: text.labelLarge!.copyWith(color: p.ink),
+      unselectedLabelTextStyle: text.labelLarge!.copyWith(color: p.ink2, fontWeight: FontWeight.w500),
     ),
     tabBarTheme: TabBarThemeData(
-      labelColor: s.onPrimaryContainer,
-      unselectedLabelColor: s.onSurfaceVariant,
-      labelStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w800),
-      unselectedLabelStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w600),
-      indicator: BoxDecoration(color: s.primaryContainer, borderRadius: Radii.pillAll),
-      indicatorSize: TabBarIndicatorSize.tab,
-      dividerColor: Colors.transparent,
-      overlayColor: WidgetStatePropertyAll(s.primary.withValues(alpha: 0.06)),
-      splashBorderRadius: Radii.pillAll,
-      tabAlignment: TabAlignment.center,
-      labelPadding: const EdgeInsets.symmetric(horizontal: Space.lg),
+      labelColor: p.ink,
+      unselectedLabelColor: p.ink2,
+      labelStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
+      unselectedLabelStyle: text.labelLarge!.copyWith(fontWeight: FontWeight.w500, fontSize: 14),
+      indicator: UnderlineTabIndicator(borderSide: BorderSide(color: p.ink, width: 1.5)),
+      indicatorSize: TabBarIndicatorSize.label,
+      dividerColor: p.hairline,
+      dividerHeight: 1,
+      overlayColor: none,
+      splashFactory: NoSplash.splashFactory,
+      labelPadding: const EdgeInsets.symmetric(horizontal: Space.md),
     ),
-    badgeTheme: BadgeThemeData(backgroundColor: s.primary, textColor: s.onPrimary),
+    badgeTheme: BadgeThemeData(
+      backgroundColor: p.period,
+      textColor: light ? p.raised : p.paper,
+      textStyle: Almanac.mono(size: 10, weight: FontWeight.w500),
+    ),
     expansionTileTheme: ExpansionTileThemeData(
-      shape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
-      collapsedShape: const RoundedRectangleBorder(borderRadius: Radii.mdAll),
-      iconColor: s.primary,
-      collapsedIconColor: s.onSurfaceVariant,
-      tilePadding: const EdgeInsets.symmetric(horizontal: Space.lg),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      iconColor: p.ink,
+      collapsedIconColor: p.ink2,
+      textColor: p.ink,
+      collapsedTextColor: p.ink,
+      tilePadding: const EdgeInsets.symmetric(horizontal: Space.xs),
+      childrenPadding: const EdgeInsets.fromLTRB(Space.xs, 0, Space.xs, Space.md),
     ),
     searchBarTheme: SearchBarThemeData(
       elevation: const WidgetStatePropertyAll(0),
-      backgroundColor: WidgetStatePropertyAll(tokens.subtle),
-      shape: const WidgetStatePropertyAll(StadiumBorder()),
-      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: Space.lg)),
+      backgroundColor: WidgetStatePropertyAll(p.raised),
+      surfaceTintColor: none,
+      shadowColor: none,
+      overlayColor: none,
+      side: WidgetStatePropertyAll(hair),
+      shape: const WidgetStatePropertyAll(shape),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: Space.md)),
       textStyle: WidgetStatePropertyAll(text.bodyLarge),
-      hintStyle: WidgetStatePropertyAll(text.bodyLarge!.copyWith(color: s.onSurfaceVariant)),
+      hintStyle: WidgetStatePropertyAll(text.bodyLarge!.copyWith(color: p.ink2)),
+      constraints: const BoxConstraints(minHeight: 46),
     ),
     scrollbarTheme: ScrollbarThemeData(
-      thumbColor: WidgetStatePropertyAll(s.onSurfaceVariant.withValues(alpha: 0.35)),
-      radius: const Radius.circular(Radii.pill),
-      thickness: const WidgetStatePropertyAll(6),
+      thumbColor: WidgetStatePropertyAll(p.ink2.withValues(alpha: 0.3)),
+      radius: Radius.zero,
+      thickness: const WidgetStatePropertyAll(3),
+    ),
+    drawerTheme: DrawerThemeData(
+      backgroundColor: p.paper,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(),
+    ),
+    bottomAppBarTheme: BottomAppBarThemeData(
+      color: p.paper,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
     ),
   );
 }

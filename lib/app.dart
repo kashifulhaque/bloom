@@ -13,8 +13,7 @@ import 'features/onboarding/onboarding_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/settings/lock_screen.dart';
 import 'features/today/today_screen.dart';
-import 'theme/app_theme.dart';
-import 'widgets/buttons.dart' show BloomLogo;
+import 'widgets/widgets.dart';
 
 class BloomApp extends StatelessWidget {
   const BloomApp({super.key});
@@ -35,6 +34,9 @@ class BloomApp extends StatelessWidget {
       darkTheme: buildTheme(Brightness.dark),
       themeMode: mode,
       themeAnimationDuration: Motion.medium,
+      scrollBehavior: const AlmanacScrollBehavior(),
+      // Paper and grain under (and over) every route, sheet, and dialog.
+      builder: (context, child) => PaperBackground(child: child ?? const SizedBox.shrink()),
       home: AnimatedSwitcher(
         duration: Motion.medium,
         child: !store.profile.onboarded
@@ -47,22 +49,17 @@ class BloomApp extends StatelessWidget {
   }
 }
 
-class _Destination {
-  const _Destination(this.label, this.icon, this.selectedIcon);
-  final String label;
-  final IconData icon;
-  final IconData selectedIcon;
-}
-
 /// The main shell holding the five tabs.
 ///
-/// Phones and tablets get a bottom [NavigationBar]. At 900 px and wider, the
-/// shell switches to a [NavigationRail] with the Bloom logo so the desktop web
-/// layout looks intentional. Tabs keep their state and cross-fade on switch.
+/// Phones and tablets get a paper bar at the bottom: a top hairline and a
+/// row of text labels with an underline under the active one. At 900 px and
+/// wider, the shell switches to a left editorial column with the logo, the
+/// app name in Fraunces, and vertical text links. Tabs keep their state and
+/// cross-fade on switch.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
-  /// Width at which the shell switches from a bottom bar to a side rail.
+  /// Width at which the shell switches from the bottom bar to the side column.
   static const railBreakpoint = 900.0;
 
   /// Switches tabs from anywhere below the shell, e.g. `HomeShell.goTo(context, 1)`.
@@ -81,6 +78,7 @@ class _HomeShellState extends State<HomeShell> {
 
   void _select(int i) {
     if (i == _index) return;
+    Almanac.tick();
     setState(() {
       _index = i;
       _visited.add(i);
@@ -89,13 +87,11 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _pages = [TodayScreen(), CalendarScreen(), InsightsScreen(), AssistantScreen(), ProfileScreen()];
 
-  static const _destinations = [
-    _Destination('Today', Icons.wb_twilight_rounded, Icons.wb_twilight_rounded),
-    _Destination('Calendar', Icons.calendar_month_outlined, Icons.calendar_month_rounded),
-    _Destination('Insights', Icons.auto_stories_outlined, Icons.auto_stories_rounded),
-    _Destination('Assistant', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded),
-    _Destination('Me', Icons.person_outline_rounded, Icons.person_rounded),
-  ];
+  /// Tab labels, in the same order as [_pages] and [HomeShell.goTo] indices.
+  static const _labels = ['Today', 'Calendar', 'Library', 'Ask', 'You'];
+
+  /// Longer names for screen readers and the desktop column.
+  static const _longLabels = ['Today', 'Calendar', 'Library', 'Ask Bloom', 'You'];
 
   Widget _body() {
     return Stack(
@@ -109,66 +105,192 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final wide = MediaQuery.sizeOf(context).width >= HomeShell.railBreakpoint;
-    final tokens = BloomTokens.of(context);
-
     if (wide) {
       return Scaffold(
         body: Row(
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.brightness == Brightness.light ? Colors.white : theme.colorScheme.surfaceContainerLow,
-                border: Border(right: BorderSide(color: tokens.border)),
-              ),
-              child: SafeArea(
-                right: false,
-                child: NavigationRail(
-                  selectedIndex: _index,
-                  onDestinationSelected: _select,
-                  leading: const Padding(
-                    padding: EdgeInsets.only(top: Space.xl, bottom: Space.xxxl),
-                    child: BloomLogo(size: 44),
-                  ),
-                  destinations: [
-                    for (final d in _destinations)
-                      NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                        padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+            _SideColumn(index: _index, labels: _longLabels, onSelect: _select),
+            const Hairline(vertical: true),
             Expanded(child: _body()),
           ],
         ),
       );
     }
-
     return Scaffold(
       body: _body(),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: tokens.border)),
-          boxShadow: theme.brightness == Brightness.light
-              ? const [BoxShadow(color: Color(0x0D7A2E4A), blurRadius: 16, offset: Offset(0, -4))]
-              : null,
-        ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: _select,
-          animationDuration: Motion.slow,
-          destinations: [
-            for (final d in _destinations)
-              NavigationDestination(icon: Icon(d.icon), selectedIcon: Icon(d.selectedIcon), label: d.label),
-          ],
+      bottomNavigationBar: _PaperTabBar(index: _index, labels: _labels, semanticLabels: _longLabels, onSelect: _select),
+    );
+  }
+}
+
+/// The phone navigation: a paper strip with a top hairline and five text
+/// labels; the active one is ink with an underline.
+class _PaperTabBar extends StatelessWidget {
+  const _PaperTabBar({required this.index, required this.labels, required this.semanticLabels, required this.onSelect});
+
+  final int index;
+  final List<String> labels;
+  final List<String> semanticLabels;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(color: p.paper, border: Border(top: BorderSide(color: p.hairline))),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.md, Space.xs, Space.md, Space.sm),
+          child: Row(
+            children: [
+              for (var i = 0; i < labels.length; i++)
+                Expanded(
+                  child: _NavLabel(
+                    label: labels[i],
+                    semanticLabel: semanticLabels[i],
+                    active: i == index,
+                    onTap: () => onSelect(i),
+                    align: Alignment.center,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+/// The desktop navigation: an editorial column with the mark, the name in
+/// Fraunces, vertical text links, and an ex libris note at the foot.
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({required this.index, required this.labels, required this.onSelect});
+
+  final int index;
+  final List<String> labels;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    return SizedBox(
+      width: 232,
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.xxxl, Space.xxxl, Space.xxl, Space.xxl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BloomLogo(size: 40),
+              Gap.v12,
+              Text('Bloom', style: Almanac.serif(size: 30, weight: 340, color: p.ink, height: 1)),
+              Gap.v4,
+              Text('a private almanac', style: Almanac.italic(context, size: 15, color: p.ink2)),
+              Gap.v32,
+              const Hairline(),
+              Gap.v16,
+              for (var i = 0; i < labels.length; i++)
+                _NavLabel(
+                  label: labels[i],
+                  semanticLabel: labels[i],
+                  active: i == index,
+                  onTap: () => onSelect(i),
+                  align: Alignment.centerLeft,
+                  size: 16,
+                  numeral: i + 1,
+                ),
+              const Spacer(),
+              const MonoLabel('Your data stays\non this device', size: 9.5),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One navigation label with an animated underline indicator.
+class _NavLabel extends StatelessWidget {
+  const _NavLabel({
+    required this.label,
+    required this.semanticLabel,
+    required this.active,
+    required this.onTap,
+    required this.align,
+    this.size = 13.5,
+    this.numeral,
+  });
+
+  final String label;
+  final String semanticLabel;
+  final bool active;
+  final VoidCallback onTap;
+  final Alignment align;
+  final double size;
+
+  /// A small mono index before the label (desktop column).
+  final int? numeral;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = BloomColors.of(context);
+    final style = Almanac.sans(size: size, weight: FontWeight.w500, color: active ? p.ink : p.ink2, height: 1.2);
+    final text = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: align == Alignment.centerLeft ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        AnimatedDefaultTextStyle(duration: Motion.medium, style: style, child: Text(label, maxLines: 1)),
+        const SizedBox(height: 5),
+        AnimatedContainer(
+          duration: Motion.medium,
+          curve: Motion.curve,
+          height: 1.5,
+          width: active ? _textWidth(label, style) : 0,
+          color: p.ink,
+        ),
+      ],
+    );
+    return Semantics(
+      label: semanticLabel,
+      selected: active,
+      button: true,
+      excludeSemantics: true,
+      child: Pressable(
+        onTap: onTap,
+        borderRadius: Radii.smAll,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: numeral == null ? 48 : 44),
+          child: Align(
+            alignment: align,
+            widthFactor: align == Alignment.centerLeft ? null : 1,
+            heightFactor: 1,
+            child: numeral == null
+                ? text
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(numeral!.toString().padLeft(2, '0'), style: Almanac.label(context, size: 10)),
+                        ),
+                      ),
+                      text,
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static double _textWidth(String s, TextStyle style) {
+    final tp = TextPainter(text: TextSpan(text: s, style: style), textDirection: TextDirection.ltr, maxLines: 1)..layout();
+    return tp.width;
   }
 }
 
@@ -192,12 +314,7 @@ class _FadeTab extends StatelessWidget {
             opacity: active ? 1 : 0,
             duration: active ? Motion.medium : Motion.fast,
             curve: Motion.curve,
-            child: AnimatedSlide(
-              offset: active ? Offset.zero : const Offset(0, 0.012),
-              duration: Motion.medium,
-              curve: Motion.curve,
-              child: TickerMode(enabled: active, child: child),
-            ),
+            child: TickerMode(enabled: active, child: child),
           ),
         ),
       ),

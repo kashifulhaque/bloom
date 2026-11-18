@@ -15,29 +15,27 @@ class AppearanceScreen extends StatelessWidget {
     final store = context.watch<AppStore>();
     final p = store.profile;
     return SettingsPage(
+      eyebrow: 'Settings',
       title: 'Units & appearance',
+      subtitle: 'How Bloom measures, and how the page looks.',
       children: [
         MenuSection(
           title: 'Units',
           children: [
             SegmentedSetting<TempUnit>(
               label: 'Temperature',
-              icon: Icons.thermostat_rounded,
-              color: BloomColors.coral,
-              segments: const [
-                ButtonSegment(value: TempUnit.celsius, label: Text('°C  Celsius')),
-                ButtonSegment(value: TempUnit.fahrenheit, label: Text('°F  Fahrenheit')),
+              options: const [
+                TextChoice(TempUnit.celsius, '°C', semanticLabel: 'Celsius'),
+                TextChoice(TempUnit.fahrenheit, '°F', semanticLabel: 'Fahrenheit'),
               ],
               selected: p.tempUnit,
               onChanged: (v) => store.updateProfile((p) => p.tempUnit = v),
             ),
             SegmentedSetting<WeightUnit>(
               label: 'Weight',
-              icon: Icons.scale_rounded,
-              color: BloomColors.info,
-              segments: const [
-                ButtonSegment(value: WeightUnit.kg, label: Text('kg')),
-                ButtonSegment(value: WeightUnit.lb, label: Text('lb')),
+              options: const [
+                TextChoice(WeightUnit.kg, 'kg', semanticLabel: 'Kilograms'),
+                TextChoice(WeightUnit.lb, 'lb', semanticLabel: 'Pounds'),
               ],
               selected: p.weightUnit,
               onChanged: (v) => store.updateProfile((p) => p.weightUnit = v),
@@ -49,24 +47,21 @@ class AppearanceScreen extends StatelessWidget {
           children: [
             SegmentedSetting<String>(
               label: 'Theme',
-              icon: Icons.palette_rounded,
-              color: BloomColors.luteal,
-              segments: const [
-                ButtonSegment(value: 'system', label: Text('Auto'), icon: Icon(Icons.brightness_auto_rounded)),
-                ButtonSegment(value: 'light', label: Text('Light'), icon: Icon(Icons.light_mode_rounded)),
-                ButtonSegment(value: 'dark', label: Text('Dark'), icon: Icon(Icons.dark_mode_rounded)),
+              subtitle: 'Paper by day, lamplight by night',
+              options: const [
+                TextChoice('system', 'Auto', semanticLabel: 'Follow the system'),
+                TextChoice('light', 'Paper', semanticLabel: 'Light'),
+                TextChoice('dark', 'Lamplight', semanticLabel: 'Dark'),
               ],
               selected: p.themeMode,
               onChanged: (v) => store.updateProfile((p) => p.themeMode = v),
             ),
             SegmentedSetting<int>(
               label: 'First day of the week',
-              icon: Icons.calendar_view_week_rounded,
-              color: BloomColors.fertile,
-              segments: const [
-                ButtonSegment(value: DateTime.saturday, label: Text('Sat')),
-                ButtonSegment(value: DateTime.sunday, label: Text('Sun')),
-                ButtonSegment(value: DateTime.monday, label: Text('Mon')),
+              options: const [
+                TextChoice(DateTime.saturday, 'Sat', semanticLabel: 'Saturday'),
+                TextChoice(DateTime.sunday, 'Sun', semanticLabel: 'Sunday'),
+                TextChoice(DateTime.monday, 'Mon', semanticLabel: 'Monday'),
               ],
               selected: p.firstDayOfWeek,
               onChanged: (v) => store.updateProfile((p) => p.firstDayOfWeek = v),

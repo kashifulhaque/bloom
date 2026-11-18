@@ -145,8 +145,9 @@ void main() {
       final lmp = addDays(today(), -87);
       store.setFeature('pregnancy', {'lmp': dayKey(lmp), 'dueDate': dayKey(dueFromLmp(lmp)), 'babies': 1});
       await tester.pumpWidget(_wrap(store, const PregnancyHome()));
+      expect(find.text('Week twelve,\nday three.'), findsOneWidget);
       expect(find.text('Week 12 · Day 3'), findsOneWidget);
-      expect(find.text('First trimester'), findsOneWidget);
+      expect(find.text('FIRST TRIMESTER'), findsOneWidget);
       expect(find.textContaining('193 days to go'), findsOneWidget);
       expect(find.textContaining('a lime'), findsOneWidget);
       expect(find.text('This week'), findsOneWidget);

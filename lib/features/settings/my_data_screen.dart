@@ -90,7 +90,7 @@ class MyDataScreen extends StatelessWidget {
     return SettingsPage(
       eyebrow: 'Data & privacy',
       title: 'My data',
-      subtitle: 'Everything you log stays on this device.',
+      subtitle: 'Everything you log stays on this device unless you turn on sync.',
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -106,8 +106,8 @@ class MyDataScreen extends StatelessWidget {
             ),
             Gap.v12,
             Text(
-              'Bloom has no account and no server, so a backup file is the only way to move your data '
-              'to another device or keep it safe.',
+              'To move your data to another device or keep a copy, export a backup file, or turn on '
+              'encrypted sync in You > Sync if this copy of Bloom has it.',
               style: muted,
             ),
           ],
@@ -131,7 +131,8 @@ class MyDataScreen extends StatelessWidget {
         DangerSection(
           title: 'Delete all data',
           body: 'Permanently erase everything Bloom stores on this device: periods, logs, reminders, and '
-              'settings. This can\'t be undone.',
+              'settings. This can\'t be undone. If sync is on, it turns off here first, so the synced copy '
+              'stays in your account.',
           action: Align(
             alignment: Alignment.centerLeft,
             child: InkButton.outlined(

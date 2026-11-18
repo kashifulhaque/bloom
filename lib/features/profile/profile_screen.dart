@@ -26,6 +26,7 @@ import '../settings/cycle_settings_screen.dart';
 import '../settings/my_data_screen.dart';
 import '../settings/notification_privacy_screen.dart';
 import '../settings/settings_widgets.dart';
+import '../sync/sync_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -76,6 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
     final reminders = ReminderSettings.of(store).enabled.length;
     final bc = Contraception.of(store).method;
     final pregnant = p.goal == Goal.trackPregnancy;
+    final sync = watchSync(context);
     var n = 0;
     String no() => (++n).toString().padLeft(2, '0');
 
@@ -181,8 +183,8 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
           ),
           MenuSection(
             title: 'Data & privacy',
-            footer: 'Bloom keeps everything on this device. No account, no server, no analytics. '
-                'Only optional AI answers go online, and only when you turn them on.',
+            footer: 'Bloom keeps everything on this device, with no analytics and no account needed. '
+                'Only optional AI answers and optional encrypted sync go online, and only when you turn them on.',
             children: [
               IndexEntry(
                 number: no(),
@@ -190,6 +192,14 @@ class _ProfileScreenState extends State<ProfileScreen> with WidgetsBindingObserv
                 subtitle: 'Export, import, or delete',
                 onTap: () => _push(const MyDataScreen()),
               ),
+              if (sync != null)
+                IndexEntry(
+                  number: no(),
+                  title: 'Sync',
+                  subtitle: 'Optional · end-to-end encrypted',
+                  value: sync.statusLabel,
+                  onTap: () => _push(const SyncScreen()),
+                ),
               IndexEntry(
                 number: no(),
                 title: 'AI answers in Ask',

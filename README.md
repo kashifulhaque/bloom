@@ -1,9 +1,9 @@
 # Bloom
 
 Bloom is a free, open-source period, fertility, and pregnancy tracker for the web and
-Android, built with Flutter. It works fully offline. There's no account, and your data
-stays on your device. The only exception is the optional AI answers in **Ask**, which are
-off until you turn them on.
+Android, built with Flutter. It works fully offline. You don't need an account, and your
+data stays on your device. The exceptions are the optional AI answers in **Ask** and
+optional end-to-end encrypted sync, which are both off until you turn them on.
 
 Bloom covers the features of the popular commercial trackers, including the ones they
 put behind a subscription. For the full feature inventory, see
@@ -36,6 +36,8 @@ Android APK and an unsigned iOS build.
   system notifications on Android and as an in-app banner on the web.
 - **Privacy:** a PIN app lock, JSON backup, export and import, CSV export, and an option
   to delete all data.
+- **Sync:** optional, end-to-end encrypted sync between your phone and the web, unlocked
+  with a 12-word recovery phrase.
 - **Partner sharing:** a read-only snapshot that you share as a code or QR code.
 
 Bloom isn't a medical device or a method of birth control.
@@ -187,6 +189,154 @@ Bloom never sends your name, notes, journal, birth year, or any dates. Free mode
 might log prompts or use them for training. AI answers can be wrong and aren't medical
 advice.
 
+## Sync
+
+Sync keeps Bloom the same on Android, iOS, and the web. It's optional and off by default,
+and a build without sync settings works exactly as before. To turn it on, in the app, go
+to **You > Sync**, sign in with a 6-digit code that Bloom emails you, and save your
+recovery phrase.
+
+### What's encrypted
+
+Bloom encrypts every record on the device before upload, so the server stores only
+ciphertext:
+
+- **Records.** Each day log, the profile, each feature (such as the journal or pregnancy
+  settings), and each month of period days is one record, encrypted with
+  XChaCha20-Poly1305 under a random 256-bit data key. The associated data binds each
+  ciphertext to its row, so the server can't swap rows or replay old content.
+- **Record IDs.** A record's ID is an HMAC-SHA256 of its plaintext key, such as a date, so
+  the server can't see which days have logs.
+- **The data key.** Argon2id derives a key from the 12-word recovery phrase and a random
+  salt, and that key wraps the data key. Only the wrapped key, the salt, and the Argon2id
+  parameters go to the server.
+
+The server can see your email address, how many records you have, when they change, their
+sizes, and your IP address. Your app-lock PIN, your OpenRouter key, and the AI answers
+settings stay on each device.
+
+On Android and iOS, the unwrapped data key is in the Keystore or Keychain. On the web, a
+non-extractable WebCrypto AES-GCM key in IndexedDB wraps it. Signing out removes the key
+from the device.
+
+If you lose the recovery phrase and every device that has sync on, nobody can recover
+the synced data. Bloom says so before you turn sync on.
+
+For the design, see [`docs/SYNC_PLAN.md`](docs/SYNC_PLAN.md).
+
+### Configure a build
+
+A build has sync when it has both of the following values. Neither one is secret: the
+publishable key identifies the project, and row-level security protects the data.
+
+- `SUPABASE_URL`: the project URL, such as `https://PROJECT_REF.supabase.co`.
+- `SUPABASE_PUBLISHABLE_KEY`: the project's publishable key (`sb_publishable_...`).
+
+Add them to `.env`, and then pass the file to the build:
+
+```bash
+flutter build web --release --dart-define-from-file=.env
+```
+
+Replace `PROJECT_REF` with the project reference. Never put the secret key or the service
+role key in `.env` or in the app.
+
+The web build loads `web/sodium.js` (libsodium.js, ISC License) the first time it derives
+a key. The Content-Security-Policy must allow the project URL in `connect-src`. The
+policy in `deploy/nginx/templates/bloom.conf.template` already does.
+
+### Run the local stack
+
+The Supabase CLI is a development dependency in `package.json`. To work against a local
+stack, do the following:
+
+1. Start Docker, and then start the stack:
+
+   ```bash
+   npm install
+   npx supabase start
+   ```
+
+   The command applies the migrations in `supabase/migrations/` and prints the local URL
+   and keys.
+
+1. Run the database tests and the advisors:
+
+   ```bash
+   npx supabase test db
+   npx supabase db advisors --type all --level info
+   ```
+
+1. Run the integration test. It reads the local URL and publishable key from
+   `npx supabase status`, serves the Edge Functions, reads sign-in codes from the local
+   Mailpit inbox, and refuses to run against anything but `127.0.0.1` or `localhost`:
+
+   ```bash
+   tool/sync_integration_test.sh
+   ```
+
+1. Optional: run the app against the local stack:
+
+   ```bash
+   flutter run -d chrome --dart-define=SUPABASE_URL=http://127.0.0.1:54321 --dart-define=SUPABASE_PUBLISHABLE_KEY=LOCAL_PUBLISHABLE_KEY
+   ```
+
+   Replace `LOCAL_PUBLISHABLE_KEY` with the publishable key that `npx supabase status`
+   prints. Sign-in emails appear in Mailpit at http://127.0.0.1:54324.
+
+1. When you're done, stop the stack:
+
+   ```bash
+   npx supabase stop
+   ```
+
+### Deploy sync
+
+To deploy sync to the hosted project, do the following:
+
+1. Push the migration to the linked project. If this folder isn't linked yet, first run
+   `npx supabase link --project-ref PROJECT_REF`. `db push` prompts for the database
+   password, or reads `SUPABASE_DB_PASSWORD`:
+
+   ```bash
+   npx supabase db push --dry-run
+   npx supabase db push
+   ```
+
+1. Run the advisors against the project:
+
+   ```bash
+   npx supabase db advisors --remote --type all --level info
+   ```
+
+1. Deploy the Edge Function:
+
+   ```bash
+   npx supabase functions deploy delete-account
+   ```
+
+   The function reads the project URL, its keys, and the signing keys from the hosted
+   environment. It needs no secrets of its own.
+
+1. In the dashboard, under **Authentication**, set the following:
+
+   - **Sign In / Providers > Email**: turn on **Email**, set **Email OTP Length** to 6
+     and **Email OTP Expiration** to 600 seconds.
+   - **Emails > Templates > Magic Link**: include `{{ .Token }}`, as in
+     `supabase/templates/otp_code.html`. Without it, the email has a link but no code.
+     Do the same for **Confirm signup** if email confirmations are on. New free-plan
+     projects can only edit templates after you set up custom SMTP.
+   - **Sessions**: set the access token (JWT) expiry to 900 seconds.
+   - **URL Configuration**: set **Site URL** to `https://bloom.ifkash.dev`. Bloom signs in
+     with a typed code, so it doesn't need redirect URLs.
+
+   Don't use `npx supabase config push` for these settings: `config.toml` holds local
+   values, such as the local site URL, that would replace the project's.
+
+1. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to the build: in `.env` for local
+   builds, and as `--dart-define` values in the workflow's web, Android, and iOS build
+   steps.
+
 ## Test
 
 To run the static analysis and the test suite, run the following commands:
@@ -199,6 +349,17 @@ flutter analyze
 flutter test
 ```
 
+The sync crypto and engine tests also run in Chrome, which checks that the web build
+produces the same bytes:
+
+```bash
+flutter test --platform chrome test/sync_crypto_test.dart test/sync_engine_test.dart
+```
+
+The integration test in `test/integration/` is skipped unless you run it with
+`tool/sync_integration_test.sh`. For more information, see [Run the local
+stack](#run-the-local-stack).
+
 ## Project layout
 
 The code is organized as follows:
@@ -207,7 +368,12 @@ The code is organized as follows:
   persisted store.
 - `lib/theme/` and `lib/widgets/`: the design system. For more information, see
   [`docs/DESIGN.md`](docs/DESIGN.md).
-- `lib/features/`: one folder for each feature area.
+- `lib/core/sync/`: sync without UI code: encryption, the record codec, the hybrid
+  logical clock, the sync engine, and the Supabase client.
+- `lib/features/`: one folder for each feature area. The Sync screens are in
+  `lib/features/sync/`.
+- `supabase/`: the database migration, its pgTAP tests, the `delete-account` Edge
+  Function, and the local stack's settings.
 - `test/`: unit and widget tests. `test/support/screenshot.dart` renders screens to PNG
   files for visual review.
 
@@ -311,4 +477,6 @@ restarts the container. Then the workflow checks that the site serves the new ve
 
 The code is available under the MIT License. The bundled fonts (Outfit, Nunito, and a
 subset of Noto Color Emoji) use the SIL Open Font License 1.1. Their license texts are in
-`assets/fonts/`.
+`assets/fonts/`. `web/sodium.js` is libsodium.js under the ISC License
+(`web/sodium.LICENSE.txt`), and the recovery phrase uses the BIP-39 English wordlist
+under the MIT License (`lib/core/sync/crypto/bip39_english.dart`).

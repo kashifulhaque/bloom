@@ -34,8 +34,12 @@ map "${OPENROUTER_API_KEY}" $bloom_ai_off {
 #  - style-src 'unsafe-inline' covers the splash <style> and the inline
 #    styles that the Flutter engine sets on its DOM elements.
 #  - connect-src https://openrouter.ai is for users who bring their own key.
+#  - connect-src https://whnzpkdqghsjogimkszp.supabase.co is the sync server
+#    (Auth, the Data API, and the delete-account Edge Function). Sync's
+#    libsodium.js is the same-origin /sodium.js, and its WebAssembly needs only
+#    the 'wasm-unsafe-eval' that CanvasKit already uses.
 map $host $bloom_csp {
-    default "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+M0fGRkOqgYlCQCff9oNQn6k6a7Si4Et8iofLMceadE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://openrouter.ai; worker-src 'self' blob:; frame-src blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+    default "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-+M0fGRkOqgYlCQCff9oNQn6k6a7Si4Et8iofLMceadE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://openrouter.ai https://whnzpkdqghsjogimkszp.supabase.co; worker-src 'self' blob:; frame-src blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 }
 
 # Files that must be revalidated on every load so a deploy is picked up.

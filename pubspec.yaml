@@ -51,6 +51,9 @@ dependencies:
   qr_flutter: ^4.1.0
   http: ^1.6.0
   web: ^1.1.2
+  supabase_flutter: ^2.18.3
+  flutter_secure_storage: ^11.2.0
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:

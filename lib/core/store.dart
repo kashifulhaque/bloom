@@ -14,6 +14,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dates.dart';
 import 'engine.dart';
 import 'models.dart';
+import 'sync_records.dart';
+
+export 'sync_records.dart';
 
 class AppStore extends ChangeNotifier {
   AppStore._(this._prefs);
@@ -41,6 +44,10 @@ class AppStore extends ChangeNotifier {
   bool locked = false;
 
   late CycleEngine engine;
+
+  /// Set by the sync engine while sync is on. When it's null (the default),
+  /// the store behaves exactly as it does without sync.
+  SyncHooks? syncHooks;
 
   static Future<AppStore> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -73,7 +80,20 @@ class AppStore extends ChangeNotifier {
   Timer? _saveTimer;
 
   /// Rebuilds derived state, notifies listeners, and schedules a save.
-  void commit() {
+  ///
+  /// Call it after changing [profile], [periodDays], [logs], or [features]
+  /// directly. Sync then rescans every record for changes. The store's own
+  /// methods report exactly which records changed instead.
+  void commit() => _commit(null);
+
+  /// Like [commit], but tells sync which records changed. Null means "could
+  /// be anything".
+  void _commit(Iterable<SyncRef>? changed) {
+    syncHooks?.localChanged(changed);
+    _apply();
+  }
+
+  void _apply() {
     _rebuild();
     notifyListeners();
     if (_prefs == null) return; // In-memory store: nothing to persist.
@@ -89,7 +109,7 @@ class AppStore extends ChangeNotifier {
 
   void updateProfile(void Function(Profile p) change) {
     change(profile);
-    commit();
+    _commit(const [SyncRef.profile]);
   }
 
   void setGoal(Goal g) => updateProfile((p) => p.goal = g);
@@ -100,35 +120,44 @@ class AppStore extends ChangeNotifier {
 
   void setPeriodDay(DateTime d, bool on) {
     on ? periodDays.add(dayKey(d)) : periodDays.remove(dayKey(d));
-    commit();
+    _commit([SyncRef.periodsOf(d)]);
   }
 
   /// Replaces period days in [from]..[to] with exactly [days].
   void setPeriodDaysInRange(DateTime from, DateTime to, Set<DateTime> days) {
+    final touched = <SyncRef>{};
     periodDays.removeWhere((k) {
       final d = parseDayKey(k);
-      return !d.isBefore(from) && !d.isAfter(to);
+      final hit = !d.isBefore(from) && !d.isAfter(to);
+      if (hit) touched.add(SyncRef.periodsOf(d));
+      return hit;
     });
     periodDays.addAll(days.map(dayKey));
-    commit();
+    touched.addAll(days.map(SyncRef.periodsOf));
+    _commit(touched);
   }
 
   /// Logs a period starting on [start] for [length] days (default: average).
   void startPeriod(DateTime start, {int? length}) {
     final len = length ?? engine.avgPeriodLength;
+    final touched = <SyncRef>{};
     for (var i = 0; i < len; i++) {
-      periodDays.add(dayKey(addDays(start, i)));
+      final d = addDays(start, i);
+      periodDays.add(dayKey(d));
+      touched.add(SyncRef.periodsOf(d));
     }
-    commit();
+    _commit(touched);
   }
 
   /// Ends the period that contains [day]: removes later days of that run.
   void endPeriod(DateTime day) {
     var d = addDays(day, 1);
+    final touched = <SyncRef>{};
     while (periodDays.remove(dayKey(d))) {
+      touched.add(SyncRef.periodsOf(d));
       d = addDays(d, 1);
     }
-    commit();
+    _commit(touched);
   }
 
   // ---------------------------------------------------------------- logs
@@ -144,8 +173,11 @@ class AppStore extends ChangeNotifier {
       logs[log.key] = log;
     }
     final flow = log.get('flow');
-    if (flow.isNotEmpty && !flow.contains('spotting')) periodDays.add(log.key);
-    commit();
+    final touched = [SyncRef.day(log.key)];
+    if (flow.isNotEmpty && !flow.contains('spotting') && periodDays.add(log.key)) {
+      touched.add(SyncRef.periodsOf(log.date));
+    }
+    _commit(touched);
   }
 
   void toggleOption(DateTime d, String categoryId, String optionId, {bool single = false}) {
@@ -184,7 +216,7 @@ class AppStore extends ChangeNotifier {
 
   void setFeature(String key, Object? value) {
     value == null ? features.remove(key) : features[key] = value;
-    commit();
+    _commit([SyncRef.feature(key)]);
   }
 
   // ---------------------------------------------------------------- lock
@@ -234,19 +266,101 @@ class AppStore extends ChangeNotifier {
     if (j['app'] != 'bloom') throw const FormatException('Not a Bloom backup file');
     _fromJson(j);
     locked = false;
-    commit();
+    _commit(null);
   }
 
   String exportJson() => const JsonEncoder.withIndent('  ').convert(toJson());
 
   /// Deletes every piece of data and returns to onboarding.
+  ///
+  /// This erases only this device. When sync is on, it also turns sync off
+  /// here (see [SyncHooks.localReset]), so the synced copy isn't erased too.
   Future<void> deleteAll() async {
+    await syncHooks?.localReset();
     profile = Profile();
     periodDays.clear();
     logs.clear();
     features.clear();
     locked = false;
     await _prefs?.remove(_storageKey);
-    commit();
+    _apply();
+  }
+
+  // ---------------------------------------------------------------- sync
+
+  /// Every record that sync would upload now. Device-only data, such as the
+  /// app-lock PIN or the AI key, isn't included (see [SyncRef.syncsFeature]).
+  Iterable<SyncRef> syncRefs() sync* {
+    yield SyncRef.profile;
+    for (final k in logs.keys) {
+      yield SyncRef.day(k);
+    }
+    final months = <String>{for (final k in periodDays) k.substring(0, 7)};
+    for (final m in months) {
+      yield SyncRef(SyncKind.periods, m);
+    }
+    for (final k in features.keys) {
+      if (SyncRef.syncsFeature(k)) yield SyncRef.feature(k);
+    }
+  }
+
+  /// The JSON value of one record, or null when it doesn't exist (deleted).
+  Object? syncValue(SyncRef ref) {
+    switch (ref.kind) {
+      case SyncKind.profile:
+        return profile.toJson()..removeWhere((k, _) => SyncRef.localProfileFields.contains(k));
+      case SyncKind.day:
+        return logs[ref.key]?.toJson();
+      case SyncKind.periods:
+        final days = [for (final k in periodDays) if (k.startsWith('${ref.key}-')) k]..sort();
+        return days.isEmpty ? null : days;
+      case SyncKind.feature:
+        return SyncRef.syncsFeature(ref.key) ? features[ref.key] : null;
+    }
+  }
+
+  /// Applies records that sync downloaded. A null value deletes the record.
+  ///
+  /// It doesn't report the changes back to sync, then saves and notifies
+  /// listeners like any other change. Records that don't parse are skipped.
+  void applyRemote(Iterable<RemoteChange> changes) {
+    var any = false;
+    for (final c in changes) {
+      try {
+        _applyOne(c);
+        any = true;
+      } catch (e) {
+        debugPrint('Skipped a synced ${c.ref.kind.name} record: $e');
+      }
+    }
+    if (any) _apply();
+  }
+
+  void _applyOne(RemoteChange c) {
+    final v = c.value;
+    switch (c.ref.kind) {
+      case SyncKind.profile:
+        if (v == null) return; // The profile is never deleted.
+        final local = SyncRef.localProfileFields.map((f) => MapEntry(f, profile.toJson()[f]));
+        profile = Profile.fromJson({...Map<String, dynamic>.from(v as Map), ...Map.fromEntries(local)});
+      case SyncKind.day:
+        if (v == null) {
+          logs.remove(c.ref.key);
+        } else {
+          final log = DayLog.fromJson(Map<String, dynamic>.from(v as Map));
+          if (log.key != c.ref.key) throw FormatException('Day ${log.key} sent as ${c.ref.key}');
+          logs[log.key] = log;
+        }
+      case SyncKind.periods:
+        final month = c.ref.key;
+        final days = v == null ? const <String>[] : List<String>.from(v as List);
+        if (days.any((d) => !d.startsWith('$month-'))) throw FormatException('Period days outside $month');
+        periodDays
+          ..removeWhere((k) => k.startsWith('$month-'))
+          ..addAll(days);
+      case SyncKind.feature:
+        if (!SyncRef.syncsFeature(c.ref.key)) return;
+        v == null ? features.remove(c.ref.key) : features[c.ref.key] = v;
+    }
   }
 }

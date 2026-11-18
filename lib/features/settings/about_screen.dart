@@ -57,7 +57,9 @@ class AboutPrivacyScreen extends StatelessWidget {
           children: [
             const SectionHeader('Privacy', label: 'I.', padding: EdgeInsets.zero),
             Gap.v16,
-            entry('Offline', 'Works without a connection', 'No account and no server. Your data stays on this device unless you export it or turn on AI answers in Ask.'),
+            entry('Offline', 'Works without a connection', 'No account needed. Your data stays on this device unless you export it, turn on AI answers in Ask, or turn on sync.'),
+            const Hairline(spacing: Space.md),
+            entry('Sealed', 'Sync is end-to-end encrypted', 'Optional sync encrypts every record on your device before upload. The server stores only ciphertext and can\'t read your logs or see which days you logged. Only your 12-word recovery phrase unlocks it.'),
             const Hairline(spacing: Space.md),
             entry('Quiet', 'No analytics or ads', 'Bloom doesn\'t track how you use it and doesn\'t share data with anyone.'),
             const Hairline(spacing: Space.md),
@@ -132,7 +134,7 @@ class AboutPrivacyScreen extends StatelessWidget {
             children: [
               const BotanicalGlyph(Botanical.sprig, size: 28),
               Gap.v8,
-              Text('Kept on this device, and nowhere else.', style: Almanac.italic(context, size: 15, color: p.ink2)),
+              Text('Kept on this device, unless you choose otherwise.', style: Almanac.italic(context, size: 15, color: p.ink2)),
             ],
           ),
         ),

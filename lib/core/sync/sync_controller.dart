@@ -54,7 +54,9 @@ class SyncController extends ChangeNotifier {
     this.debounce = const Duration(seconds: 5),
   })  : keyStore = keyStore ?? MemoryKeyStore(),
         stateStorage = stateStorage ?? MemorySyncStateStorage(),
-        phase = connect == null ? SyncPhase.unconfigured : SyncPhase.starting;
+        phase = connect == null ? SyncPhase.unconfigured : SyncPhase.starting {
+    if (connect != null) store.onErase = _onErase;
+  }
 
   final AppStore store;
 
@@ -392,6 +394,13 @@ class SyncController extends ChangeNotifier {
     _set(SyncPhase.signedOut);
   }
 
+  /// The user erased all data on this device, with sync on or off. The sync
+  /// state kept after [signOut] describes records that are gone now. If it
+  /// stayed, unlocking again would read every one of them as deleted here
+  /// and push those deletes to the account, so forget it: the next unlock
+  /// joins as a new device and downloads the account's copy.
+  Future<void> _onErase() => stateStorage.clear();
+
   Future<void> _stop() async {
     _timer?.cancel();
     _engine?.detach();
@@ -438,6 +447,7 @@ class SyncController extends ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _engine?.detach();
+    if (store.onErase == _onErase) store.onErase = null;
     super.dispose();
   }
 }

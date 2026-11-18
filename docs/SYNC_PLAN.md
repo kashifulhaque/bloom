@@ -206,6 +206,11 @@ This section lists the decisions that differ from, or extend, the plan.
 - **Signing out** removes the data key and the session from the device and keeps the
   per-record state, so signing back in to the same account resumes. Signing in to a
   different account starts over.
+- **Erasing while signed out forgets the kept state.** `AppStore.deleteAll()` calls
+  `onErase` even when sync is off, and `SyncController` clears the saved sync state there.
+  Otherwise, unlocking again would read every record in that state as deleted on this
+  device and push deletes that win on every device. After an erase, the next unlock
+  joins as a new device and adopts the account's copy.
 - **Session storage.** On Android and iOS, the Supabase session is in
   `flutter_secure_storage` instead of shared preferences. On the web, it's in
   `localStorage`.

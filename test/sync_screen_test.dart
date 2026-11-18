@@ -252,6 +252,48 @@ void main() {
     expect(server.rows.values.single, isNotEmpty, reason: 'the synced copy stays');
   });
 
+  testWidgets('signing out, erasing, then unlocking again adopts the account instead of wiping it', (t) async {
+    final server = FakeServer();
+    final store = AppStore.memory(profile: Profile(onboarded: true, name: 'Ada'));
+    store.logs['2026-11-01'] = DayLog(DateTime(2026, 11, 1), note: 'keep me');
+    store.commit();
+    final svc = FakeSyncService(server)..signInAs('ada@example.test');
+    final sync = SyncController(
+      store: store,
+      connect: () async => svc,
+      keyStore: MemoryKeyStore(),
+      stateStorage: MemorySyncStateStorage(),
+      kdfParams: _fastKdf,
+    );
+    await t.runAsync(() async {
+      await sync.open();
+      final phrase = sync.beginSetup().toString();
+      await sync.finishSetup();
+      await sync.syncNow();
+      final synced = server.rowsOf(svc.userId!).where((r) => !r.deleted).length;
+      expect(synced, greaterThanOrEqualTo(2));
+
+      // Sign out (sync state is kept on purpose), then erase this device.
+      await sync.signOut();
+      await store.deleteAll();
+      expect(store.logs, isEmpty);
+
+      // Sign back in to the same account and unlock.
+      svc.signInAs('ada@example.test');
+      await sync.open();
+      expect(sync.phase, SyncPhase.needsUnlock);
+      await sync.unlock(phrase);
+      await sync.syncNow();
+      expect(sync.actionError, isNull);
+      expect(sync.syncError, isNull);
+      expect(server.rowsOf(svc.userId!).where((r) => r.deleted), isEmpty,
+          reason: 'the erased device must not push tombstones');
+      expect(server.rowsOf(svc.userId!).where((r) => !r.deleted).length, synced);
+    });
+    expect(store.logs['2026-11-01']?.note, 'keep me');
+    expect(store.profile.name, 'Ada');
+  });
+
   testWidgets('You lists Sync with its status, and About mentions encryption', (t) async {
     final store = AppStore.memory(profile: Profile(onboarded: true));
     phone(t);

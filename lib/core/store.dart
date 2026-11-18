@@ -49,6 +49,11 @@ class AppStore extends ChangeNotifier {
   /// the store behaves exactly as it does without sync.
   SyncHooks? syncHooks;
 
+  /// Called by [deleteAll] after [SyncHooks.localReset], even while sync is
+  /// off. Sync uses it to forget the state it keeps for signing back in, so
+  /// an erased device can't later push deletes for every record it held.
+  FutureOr<void> Function()? onErase;
+
   static Future<AppStore> load() async {
     final prefs = await SharedPreferences.getInstance();
     final store = AppStore._(prefs);
@@ -277,6 +282,7 @@ class AppStore extends ChangeNotifier {
   /// here (see [SyncHooks.localReset]), so the synced copy isn't erased too.
   Future<void> deleteAll() async {
     await syncHooks?.localReset();
+    await onErase?.call();
     profile = Profile();
     periodDays.clear();
     logs.clear();
